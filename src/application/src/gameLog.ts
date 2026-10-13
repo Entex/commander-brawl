@@ -47,13 +47,16 @@ export function undoneIds(entries: Iterable<Recorded>): Set<string> {
   return undone;
 }
 
-/** The game as if the events that were taken back never happened. */
-export function replayLog(entries: Iterable<Recorded>): GameState {
+/**
+ * The game as if the events that were taken back never happened. Entries not yet in the log (no time of
+ * their own) count as happening at `now` (the host's clock).
+ */
+export function replayLog(entries: Iterable<Recorded & { readonly at?: number }>, now = 0): GameState {
   const all = [...entries];
   const undone = undoneIds(all);
   let state = newGame();
   for (const entry of all) {
-    if (entry.event.type !== 'undo' && !undone.has(entry.id)) state = applyEvent(state, entry.event);
+    if (entry.event.type !== 'undo' && !undone.has(entry.id)) state = applyEvent(state, entry.event, entry.at ?? now);
   }
   return state;
 }
@@ -170,6 +173,11 @@ export interface GameView {
   readonly lastLive: LoggedEvent | null;
   /** The last few events that arrived as they happened, oldest first: lastLive and the ones before it. */
   readonly live: readonly LoggedEvent[];
+  /**
+   * The host's clock minus this computer's, in milliseconds, as best known (from when live events arrive). The
+   * turn timer counts on the host's clock: add this to the time here to compare.
+   */
+  readonly hostClockOffset: number;
 }
 
 const RECENT_LIMIT = 30;
@@ -188,9 +196,14 @@ export class GameSync {
   private readonly listeners = new Set<(view: GameView) => void>();
   private view: GameView;
 
+  /** See GameView.hostClockOffset. */
+  private hostClockOffset = 0;
+
   constructor(
     private readonly transport: GameSyncTransport,
     private readonly createId: () => string,
+    /** This computer's clock, in milliseconds since 1970. */
+    private readonly now: () => number = () => Date.now(),
   ) {
     this.view = this.buildView();
   }
@@ -249,9 +262,13 @@ export class GameSync {
         break;
       }
       this.log.push(entry);
-      if (batch.live) this.live = [...this.live.slice(1 - LIVE_LIMIT), entry];
+      if (batch.live) {
+        this.live = [...this.live.slice(1 - LIVE_LIMIT), entry];
+        // It just happened, so the host's clock said `at` about now (give or take the trip here).
+        this.hostClockOffset = entry.at - this.now();
+      }
       if (entry.event.type === 'undo') undo = true;
-      else this.confirmed = applyEvent(this.confirmed, entry.event);
+      else this.confirmed = applyEvent(this.confirmed, entry.event, entry.at);
       this.pending = this.pending.filter((p) => p.id !== entry.id);
       changed = true;
     }
@@ -279,11 +296,14 @@ export class GameSync {
   private buildView(): GameView {
     // Actions that need the host (like a shuffle) only show up once the host has decided them.
     const pending = this.pending.flatMap((p) => (isIntent(p.event) ? [] : [{ id: p.id, event: p.event }]));
+    // Your own changes the host hasn't confirmed yet count as happening now.
+    const hostNow = this.now() + this.hostClockOffset;
     const state = pending.some((p) => p.event.type === 'undo')
-      ? replayLog([...this.log, ...pending])
+      ? replayLog([...this.log, ...pending], hostNow)
       : applyEvents(
           this.confirmed,
           pending.map((p) => p.event),
+          hostNow,
         );
     return {
       state,
@@ -292,6 +312,7 @@ export class GameSync {
       unconfirmed: this.pending.length,
       lastLive: this.live.at(-1) ?? null,
       live: this.live,
+      hostClockOffset: this.hostClockOffset,
     };
   }
 }

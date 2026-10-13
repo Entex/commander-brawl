@@ -7,12 +7,11 @@ import {
   type TableSessionState,
 } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
-import { MAX_SEATS, STARTING_LIFE, isAnnouncement, type GameState, type SeatIndex } from '@commander-brawl/domain';
+import { MAX_SEATS, STARTING_LIFE, isAnnouncement, type SeatIndex } from '@commander-brawl/domain';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
-import { seatName, type Players } from '../names';
 import { cameraStatus, type CameraState } from '../useCamera';
 import { useCloseUps } from '../useCloseUps';
 import { usePointers } from '../usePointers';
@@ -21,6 +20,7 @@ import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
 import { PointerLayer } from './PointerLayer';
+import { ClockPanel, TurnControls } from './Turn';
 import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
 import { Rule0Panel } from './Rule0Panel';
 import { SnapshotView } from './SnapshotView';
@@ -57,6 +57,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   }, []);
   const [decksOpen, setDecksOpen] = useState(false);
   const [rule0Open, setRule0Open] = useState(false);
+  const [clockOpen, setClockOpen] = useState(false);
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
@@ -141,6 +142,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                   role="menuitem"
                   onClick={() => {
                     close();
+                    setClockOpen(true);
+                  }}
+                  disabled={!game}
+                >
+                  Clock
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
                     onOpenCamera();
                   }}
                 >
@@ -163,7 +174,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <div className="status-bar">
           <ResponseButton />
           <button onClick={() => setRule0Open(true)}>Rule 0</button>
-          <TurnControls game={game.state} players={state.seats} />
+          <TurnControls game={game.state} players={state.seats} hostClockOffset={game.hostClockOffset} />
           <LastChange game={game} state={state} />
         </div>
       )}
@@ -201,7 +212,6 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         />
       )}
 
-      <ResponseBanner calls={responseCalls} self={selfSeat} />
       {game && <Spotlight game={game} />}
       {closeUp && (
         <SnapshotView
@@ -218,11 +228,13 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           onClose={closeCloseUp}
         />
       )}
+      {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
       {game && rule0Open && (
         <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
       )}
 
       <PointerLayer marks={pointerMarks} onPoint={point} selfSeat={selfSeat}>
+        <ResponseBanner calls={responseCalls} self={selfSeat} />
         {seats.map((seat, index) =>
           seat ? (
             <SeatTile
@@ -232,6 +244,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               game={game?.state ?? null}
               active={seat.player.seat === activeSeat}
               responding={responding.has(seat.player.seat)}
+              hostClockOffset={game?.hostClockOffset ?? 0}
               showStats={showStats}
               getStats={getStats}
               onOpenCard={openCard}
@@ -299,34 +312,6 @@ function arrangeSeats<T extends SeatView<MediaStreamTrack>>(
   return [slot(0), slot(1), slot(3), slot(2)];
 }
 
-function TurnControls({ game, players }: { readonly game: GameState; readonly players: Players }) {
-  const self = players.find((p) => p.isSelf)?.player.seat;
-  if (game.turnOrder === null || game.activeSeat === null) {
-    return (
-      <button
-        disabled={players.length === 0}
-        onClick={() => submitGameEvent({ type: 'randomize-turn-order', seats: players.map((p) => p.player.seat) })}
-      >
-        Random turn order
-      </button>
-    );
-  }
-  const yours = game.activeSeat === self;
-  return (
-    <div className="turn" data-testid="turn">
-      <span>
-        Turn {game.turn} · Round {game.round} ·{' '}
-        <strong>{yours ? 'Your turn' : `${seatName(players, game.activeSeat)}'s turn`}</strong>
-      </span>
-      {yours && (
-        <button className="primary" onClick={() => submitGameEvent({ type: 'turn-passed', from: game.activeSeat! })}>
-          Pass turn
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** Ctrl (or Cmd on a Mac) plus a key, anywhere in the window. */
 function useShortcut(key: string, action: () => void): void {
   const actionRef = useRef(action);
@@ -380,8 +365,11 @@ function LastChange({
   readonly game: GameView | null;
   readonly state: TableSessionState<MediaStreamTrack>;
 }) {
-  // Things the app does by itself (like checking a deck) stay in the log, but aren't news here.
-  const last = game?.recent.findLast((entry) => entry.event.type !== 'deck-analyzed');
+  // Things the app does by itself (like checking a deck) stay in the log, but aren't news here; neither are
+  // phases, which show next to the turn.
+  const last = game?.recent.findLast(
+    (entry) => entry.event.type !== 'deck-analyzed' && entry.event.type !== 'phase-set',
+  );
   if (!game || !last) return null;
   return (
     <span className="last-change" data-testid="last-change">

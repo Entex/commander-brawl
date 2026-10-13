@@ -1,6 +1,6 @@
 import type { LoggedEvent } from '@commander-brawl/application';
 import type { GameState } from '@commander-brawl/domain';
-import { COUNTER_NAMES, commanderName, seatName, type Players } from './names';
+import { COUNTER_NAMES, PHASE_NAMES, commanderName, describeClock, seatName, type Players } from './names';
 import { formatChange } from './useGroupedChange';
 
 /**
@@ -81,6 +81,14 @@ export function describeEvent(
       return event.reason === 'cast' ? `${by.name} cast ${event.card.name}` : `${by.name} showed ${event.card.name}`;
     case 'response-called':
       return `${by.name}: “Wait, I have a response!”`;
+    case 'phase-set':
+      return `${by.name} moved to ${PHASE_NAMES[event.phase]}`;
+    case 'clock-set':
+      return event.settings ? `${by.name} started ${describeClock(event.settings)}` : `${by.name} turned the clock off`;
+    case 'clock-paused':
+      return `${by.name} paused the clock`;
+    case 'clock-resumed':
+      return `${by.name} restarted the clock`;
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {

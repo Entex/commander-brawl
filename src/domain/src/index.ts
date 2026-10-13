@@ -49,3 +49,17 @@ export {
   normalizePlayerName,
 } from './table';
 export type { Player, SeatIndex } from './table';
+export {
+  COMBAT_STEPS,
+  MAX_CLOCK_MINUTES,
+  PHASES,
+  clockForTurn,
+  isPhase,
+  newClock,
+  pauseClock,
+  runClock,
+  stopClock,
+  timeLeft,
+  toClockSettings,
+} from './turns';
+export type { Clock, ClockKind, ClockSettings, Phase } from './turns';

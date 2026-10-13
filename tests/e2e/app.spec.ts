@@ -598,6 +598,59 @@ async function centerOf(locator: ReturnType<Page['locator']>): Promise<{ x: numb
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+test('phases of the turn, a turn timer that a response pauses, and a chess clock', async () => {
+  const { host, friend } = await hostAndFriend();
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Clock' }).click();
+  await host.page.getByLabel(/Turn timer/).check();
+  await host.page.getByLabel('Minutes per turn').fill('2');
+  await host.page.getByRole('button', { name: 'Use this clock' }).click();
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host started a turn timer, 2 min a turn');
+
+  await host.page.getByRole('button', { name: 'Random turn order' }).click();
+  await expect(host.page.getByTestId('turn')).toBeVisible();
+  const hostFirst = (await host.page.getByTestId('turn').textContent())!.includes('Your turn');
+  const [active, other] = hostFirst ? [host, friend] : [friend, host];
+
+  // The clock runs for the active player, the same for everyone.
+  for (const { page } of [active, other]) {
+    await expect(page.getByTestId('clock')).toContainText(/⏱ (2:00|1:5\d)/);
+    await expect(page.getByTestId('phases').locator('.phase-current')).toHaveText('Upkeep');
+  }
+
+  // The active player moves on; everyone sees where they are.
+  await active.page.getByTestId('phases').getByRole('button', { name: 'Draw' }).click();
+  await expect(other.page.getByTestId('phases').locator('.phase-current')).toHaveText('Draw');
+  // Only the active player moves the turn along.
+  await expect(other.page.getByTestId('phases').getByRole('button')).toHaveCount(0);
+
+  // "Wait, I have a response!" stops the clock until the active player moves on.
+  await other.page.keyboard.press('w');
+  await expect(active.page.getByTestId('clock')).toContainText('Paused');
+  const paused = await active.page.getByTestId('clock').textContent();
+  await active.page.waitForTimeout(1_500);
+  await expect(active.page.getByTestId('clock')).toHaveText(paused!);
+  await active.page.getByTestId('phases').getByRole('button', { name: 'Combat' }).click();
+  await expect(other.page.getByTestId('clock')).not.toContainText('Paused');
+  await expect(other.page.getByTestId('phases')).toContainText('Attackers');
+  await other.page.screenshot({ path: test.info().outputPath('turn.png') });
+
+  // Next turn: the other player's, from the upkeep, with a fresh two minutes.
+  await active.page.getByRole('button', { name: 'Pass turn' }).click();
+  await expect(other.page.getByTestId('turn')).toContainText('Your turn');
+  await expect(other.page.getByTestId('phases').locator('.phase-current')).toHaveText('Upkeep');
+  await expect(other.page.getByTestId('clock')).toContainText(/⏱ (2:00|1:5\d)/);
+
+  // A chess clock instead: everyone's time bank on their seat.
+  await other.page.getByRole('button', { name: 'Menu' }).click();
+  await other.page.getByRole('menuitem', { name: 'Clock' }).click();
+  await other.page.getByLabel(/Chess clock/).check();
+  await expect(other.page.getByLabel('Minutes per player')).toHaveValue('25');
+  await other.page.getByRole('button', { name: 'Start over with this clock' }).click();
+  await expect(active.page.getByTestId('seat-clock')).toHaveCount(2);
+  await expect(active.page.locator('.seat-clock-running')).toHaveCount(1);
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

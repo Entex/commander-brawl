@@ -23,6 +23,7 @@ import { submitGameEvent } from '../useGame';
 import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
 import { SeatDetails } from './SeatDetails';
+import { SeatClock } from './Turn';
 import { VideoView } from './VideoView';
 
 interface SeatTileProps {
@@ -34,6 +35,8 @@ interface SeatTileProps {
   readonly active: boolean;
   /** This player just asked everyone to wait: they have a response. */
   readonly responding: boolean;
+  /** See GameView.hostClockOffset. For a chess clock's time. */
+  readonly hostClockOffset: number;
   readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
   /** Shows a card in the Cards panel. */
@@ -55,6 +58,7 @@ export function SeatTile({
   game,
   active,
   responding,
+  hostClockOffset,
   showStats,
   getStats,
   onOpenCard,
@@ -113,6 +117,9 @@ export function SeatTile({
           <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
           {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
           {state?.bracket && <BracketBadge state={state} />}
+          {game?.clock?.settings.kind === 'chess' && (
+            <SeatClock clock={game.clock} seat={index} hostClockOffset={hostClockOffset} />
+          )}
           {status && <span className="badge badge-warn">{status}</span>}
         </div>
         {game && state && <CommanderBadges seat={index} game={game} onOpenCard={onOpenCard} />}

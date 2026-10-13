@@ -35,7 +35,9 @@ The app recovers from these problems by itself:
 - **A video link fails.** It restarts, first gently and then from scratch.
 - **The host's app crashes or is closed by accident.** The host opens it again and clicks _Resume table_. Friends' apps are still trying to reconnect, so they come back by themselves, to the same seats and the same game. (_Close table_ in the menu ends the table for everyone.)
 
-**✋ Wait!** (or the W key) is "Wait, I have a response!": it flashes on every screen with your name, and your seat lights up, so it isn't lost when everyone talks at once.
+**Turns.** _Random turn order_ starts the first turn. The active player clicks through the phases (upkeep, draw, main, combat with its steps, second main, end), so everyone can see where they are, and passes the turn when done. For a turn timer or a chess clock, pick _Clock_ in the menu. Running out doesn't stop anyone: it just shows.
+
+**✋ Wait!** (or the W key) is "Wait, I have a response!": it flashes on every screen with your name, and your seat lights up, so it isn't lost when everyone talks at once. It also pauses the clock until the active player moves on.
 
 **Pointing.** Right-click a spot on any video to ping it ("this creature"); drag from one spot to another, on the same video or someone else's, to draw an arrow ("attacking you"). Everyone sees it in the same spot, even with a flipped video, in your color and with your name, for a few seconds.
 

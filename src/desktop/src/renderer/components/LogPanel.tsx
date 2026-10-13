@@ -125,6 +125,10 @@ function seatsIn(event: GameEvent): SeatIndex[] {
       return [event.seat];
     case 'card-shown':
     case 'response-called':
+    case 'phase-set':
+    case 'clock-set':
+    case 'clock-paused':
+    case 'clock-resumed':
     case 'custom-counter-saved':
     case 'custom-counter-removed':
     case 'new-game':

@@ -169,6 +169,34 @@ describe('replayLog', () => {
 });
 
 describe('GameSync', () => {
+  it("knows how far the host's clock is from this computer's, and counts your own new changes on the host's", () => {
+    let localNow = 4_000;
+    const sync = new GameSync(
+      { send: () => true },
+      () => 'mine',
+      () => localNow,
+    );
+    const at = (seq: number, hostAt: number, event: GameEvent): LoggedEvent => ({
+      seq,
+      id: `e${seq}`,
+      at: hostAt,
+      by: alice,
+      event,
+    });
+    sync.received({
+      logId: 'log',
+      from: 0,
+      events: [at(0, 9_000, { type: 'clock-set', settings: { kind: 'turn', minutes: 1 } })],
+      live: true,
+    });
+    expect(sync.getView().hostClockOffset).toBe(5_000);
+
+    // Your turn starts now: on the host's clock that's 5 seconds later than here.
+    localNow = 10_000;
+    sync.submit({ type: 'turn-order-set', order: [0, 1] });
+    expect(sync.getView().state.clock?.running).toEqual({ seat: 0, since: 15_000 });
+  });
+
   it('keeps the last few events that arrived as they happened, but not ones caught up on', () => {
     const sync = new GameSync({ send: () => true }, () => 'x');
     const entry = (seq: number): LoggedEvent => ({

@@ -9,6 +9,17 @@ import {
 import { isBracket, toDeckAnalysis, type Bracket, type DeckAnalysis } from './brackets';
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { MAX_SEATS, type SeatIndex } from './table';
+import {
+  clockForTurn,
+  isPhase,
+  newClock,
+  pauseClock,
+  runClock,
+  toClockSettings,
+  type Clock,
+  type ClockSettings,
+  type Phase,
+} from './turns';
 
 export const STARTING_LIFE = 40;
 /** No single change is bigger than this. Guards against typos and garbage input. */
@@ -66,6 +77,10 @@ export interface GameState {
   readonly turn: number;
   /** Times around the table, counting the current one. */
   readonly round: number;
+  /** Where the active player is in their turn, or null before the first turn. */
+  readonly phase: Phase | null;
+  /** The turn timer or chess clock, if the table uses one. */
+  readonly clock: Clock | null;
 }
 
 /**
@@ -122,6 +137,12 @@ export type GameEvent =
    * screen; like a card shown, it doesn't change the game.
    */
   | { readonly type: 'response-called' }
+  /** The active player moved on to this step of their turn (or back to it). */
+  | { readonly type: 'phase-set'; readonly phase: Phase }
+  /** Starts a turn timer or chess clock from scratch, or (null) does away with it. */
+  | { readonly type: 'clock-set'; readonly settings: ClockSettings | null }
+  | { readonly type: 'clock-paused' }
+  | { readonly type: 'clock-resumed' }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -170,10 +191,17 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
     activeSeat: null,
     turn: 0,
     round: 0,
+    phase: null,
+    // Same clock as last game, started over once the first turn begins.
+    clock: previous?.clock ? newClock(previous.clock.settings, null, 0) : null,
   };
 }
 
-export function applyEvent(state: GameState, event: GameEvent): GameState {
+/**
+ * The game after this event. `at` is when it happened, on the host's clock (milliseconds since 1970): only the
+ * turn timer or chess clock needs it.
+ */
+export function applyEvent(state: GameState, event: GameEvent, at = 0): GameState {
   switch (event.type) {
     case 'life-changed':
       return updateSeat(state, event.seat, (seat) => ({ ...seat, life: seat.life + event.amount }));
@@ -251,14 +279,45 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
     case 'bracket-declared':
       return updateSeat(state, event.seat, (seat) => ({ ...seat, bracket: event.bracket }));
     case 'card-shown':
-    case 'response-called':
       return state;
+    case 'response-called':
+      // Waiting for a response isn't anyone's time running out.
+      return state.clock ? { ...state, clock: pauseClock(state.clock, at) } : state;
+    case 'phase-set': {
+      // Moving on means the response (or break) is over.
+      const clock =
+        state.clock?.paused && state.activeSeat !== null ? runClock(state.clock, state.activeSeat, at) : state.clock;
+      return { ...state, phase: event.phase, clock };
+    }
+    case 'clock-set':
+      return { ...state, clock: event.settings ? newClock(event.settings, state.activeSeat, at) : null };
+    case 'clock-paused':
+      return state.clock ? { ...state, clock: pauseClock(state.clock, at) } : state;
+    case 'clock-resumed':
+      return state.clock && state.activeSeat !== null && !state.clock.running
+        ? { ...state, clock: runClock(state.clock, state.activeSeat, at) }
+        : state;
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
-      return { ...state, turnOrder: event.order, activeSeat: first, turn: 1, round: 1 };
+      return {
+        ...state,
+        turnOrder: event.order,
+        activeSeat: first,
+        turn: 1,
+        round: 1,
+        phase: first === null ? null : PHASES_START,
+        clock: state.clock && first !== null ? newClock(state.clock.settings, first, at) : state.clock,
+      };
     }
-    case 'turn-passed':
-      return passTurn(state, event.from);
+    case 'turn-passed': {
+      const passed = passTurn(state, event.from);
+      if (passed === state || passed.activeSeat === null) return passed;
+      return {
+        ...passed,
+        phase: PHASES_START,
+        clock: passed.clock ? clockForTurn(passed.clock, passed.activeSeat, at) : null,
+      };
+    }
     case 'new-game':
       return newGame(event.startingLife, state.number + 1, state);
     case 'undo':
@@ -280,9 +339,13 @@ function passTurn(state: GameState, from: SeatIndex): GameState {
   return state;
 }
 
-export function applyEvents(state: GameState, events: Iterable<GameEvent>): GameState {
+/** A turn starts at its upkeep. */
+const PHASES_START: Phase = 'upkeep';
+
+/** Applies the events in order, all at the same time `at` (see applyEvent). */
+export function applyEvents(state: GameState, events: Iterable<GameEvent>, at = 0): GameState {
   let current = state;
-  for (const event of events) current = applyEvent(current, event);
+  for (const event of events) current = applyEvent(current, event, at);
   return current;
 }
 
@@ -404,6 +467,17 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isEventId(value.target) ? { type: 'undo', target: value.target } : null;
     case 'response-called':
       return { type: 'response-called' };
+    case 'phase-set':
+      return isPhase(value.phase) ? { type: 'phase-set', phase: value.phase } : null;
+    case 'clock-set': {
+      if (value.settings === null) return { type: 'clock-set', settings: null };
+      const settings = toClockSettings(value.settings);
+      return settings ? { type: 'clock-set', settings } : null;
+    }
+    case 'clock-paused':
+      return { type: 'clock-paused' };
+    case 'clock-resumed':
+      return { type: 'clock-resumed' };
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
