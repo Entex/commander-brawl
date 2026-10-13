@@ -9,7 +9,6 @@
     "./protocol": "./src/protocol/index.ts"
   },
   "dependencies": {
-    "@achingbrain/nat-port-mapper": "^4.0.5",
     "@commander-brawl/application": "0.1.0",
     "@commander-brawl/domain": "0.1.0",
     "selfsigned": "^5.5.0",

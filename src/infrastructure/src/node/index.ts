@@ -13,6 +13,18 @@ export type { PhoneLinkEvents, PhoneLinkServerOptions } from './phoneLinkServer'
 export { openRouterPort } from './portMapping';
 export type { PortMappingResult } from './portMapping';
 export { STUN_SERVERS, bindingRequest, parseBindingResponse, publicIpv4, reachesServer } from './publicAddress';
+export {
+  UpnpError,
+  addPortMapping,
+  callAction,
+  connectionService,
+  deletePortMapping,
+  discoverGateway,
+  externalAddress,
+  getConnection,
+  parseSearchAnswer,
+} from './upnp';
+export type { UpnpConnection } from './upnp';
 export { nodeTimers, randomId, safeEquals, secureRandom } from './runtime';
 export { TableClient } from './tableClient';
 export type { GameUpdate, TableClientOptions } from './tableClient';

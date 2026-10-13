@@ -1,5 +1,5 @@
-import { upnpNat } from '@achingbrain/nat-port-mapper';
 import { isCarrierGradeNat, isPrivateIpv4 } from './network';
+import { addPortMapping, deletePortMapping, discoverGateway, externalAddress, getConnection } from './upnp';
 
 export type PortMappingResult =
   | {
@@ -12,40 +12,50 @@ export type PortMappingResult =
     }
   | { readonly ok: false; readonly reason: string };
 
+/** How long the router keeps the port forwarded unless it's renewed, in seconds. */
+const LEASE_SECONDS = 3_600;
+/** Renewed well before that, for as long as the table is open. */
+const RENEW_MS = 30 * 60_000;
+const DESCRIPTION = 'Commander Brawl';
+
 /**
  * Asks the home router (UPnP) to forward a TCP port to this computer, so friends can reach the table.
- * The router keeps refreshing the mapping until release() is called.
+ * The port stays forwarded (renewed) until release() is called.
  */
 export async function openRouterPort(
   port: number,
   internalHost: string,
-  timeoutMs = 8_000,
+  timeoutMs = 4_000,
 ): Promise<PortMappingResult> {
-  const client = upnpNat({ description: 'Commander Brawl', autoRefresh: true });
-  let lastError = 'No router with UPnP answered. Turn on UPnP on the router, or forward the port manually.';
-  try {
-    for await (const gateway of client.findGateways({ signal: AbortSignal.timeout(timeoutMs) })) {
-      try {
-        const mapping = await gateway.map(port, internalHost, {
-          protocol: 'tcp',
-          externalPort: port,
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        const externalIp = await gateway.externalIp({ signal: AbortSignal.timeout(timeoutMs) });
-        return {
-          ok: true,
-          externalIp,
-          externalPort: mapping.externalPort,
-          reachable: !isPrivateIpv4(externalIp) && !isCarrierGradeNat(externalIp),
-          release: () => gateway.stop(),
-        };
-      } catch (error) {
-        lastError = `The router refused to open port ${port}: ${(error as Error).message}`;
-        await gateway.stop().catch(() => undefined);
-      }
-    }
-  } catch {
-    // The search timed out.
+  const location = await discoverGateway({ timeoutMs });
+  if (!location) {
+    return {
+      ok: false,
+      reason: 'No router with UPnP answered. Turn on UPnP on the router, or forward the port manually.',
+    };
   }
-  return { ok: false, reason: lastError };
+  try {
+    const connection = await getConnection(location);
+    const lease = await addPortMapping(connection, port, internalHost, DESCRIPTION, LEASE_SECONDS);
+    const externalIp = await externalAddress(connection);
+    const renew =
+      lease > 0
+        ? setInterval(() => {
+            void addPortMapping(connection, port, internalHost, DESCRIPTION, lease).catch(() => undefined);
+          }, RENEW_MS)
+        : null;
+    renew?.unref();
+    return {
+      ok: true,
+      externalIp,
+      externalPort: port,
+      reachable: !isPrivateIpv4(externalIp) && !isCarrierGradeNat(externalIp),
+      release: async () => {
+        if (renew) clearInterval(renew);
+        await deletePortMapping(connection, port).catch(() => undefined);
+      },
+    };
+  } catch (error) {
+    return { ok: false, reason: `The router refused to open port ${port}: ${(error as Error).message}` };
+  }
 }

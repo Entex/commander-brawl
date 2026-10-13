@@ -36,24 +36,6 @@ export async function writeAppPackageJson() {
   return version;
 }
 
-// @achingbrain/ssdp (used for opening router ports) reads its own package.json at runtime,
-// which doesn't exist inside the bundle. Inline the two values it needs.
-const inlineSsdpPackageJson = {
-  name: 'inline-ssdp-package-json',
-  setup(build) {
-    build.onLoad({ filter: /[\\/]@achingbrain[\\/]ssdp[\\/]dist[\\/]src[\\/]ssdp\.js$/ }, async (args) => {
-      const source = await readFile(args.path, 'utf8');
-      const pkg = JSON.parse(await readFile(resolve(args.path, '../../../package.json'), 'utf8'));
-      const pattern =
-        /const req = createRequire\(import\.meta\.url\);\s*const \{ name, version \} = req\('\.\.\/\.\.\/package\.json'\);/;
-      if (!pattern.test(source))
-        throw new Error('@achingbrain/ssdp changed; update inlineSsdpPackageJson in scripts/build.mjs');
-      const values = JSON.stringify({ name: pkg.name, version: pkg.version });
-      return { contents: source.replace(pattern, `const { name, version } = ${values};`), loader: 'js' };
-    });
-  },
-};
-
 export async function buildMain() {
   const shared = {
     bundle: true,
@@ -62,7 +44,6 @@ export async function buildMain() {
     target: 'node24',
     sourcemap: 'linked',
     external: ['electron', 'bufferutil', 'utf-8-validate'],
-    plugins: [inlineSsdpPackageJson],
     logLevel: 'warning',
   };
   await Promise.all([

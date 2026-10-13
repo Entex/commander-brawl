@@ -28,7 +28,7 @@ These scripts avoid the "unknown publisher" warnings. Windows and macOS only sho
 
    A phone usually looks at the table at an angle. Under _What the others see_, click _Straighten the view_ and click the four corners of your playmat: the others get a straight top-down view of it (your computer does the straightening). The corners are remembered for that camera; set them again if you move it.
 
-2. **Host.** One player clicks _Host_ and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP). If the router refuses, the app says so; turn on UPnP or forward that port manually.
+2. **Host.** One player clicks _Host_ and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP), and it's removed again when the table closes. If the router doesn't, the app says so; turn on UPnP, or forward that port to your computer in the router's settings (the invite has your internet address either way).
 3. **Join.** Everyone else pastes the invite code and clicks _Join_. To watch instead of play, click _Watch_: you see every seat and the whole game, take no seat, and change nothing (up to 8 spectators).
 
 For streaming, _Clean view for streaming_ in the menu shows just the seats, names, big life totals and commanders, without any buttons, for OBS to capture the window. Escape leaves it.
