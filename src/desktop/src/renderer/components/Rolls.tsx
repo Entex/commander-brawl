@@ -136,8 +136,13 @@ export function RollBanner({ game, players }: { readonly game: GameView | null; 
   );
 }
 
-const ICONS: Record<string, string> = { 'dice-rolled': '🎲', 'coins-flipped': '🪙', 'seat-picked': '🎯' };
+const ICONS: Record<string, string> = {
+  'dice-rolled': '🎲',
+  'coins-flipped': '🪙',
+  'seat-picked': '🎯',
+  'planar-die-rolled': '🌀',
+};
 
 function isRoll(type: string): boolean {
-  return type === 'dice-rolled' || type === 'coins-flipped' || type === 'seat-picked';
+  return type in ICONS;
 }

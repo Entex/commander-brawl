@@ -7,7 +7,7 @@ import {
   type TableSessionState,
 } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
-import { MAX_SEATS, STARTING_LIFE, isAnnouncement, type SeatIndex } from '@commander-brawl/domain';
+import { MAX_SEATS, STARTING_LIFE, isUndoable, type SeatIndex } from '@commander-brawl/domain';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
@@ -21,6 +21,7 @@ import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
 import { PointerLayer } from './PointerLayer';
 import { ClockPanel, TurnControls } from './Turn';
+import { VariantsBar, VariantsPanel } from './Variants';
 import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
 import { RollBanner, RollMenu } from './Rolls';
 import { Rule0Panel } from './Rule0Panel';
@@ -59,6 +60,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [decksOpen, setDecksOpen] = useState(false);
   const [rule0Open, setRule0Open] = useState(false);
   const [clockOpen, setClockOpen] = useState(false);
+  const [variantsOpen, setVariantsOpen] = useState(false);
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
@@ -153,6 +155,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                   role="menuitem"
                   onClick={() => {
                     close();
+                    setVariantsOpen(true);
+                  }}
+                  disabled={!game}
+                >
+                  Planechase and Archenemy
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
                     onOpenCamera();
                   }}
                 >
@@ -180,6 +192,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           <LastChange game={game} state={state} />
         </div>
       )}
+      {game && <VariantsBar game={game} players={state.seats} />}
       <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
       {host?.portChanged && (
@@ -231,6 +244,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         />
       )}
       {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
+      {game && variantsOpen && (
+        <VariantsPanel game={game.state} players={state.seats} onClose={() => setVariantsOpen(false)} />
+      )}
       {game && rule0Open && (
         <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
       )}
@@ -339,10 +355,7 @@ function useUndoTarget(game: GameView | null, state: TableSessionState<MediaStre
   const recent = game?.recent ?? [];
   const undone = undoneIds(recent);
   const target =
-    [...recent]
-      .reverse()
-      .find((e) => e.by.seat === self && e.event.type !== 'undo' && !isAnnouncement(e.event) && !undone.has(e.id)) ??
-    null;
+    [...recent].reverse().find((e) => e.by.seat === self && isUndoable(e.event) && !undone.has(e.id)) ?? null;
 
   const targetId = target?.id;
   useEffect(() => {

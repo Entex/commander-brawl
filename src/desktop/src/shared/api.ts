@@ -96,6 +96,8 @@ export interface DesktopApi {
     byNames(names: readonly string[]): Promise<readonly (Card | null)[]>;
     /** The cards with these ids (as in deck lists), null where there's no such card. */
     byIds(ids: readonly string[]): Promise<readonly (Card | null)[]>;
+    /** Every plane and phenomenon (Planechase), or every scheme (Archenemy). */
+    variantCards(variant: 'planechase' | 'archenemy'): Promise<readonly Card[]>;
     /** The cards whose names best match text read off a card in a camera picture, best first. */
     closest(texts: readonly string[]): Promise<readonly NameMatch[]>;
     details(id: string): Promise<CardDetails | null>;
@@ -139,6 +141,7 @@ export const Channels = {
   cardsByNames: 'cards:by-names',
   cardsByIds: 'cards:by-ids',
   cardsClosest: 'cards:closest',
+  cardsVariant: 'cards:variant',
   cardsDetails: 'cards:details',
   cardsRefresh: 'cards:refresh',
   decksList: 'decks:list',

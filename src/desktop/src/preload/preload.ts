@@ -34,6 +34,7 @@ const api: DesktopApi = {
     byNames: (names) => ipcRenderer.invoke(Channels.cardsByNames, names),
     byIds: (ids) => ipcRenderer.invoke(Channels.cardsByIds, ids),
     closest: (texts) => ipcRenderer.invoke(Channels.cardsClosest, texts),
+    variantCards: (variant) => ipcRenderer.invoke(Channels.cardsVariant, variant),
     details: (id) => ipcRenderer.invoke(Channels.cardsDetails, id),
     refresh: () => ipcRenderer.invoke(Channels.cardsRefresh),
   },

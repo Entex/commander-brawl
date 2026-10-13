@@ -32,13 +32,19 @@ describe('card data from Scryfall', () => {
       'Demonic Consultation',
       'Soldier',
       'Sol Ring',
+      // Planes, a phenomenon and schemes stay: Planechase and Archenemy use them.
+      'Tolaria Test Grounds',
+      'Bant of Tests',
+      'Test Phenomenon',
+      'My Test Plan',
+      'Ongoing Test Plan',
     ]);
     expect(saved.updatedAt).toBe('2026-10-13T09:00:00.000+00:00');
     expect(progress.at(-1)).toBe(1);
     expect(progress.every((p, i) => i === 0 || p >= progress[i - 1]!)).toBe(true);
 
     const again = await new ScryfallCards({ dir, appVersion: '0.1.0', apiUrl: fake.apiUrl }).loadSaved();
-    expect(again?.cards).toHaveLength(7);
+    expect(again?.cards).toHaveLength(12);
   });
 
   it('keeps what the table needs from each card', async () => {
@@ -80,7 +86,7 @@ describe('card data from Scryfall', () => {
 
   it('copes with servers that unzip the files on the way', async () => {
     const { cards } = await scryfall({ gzip: false });
-    expect((await cards.download()).cards).toHaveLength(7);
+    expect((await cards.download()).cards).toHaveLength(12);
   });
 
   it('reports Scryfall being down, and keeps what it had', async () => {
@@ -89,7 +95,7 @@ describe('card data from Scryfall', () => {
     fake.failing = true;
 
     await expect(cards.download()).rejects.toThrow('503');
-    expect((await cards.loadSaved())?.cards).toHaveLength(7);
+    expect((await cards.loadSaved())?.cards).toHaveLength(12);
   });
 
   it('has nothing saved before the first download', async () => {

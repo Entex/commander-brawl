@@ -116,6 +116,8 @@ function seatsIn(event: GameEvent): SeatIndex[] {
       return [...event.order];
     case 'seat-picked':
       return [event.picked];
+    case 'archenemy-started':
+      return [event.seat];
     case 'monarch-set':
     case 'initiative-taken':
       return event.seat === null ? [] : [event.seat];
@@ -141,6 +143,13 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'storm-changed':
     case 'dice-rolled':
     case 'coins-flipped':
+    case 'planechase-started':
+    case 'planar-die-rolled':
+    case 'planeswalked':
+    case 'planechase-ended':
+    case 'scheme-set-in-motion':
+    case 'scheme-abandoned':
+    case 'archenemy-ended':
     case 'custom-counter-saved':
     case 'custom-counter-removed':
     case 'new-game':

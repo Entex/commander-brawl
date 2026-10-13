@@ -62,6 +62,11 @@ export class CardService {
     return ids.map((id) => this.index?.get(id) ?? null);
   }
 
+  /** Planes and phenomena, or schemes: the decks of Planechase and Archenemy. */
+  variantCards(variant: 'planechase' | 'archenemy'): Card[] {
+    return this.index?.withLayout(variant === 'planechase' ? 'planar' : 'scheme') ?? [];
+  }
+
   /** The cards whose names best match text read off a card in a camera picture. */
   closest(texts: readonly string[]): NameMatch[] {
     return this.index?.closest(texts, CLOSEST) ?? [];

@@ -59,6 +59,14 @@ export class CardIndex {
     return this.byId.get(id);
   }
 
+  /** Every card with this layout, by name: all the planes ('planar'), all the schemes ('scheme'). */
+  withLayout(layout: string): Card[] {
+    return this.entries
+      .filter((entry) => entry.card.layout === layout)
+      .map((entry) => entry.card)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   /**
    * The card with exactly this name, the way it'd be written in a deck list: case, accents and
    * punctuation don't matter, and the front face's name is enough for double-faced cards.

@@ -117,7 +117,24 @@ export function describeEvent(
     case 'dice-rolled':
     case 'coins-flipped':
     case 'seat-picked':
+    case 'planar-die-rolled':
       return describeRoll(entry, players);
+    case 'planechase-started':
+      return `${by.name} started Planechase with ${event.deck.length} planes`;
+    case 'planeswalked':
+      return `${by.name} planeswalked to ${event.to.name}`;
+    case 'planechase-ended':
+      return `${by.name} ended Planechase`;
+    case 'archenemy-started':
+      return `${by.name} started Archenemy: ${seatName(players, event.seat)} is the archenemy`;
+    case 'scheme-set-in-motion':
+      return `${by.name} set ${event.scheme.name} in motion`;
+    case 'scheme-abandoned': {
+      const scheme = game.archenemy?.deck.find((s) => s.id === event.id);
+      return `${by.name} abandoned ${scheme?.name ?? 'a scheme'}`;
+    }
+    case 'archenemy-ended':
+      return `${by.name} ended Archenemy`;
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {
@@ -152,6 +169,8 @@ export function describeRoll(entry: LoggedEvent, players: Players): string {
       const kind = event.seats.includes(by.seat) ? 'player' : 'opponent';
       return `${by.name} picked a random ${kind}: ${seatName(players, event.picked)}`;
     }
+    case 'planar-die-rolled':
+      return `${by.name} rolled the planar die: ${event.result === 'blank' ? 'nothing' : event.result}`;
     default:
       return '';
   }

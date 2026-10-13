@@ -4,7 +4,7 @@ export { normalizeCardName } from './cards';
 export { MAX_COMMANDERS, MAX_DECK_ENTRIES, MAX_DECK_NAME_LENGTH, deckSize, toDeckList } from './decks';
 export type { DeckCard, DeckList } from './decks';
 export type { Card, CardFace, CommanderLegality, Ruling } from './cards';
-export { MAX_DIE_SIDES, MAX_ROLLS, isChanceResult, isIntent, resolveAction, toGameAction } from './actions';
+export { MAX_DIE_SIDES, MAX_ROLLS, isChanceResult, isIntent, isUndoable, resolveAction, toGameAction } from './actions';
 export type { GameAction, GameIntent } from './actions';
 export {
   COUNTER_COLORS,
@@ -65,3 +65,14 @@ export {
 export type { Clock, ClockKind, ClockSettings, Phase } from './turns';
 export { DUNGEONS, DUNGEON_IDS, RING_ABILITIES, canVenture, isDungeonId, isLastRoom } from './markers';
 export type { DayNight, Dungeon, DungeonId, DungeonPosition, DungeonRoom } from './markers';
+export {
+  MAX_VARIANT_DECK,
+  currentPlane,
+  currentScheme,
+  planeswalk,
+  rollPlanarDie,
+  setSchemeInMotion,
+  toSchemeDeck,
+  toVariantDeck,
+} from './variants';
+export type { Archenemy, PlanarDieResult, Planechase, Scheme, VariantCard } from './variants';

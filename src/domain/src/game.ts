@@ -11,6 +11,17 @@ import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { canVenture, isDungeonId, isLastRoom, type DayNight, type DungeonPosition } from './markers';
 import { MAX_SEATS, type SeatIndex } from './table';
 import {
+  planeswalk,
+  setSchemeInMotion,
+  toSchemeDeck,
+  toVariantDeck,
+  type Archenemy,
+  type PlanarDieResult,
+  type Planechase,
+  type Scheme,
+  type VariantCard,
+} from './variants';
+import {
   clockForTurn,
   isPhase,
   newClock,
@@ -93,6 +104,8 @@ export interface GameState {
   readonly dayNight: DayNight | null;
   /** Spells cast this turn, by anyone. Starts over every turn. */
   readonly storm: number;
+  readonly planechase: Planechase | null;
+  readonly archenemy: Archenemy | null;
   /** The turn timer or chess clock, if the table uses one. */
   readonly clock: Clock | null;
 }
@@ -170,6 +183,19 @@ export type GameEvent =
   | { readonly type: 'dice-rolled'; readonly sides: number; readonly results: readonly number[] }
   | { readonly type: 'coins-flipped'; readonly results: readonly CoinSide[] }
   | { readonly type: 'seat-picked'; readonly seats: readonly SeatIndex[]; readonly picked: SeatIndex }
+  /** Planechase with this planar deck, shuffled by the host; the first plane is face up. */
+  | { readonly type: 'planechase-started'; readonly deck: readonly VariantCard[] }
+  /** Rolled by the host. Planeswalk moves to the next plane. */
+  | { readonly type: 'planar-die-rolled'; readonly result: PlanarDieResult }
+  /** On to this plane, the next in the deck (ignored if it isn't, because someone else got there first). */
+  | { readonly type: 'planeswalked'; readonly to: VariantCard }
+  | { readonly type: 'planechase-ended' }
+  /** Archenemy with this player as the archenemy and this scheme deck, shuffled by the host. */
+  | { readonly type: 'archenemy-started'; readonly seat: SeatIndex; readonly deck: readonly Scheme[] }
+  /** Turns over this scheme, the next in the deck (ignored if it isn't). */
+  | { readonly type: 'scheme-set-in-motion'; readonly scheme: VariantCard }
+  | { readonly type: 'scheme-abandoned'; readonly id: string }
+  | { readonly type: 'archenemy-ended' }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -229,6 +255,9 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
     initiative: null,
     dayNight: null,
     storm: 0,
+    // A variant goes on into the next game: Planechase where its deck is, Archenemy from a fresh start.
+    planechase: previous?.planechase ? { ...previous.planechase, rollsThisTurn: 0 } : null,
+    archenemy: previous?.archenemy ? { ...previous.archenemy, index: -1, ongoing: [] } : null,
     // Same clock as last game, started over once the first turn begins.
     clock: previous?.clock ? newClock(previous.clock.settings, null, 0) : null,
   };
@@ -358,11 +387,40 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
       return { ...state, dayNight: event.value };
     case 'storm-changed':
       return { ...state, storm: Math.max(0, state.storm + event.amount) };
+    case 'planechase-started':
+      return { ...state, planechase: { deck: event.deck, index: 0, rollsThisTurn: 0 } };
+    case 'planar-die-rolled': {
+      if (!state.planechase) return state;
+      const rolled = { ...state.planechase, rollsThisTurn: state.planechase.rollsThisTurn + 1 };
+      return { ...state, planechase: event.result === 'planeswalk' ? planeswalk(rolled) : rolled };
+    }
+    case 'planeswalked': {
+      const next = state.planechase && planeswalk(state.planechase);
+      return next && next.deck[next.index]?.id === event.to.id ? { ...state, planechase: next } : state;
+    }
+    case 'planechase-ended':
+      return { ...state, planechase: null };
+    case 'archenemy-started':
+      return { ...state, archenemy: { seat: event.seat, deck: event.deck, index: -1, ongoing: [] } };
+    case 'scheme-set-in-motion': {
+      const next = state.archenemy && setSchemeInMotion(state.archenemy);
+      return next && next.deck[next.index]?.id === event.scheme.id ? { ...state, archenemy: next } : state;
+    }
+    case 'scheme-abandoned':
+      return state.archenemy
+        ? {
+            ...state,
+            archenemy: { ...state.archenemy, ongoing: state.archenemy.ongoing.filter((s) => s.id !== event.id) },
+          }
+        : state;
+    case 'archenemy-ended':
+      return { ...state, archenemy: null };
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
       return {
         ...state,
         storm: 0,
+        planechase: state.planechase && { ...state.planechase, rollsThisTurn: 0 },
         turnOrder: event.order,
         activeSeat: first,
         turn: 1,
@@ -378,6 +436,7 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
         ...passed,
         phase: PHASES_START,
         storm: 0,
+        planechase: passed.planechase && { ...passed.planechase, rollsThisTurn: 0 },
         clock: passed.clock ? clockForTurn(passed.clock, passed.activeSeat, at) : null,
       };
     }
@@ -606,6 +665,33 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isSeatList(value.seats) && isSeatIndex(value.picked) && value.seats.includes(value.picked)
         ? { type: 'seat-picked', seats: value.seats, picked: value.picked }
         : null;
+    case 'planechase-started': {
+      const deck = toVariantDeck(value.deck);
+      return deck ? { type: 'planechase-started', deck } : null;
+    }
+    case 'planar-die-rolled':
+      return value.result === 'blank' || value.result === 'chaos' || value.result === 'planeswalk'
+        ? { type: 'planar-die-rolled', result: value.result }
+        : null;
+    case 'planeswalked': {
+      const to = toVariantDeck([value.to])?.[0];
+      return to ? { type: 'planeswalked', to } : null;
+    }
+    case 'archenemy-started': {
+      const deck = toSchemeDeck(value.deck);
+      return deck && isSeatIndex(value.seat) ? { type: 'archenemy-started', seat: value.seat, deck } : null;
+    }
+    case 'scheme-set-in-motion': {
+      const scheme = toVariantDeck([value.scheme])?.[0];
+      return scheme ? { type: 'scheme-set-in-motion', scheme } : null;
+    }
+    case 'scheme-abandoned':
+      return typeof value.id === 'string' && value.id.length > 0 && value.id.length <= 64
+        ? { type: 'scheme-abandoned', id: value.id }
+        : null;
+    case 'planechase-ended':
+    case 'archenemy-ended':
+      return { type: value.type };
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }

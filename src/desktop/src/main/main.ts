@@ -154,6 +154,7 @@ function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardSe
   );
   handle(Channels.cardsByIds, (ids) => cards.byIds(stringList(ids, MAX_DECK_ENTRIES + MAX_COMMANDERS, 64)));
   handle(Channels.cardsClosest, (texts) => cards.closest(stringList(texts, 20, 200)));
+  handle(Channels.cardsVariant, (variant) => cards.variantCards(variant === 'archenemy' ? 'archenemy' : 'planechase'));
   handle(Channels.cardsDetails, (id) => cards.details(requireString(id)));
   handle(Channels.cardsRefresh, () => cards.refresh());
   handle(Channels.decksList, () => decks.list());

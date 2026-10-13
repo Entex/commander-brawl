@@ -124,6 +124,37 @@ export const SCRYFALL_CARDS = [
     legalities: { commander: 'legal' },
     image_uris: { normal: 'https://cards.scryfall.io/normal/front/s/r/sol-ring.jpg?1' },
   },
+  // Made-up planes, a phenomenon and schemes, for Planechase and Archenemy.
+  ...['Tolaria Test Grounds', 'Bant of Tests'].map((name) => ({
+    oracle_id: `plane-${name.toLowerCase().replace(/\W+/g, '-')}`,
+    name,
+    layout: 'planar',
+    games: ['paper'],
+    type_line: 'Plane — Testland',
+    oracle_text: 'Whenever you roll {CHAOS}, draw a card.',
+    legalities: { commander: 'not_legal' },
+  })),
+  {
+    oracle_id: 'phenomenon-test',
+    name: 'Test Phenomenon',
+    layout: 'planar',
+    games: ['paper'],
+    type_line: 'Phenomenon',
+    oracle_text: 'When you encounter Test Phenomenon, each player draws a card. Then planeswalk away.',
+    legalities: { commander: 'not_legal' },
+  },
+  ...[
+    ['My Test Plan', 'Scheme'],
+    ['Ongoing Test Plan', 'Ongoing Scheme'],
+  ].map(([name, type]) => ({
+    oracle_id: `scheme-${name!.toLowerCase().replace(/\W+/g, '-')}`,
+    name,
+    layout: 'scheme',
+    games: ['paper'],
+    type_line: type,
+    oracle_text: 'When you set this scheme in motion, each opponent loses 1 life.',
+    legalities: { commander: 'not_legal' },
+  })),
   // Not playable cards: skipped.
   { oracle_id: 'art', name: 'Atraxa // Atraxa', layout: 'art_series', games: ['paper'], legalities: {} },
   {

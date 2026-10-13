@@ -45,6 +45,8 @@ The app recovers from these problems by itself:
 
 **🎲 Roll** has dice (d6, d20 and the rest, or any number of dice with any number of sides), a coin flip, and a random opponent or player. The host rolls, so everyone can trust the result: it shows on every screen and lands in the game log, and nobody can send a result of their own.
 
+**Planechase and Archenemy** (menu). Planechase uses one shared planar deck with every plane there is (phenomena optional): the current plane is in a bar at the top, shown big when it changes, with the planar die (first roll each turn free, then {1}, {2}…) and Planeswalk. Archenemy gives the archenemy a deck of every scheme: they set schemes in motion, everyone sees each one, and ongoing schemes stay until abandoned. The host shuffles the decks and rolls the planar die.
+
 **Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". _New game_ (click twice) resets everything.
 
 Every change goes into a game log kept by the host, and each player's app has a full copy of it.

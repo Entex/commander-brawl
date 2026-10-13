@@ -1,8 +1,8 @@
 import {
   applyEvent,
   applyEvents,
-  isAnnouncement,
   isIntent,
+  isUndoable,
   newGame,
   resolveAction,
   toGameAction,
@@ -128,18 +128,12 @@ export class HostGameLog {
   }
 
   /**
-   * Players can only take back their own changes, once. Fixing someone else's mistake is a new change, and an
-   * announcement (a card shown, a call to wait) isn't a change to take back.
+   * Players can only take back their own changes, once. Fixing someone else's mistake is a new change. Some
+   * things can't be taken back at all (see isUndoable): announcements, and results of chance.
    */
   private canUndo(author: Player, target: string): boolean {
     const entry = this.byId.get(target);
-    return (
-      entry !== undefined &&
-      entry.event.type !== 'undo' &&
-      !isAnnouncement(entry.event) &&
-      !this.undone.has(target) &&
-      entry.by.seat === author.seat
-    );
+    return entry !== undefined && isUndoable(entry.event) && !this.undone.has(target) && entry.by.seat === author.seat;
   }
 
   /** Answers a player's request to catch up. A player with a different log (or none) gets all of it. */

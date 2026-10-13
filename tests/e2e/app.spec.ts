@@ -716,6 +716,49 @@ test('dice, coin flips and random picks, rolled by the host and shown to everyon
   await expect(friend.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
 });
 
+test('Planechase and Archenemy: a shared planar deck and the planar die, a scheme deck for the archenemy', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(host.page);
+  const planes = ['Tolaria Test Grounds', 'Bant of Tests', 'Test Phenomenon'];
+
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Planechase and Archenemy' }).click();
+  await host.page.getByRole('button', { name: 'Start Planechase (3 planes)' }).click();
+
+  // Everyone sees the first plane, big, and then in the bar.
+  const spotlight = friend.page.getByTestId('variant-spotlight');
+  await expect(spotlight).toBeVisible();
+  const first = (await friend.page.getByTestId('plane').textContent())!;
+  expect(planes).toContain(first);
+  await expect(spotlight).toContainText(first === 'Test Phenomenon' ? 'each player draws a card' : 'draw a card');
+  await spotlight.getByRole('button', { name: 'Close' }).click();
+
+  // Planeswalking moves everyone to the next plane.
+  await friend.page.getByRole('button', { name: 'Planeswalk' }).click();
+  await expect(host.page.getByTestId('plane')).not.toHaveText(first);
+  // The planar die: the first roll in a turn is free, the next one costs {1}.
+  await host.page.getByRole('button', { name: 'Roll the planar die (free)' }).click();
+  await expect(friend.page.getByTestId('roll-banner')).toContainText(
+    /Host rolled the planar die: (nothing|chaos|planeswalk)/,
+  );
+  await expect(host.page.getByRole('button', { name: 'Roll the planar die (costs {1})' })).toBeVisible();
+
+  // Archenemy, with the friend as the archenemy.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Planechase and Archenemy' }).click();
+  await host.page.getByLabel('Archenemy', { exact: true }).selectOption({ label: 'Friend' });
+  await host.page.getByRole('button', { name: 'Start Archenemy (2 schemes)' }).click();
+  await expect(friend.page.getByTestId('variants-bar')).toContainText('You are the archenemy');
+  await expect(host.page.getByTestId('variants-bar')).toContainText('Friend is the archenemy');
+  // Only the archenemy sets schemes in motion; everyone sees which.
+  await expect(host.page.getByRole('button', { name: 'Set a scheme in motion' })).toHaveCount(0);
+  await friend.page.getByRole('button', { name: 'Set a scheme in motion' }).click();
+  await expect(host.page.getByTestId('scheme')).toHaveText(/My Test Plan|Ongoing Test Plan/);
+  await expect(host.page.getByTestId('last-change')).toContainText(
+    /Friend set (My Test Plan|Ongoing Test Plan) in motion/,
+  );
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);
