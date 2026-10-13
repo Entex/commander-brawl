@@ -1,4 +1,11 @@
-import type { GameView, ImportedDeck, LoggedEvent, NameMatch, SignalingEvent } from '@commander-brawl/application';
+import type {
+  GameRecord,
+  GameView,
+  ImportedDeck,
+  LoggedEvent,
+  NameMatch,
+  SignalingEvent,
+} from '@commander-brawl/application';
 import type { Card, DeckAnalysis, DeckList, GameAction, Ruling } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
@@ -112,6 +119,14 @@ export interface DesktopApi {
     analyze(deck: DeckList): Promise<DeckAnalysis>;
     remove(id: string): Promise<void>;
   };
+  history: {
+    /** Finished games kept on this computer, oldest first. */
+    list(): Promise<readonly GameRecord[]>;
+    /** Asks where to save the history as a file, then saves it. False if the player cancelled. */
+    export(): Promise<boolean>;
+    /** Asks for a history file (a friend's export) and adds its games. How many were new; null if cancelled. */
+    import(): Promise<number | null>;
+  };
   phone: {
     info(): Promise<PhoneLinkInfo>;
     send(message: DesktopToPhone): void;
@@ -142,6 +157,9 @@ export const Channels = {
   cardsByIds: 'cards:by-ids',
   cardsClosest: 'cards:closest',
   cardsVariant: 'cards:variant',
+  historyList: 'history:list',
+  historyExport: 'history:export',
+  historyImport: 'history:import',
   cardsDetails: 'cards:details',
   cardsRefresh: 'cards:refresh',
   decksList: 'decks:list',

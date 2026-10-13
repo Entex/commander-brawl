@@ -53,7 +53,10 @@ test.afterEach(async () => {
   for (const instance of running.splice(0)) await instance.app.close().catch(() => undefined);
 });
 
-async function launch(name: string, options: { userDataDir?: string; camera?: string } = {}): Promise<Instance> {
+async function launch(
+  name: string,
+  options: { userDataDir?: string; camera?: string; openFile?: string } = {},
+): Promise<Instance> {
   const saveDir = await temporaryDir('cb-e2e-save-');
   const dataDir = options.userDataDir ?? (await temporaryDir('cb-e2e-'));
   const app = await electron.launch({
@@ -80,6 +83,7 @@ async function launch(name: string, options: { userDataDir?: string; camera?: st
       CB_MOXFIELD_API: deckSites.moxfieldApi,
       CB_ARCHIDEKT_API: deckSites.archidektApi,
       CB_SPELLBOOK_API: spellbook.apiUrl,
+      ...(options.openFile ? { CB_OPEN_FILE: options.openFile } : {}),
     },
   });
   const page = await app.firstWindow();
@@ -880,6 +884,55 @@ test('a warning for everyone when a player has most of a combo from their deck o
     "⚠ Host has 2 of 3 pieces of Sol Ring + Rhystic Study + Atraxa, Praetors' Voice (Infinite test mana): missing Atraxa, Praetors' Voice",
   );
   await expect(friend.page.getByTestId('chips-0')).toContainText('⚠ Combo 2/3');
+});
+
+test('finished games are kept on each computer: stats, the games, and sharing them as a file', async () => {
+  const host = await launch('Host');
+  await host.page.getByTestId('host').click();
+  const invite = await host.page.getByTestId('invite-code').inputValue();
+  // The friend will import the history the host exports.
+  const exported = join(host.saveDir, `commander-brawl-history-${new Date().toISOString().slice(0, 10)}.json`);
+  const friend = await launch('Friend', { openFile: exported });
+  await friend.page.getByTestId('invite-input').fill(invite);
+  await friend.page.getByTestId('join').click();
+  await expectVideoFrom(friend.page, 'Host');
+
+  // A short game: the friend's commander deals the host 21.
+  await host.page.getByRole('button', { name: 'Random turn order' }).click();
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  const details = friend.page.getByTestId('seat-details-0');
+  for (let i = 0; i < 4; i++)
+    await details.getByRole('button', { name: "Add 5 damage from Friend's commander" }).click();
+  await details.getByRole('button', { name: "Add 1 damage from Friend's commander" }).click();
+  await expect(host.page.getByTestId('out-0')).toBeVisible();
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'New game' }).click();
+  await host.page.getByRole('menuitem', { name: 'Start a new game?' }).click();
+  await expect(friend.page.getByText('Game 2')).toBeVisible();
+
+  await friend.page.getByRole('button', { name: 'Menu' }).click();
+  await friend.page.getByRole('menuitem', { name: 'History' }).click();
+  const history = friend.page.getByTestId('history-panel');
+  const players = history.getByRole('table', { name: 'Players' });
+  await expect(players.getByRole('row', { name: /Friend/ })).toContainText('Friend11100%');
+  await expect(players.getByRole('row', { name: /Host/ })).toContainText('Host100%');
+  await expect(history).toContainText('Friend → Host: 1×');
+  await friend.page.screenshot({ path: test.info().outputPath('history.png') });
+  await history.getByRole('tab', { name: 'Games (1)' }).click();
+  await expect(history.getByRole('list', { name: 'Games' })).toContainText('Friend won');
+  await expect(history.getByRole('list', { name: 'Games' })).toContainText(
+    'out on turn 1 (commander damage, by Friend)',
+  );
+
+  // The host shares theirs; the friend has that game already, so nothing is counted twice.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'History' }).click();
+  await host.page.getByTestId('history-panel').getByRole('button', { name: 'Export' }).click();
+  await expect(host.page.getByTestId('history-panel')).toContainText('Saved.');
+  const file = JSON.parse(await readFile(exported, 'utf8')) as { games: unknown[] };
+  expect(file.games).toHaveLength(1);
+  await history.getByRole('button', { name: 'Import…' }).click();
+  await expect(history).toContainText('Those games were all here already.');
 });
 
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {

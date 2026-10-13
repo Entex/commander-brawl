@@ -884,6 +884,62 @@ button.swatch.selected {
   width: 4rem;
 }
 
+/* Game history */
+
+.history-panel {
+  width: min(820px, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin-right: auto;
+}
+
+.tabs button[aria-selected='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.history-table th,
+.history-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.history-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.history-games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-games > li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-games p,
+.history-standings {
+  margin: 0.2rem 0;
+}
+
 /* Combo warnings */
 
 .combo-warnings {

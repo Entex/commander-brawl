@@ -211,6 +211,11 @@ export class GameSync {
     return [...this.log];
   }
 
+  /** Which log it is (each table has its own), once the host has sent it. */
+  getLogId(): string | null {
+    return this.logId;
+  }
+
   subscribe(listener: (view: GameView) => void): Unsubscribe {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

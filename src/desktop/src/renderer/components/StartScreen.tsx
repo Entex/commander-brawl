@@ -3,6 +3,7 @@ import type { HostInfo, SavedTableSummary } from '../../shared/api';
 import { api, errorMessage } from '../api';
 import type { CameraState } from '../useCamera';
 import { DecksPanel } from './DecksPanel';
+import { HistoryPanel } from './HistoryPanel';
 import { VideoView } from './VideoView';
 
 interface StartScreenProps {
@@ -22,6 +23,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
   const [error, setError] = useState<string | null>(null);
   const saved = useSavedTable();
   const [decksOpen, setDecksOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const run = async (kind: 'host' | 'join' | 'resume') => {
     setBusy(kind);
@@ -86,6 +88,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
           )}
           <button onClick={onOpenCamera}>Set up camera</button>
           <button onClick={() => setDecksOpen(true)}>Decks</button>
+          <button onClick={() => setHistoryOpen(true)}>History</button>
         </div>
 
         <div className="start-actions">
@@ -125,6 +128,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
         <footer className="hint">Version {version}</footer>
       </div>
       {decksOpen && <DecksPanel seat={null} playing={null} onClose={() => setDecksOpen(false)} />}
+      {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
     </div>
   );
 }

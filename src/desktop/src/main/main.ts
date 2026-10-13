@@ -1,4 +1,5 @@
-import { lanAddresses, loadOrCreateIdentity } from '@commander-brawl/infrastructure/node';
+import { FileHistoryStore, lanAddresses, loadOrCreateIdentity } from '@commander-brawl/infrastructure/node';
+import { toGameRecords } from '@commander-brawl/application';
 import {
   app,
   BrowserWindow,
@@ -11,7 +12,7 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import { MAX_COMMANDERS, MAX_DECK_ENTRIES } from '@commander-brawl/domain';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Channels, type RendererConfig } from '../shared/api';
 import { CardService } from './cardService';
@@ -29,6 +30,8 @@ const env = {
   localOnly: process.env.CB_LOCAL_ONLY === '1',
   /** Save files here without asking, for tests. */
   saveDir: process.env.CB_SAVE_DIR,
+  /** Open this file without asking, for tests. */
+  openFile: process.env.CB_OPEN_FILE,
   /** A stand-in for Scryfall's API, for tests. */
   scryfallApi: process.env.CB_SCRYFALL_API,
   /** Stand-ins for the deck sites, for tests. */
@@ -60,6 +63,7 @@ async function start(): Promise<void> {
     preferredPort: env.phonePort,
     emit: (event) => mainWindow?.webContents.send(Channels.phoneEvent, event),
   });
+  const history = new FileHistoryStore(join(dataDir, 'history.json'));
   const table = new TableService({
     identity,
     preferredPort: env.tablePort,
@@ -67,6 +71,7 @@ async function start(): Promise<void> {
     tableDir: join(dataDir, 'hosted-table'),
     emit: (event) => mainWindow?.webContents.send(Channels.tableEvent, event),
     emitGame: (view) => mainWindow?.webContents.send(Channels.gameUpdate, view),
+    gamesFinished: (games) => void history.upsert(games).catch((error: unknown) => console.warn('[history]', error)),
   });
   const cards = new CardService({
     dir: join(dataDir, 'cards'),
@@ -94,7 +99,7 @@ async function start(): Promise<void> {
     await Promise.all([table.shutdown(), phone.close()]);
   };
 
-  registerIpc(table, phone, cards, decks);
+  registerIpc(table, phone, cards, decks, history);
   restrictPermissions();
   mainWindow = createWindow();
   // After the window is up: reading ~35,000 cards takes a moment, and the window shouldn't wait for it.
@@ -134,7 +139,13 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardService, decks: DeckService): void {
+function registerIpc(
+  table: TableService,
+  phone: PhoneLinkService,
+  cards: CardService,
+  decks: DeckService,
+  history: FileHistoryStore,
+): void {
   const config: RendererConfig = { version: app.getVersion(), iceServers: env.localOnly ? [] : null };
   handle(Channels.config, () => config);
   handle(Channels.tableHost, (name) => table.host(requireString(name)));
@@ -146,7 +157,37 @@ function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardSe
   handle(Channels.tableSnapshot, () => table.snapshot());
   handle(Channels.gameView, () => table.gameView());
   handle(Channels.gameLog, () => table.gameLog());
-  handle(Channels.gameSaveLog, (text) => saveText(requireString(text)));
+  handle(Channels.gameSaveLog, (text) =>
+    saveFile(requireString(text), {
+      name: `commander-brawl-log-${today()}.txt`,
+      title: 'Save the game log',
+      filter: { name: 'Text', extensions: ['txt'] },
+    }),
+  );
+  handle(Channels.historyList, () => history.list());
+  handle(Channels.historyExport, async () =>
+    saveFile(JSON.stringify({ app: 'commander-brawl', version: 1, games: await history.list() }, null, 1), {
+      name: `commander-brawl-history-${today()}.json`,
+      title: 'Save the game history',
+      filter: { name: 'Game history', extensions: ['json'] },
+    }),
+  );
+  handle(Channels.historyImport, async () => {
+    const text = await openFile({
+      title: 'Add games from a history file',
+      filter: { name: 'Game history', extensions: ['json'] },
+    });
+    if (text === null) return null;
+    let raw: { games?: unknown };
+    try {
+      raw = JSON.parse(text) as { games?: unknown };
+    } catch {
+      throw new Error("That file isn't a game history.");
+    }
+    const games = toGameRecords(raw.games);
+    if (games.length === 0) throw new Error('No games in that file.');
+    return history.upsert(games);
+  });
   handle(Channels.cardsStatus, () => cards.status());
   handle(Channels.cardsSearch, (query) => cards.search(requireString(query)));
   handle(Channels.cardsByNames, (names) =>
@@ -183,22 +224,48 @@ function on(channel: string, listener: (...args: unknown[]) => void): void {
   });
 }
 
-async function saveText(text: string): Promise<boolean> {
-  const name = `commander-brawl-log-${new Date().toISOString().slice(0, 10)}.txt`;
+interface FileChoice {
+  readonly title: string;
+  readonly filter: { readonly name: string; readonly extensions: string[] };
+}
+
+/** Asks where to save the text (tests: CB_SAVE_DIR), then saves it. False if the player cancelled. */
+async function saveFile(text: string, choice: FileChoice & { readonly name: string }): Promise<boolean> {
   let path: string | undefined;
   if (env.saveDir) {
-    path = join(env.saveDir, name);
+    path = join(env.saveDir, choice.name);
   } else if (mainWindow) {
     const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'Save the game log',
-      defaultPath: join(app.getPath('documents'), name),
-      filters: [{ name: 'Text', extensions: ['txt'] }],
+      title: choice.title,
+      defaultPath: join(app.getPath('documents'), choice.name),
+      filters: [choice.filter],
     });
     path = result.canceled ? undefined : result.filePath;
   }
   if (!path) return false;
   await writeFile(path, text, 'utf8');
   return true;
+}
+
+/** Asks which file to open (tests: CB_OPEN_FILE), and reads it. Null if the player cancelled. */
+async function openFile(choice: FileChoice): Promise<string | null> {
+  let path: string | undefined;
+  if (env.openFile) {
+    path = env.openFile;
+  } else if (mainWindow) {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: choice.title,
+      filters: [choice.filter],
+      properties: ['openFile'],
+    });
+    path = result.canceled ? undefined : result.filePaths[0];
+  }
+  if (!path) return null;
+  return readFile(path, 'utf8');
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function requireString(value: unknown): string {

@@ -20,6 +20,7 @@ import { CardsPanel } from './CardsPanel';
 import { ComboWarnings } from './ComboWarnings';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
+import { HistoryPanel } from './HistoryPanel';
 import { PointerLayer } from './PointerLayer';
 import { ClockPanel, TurnControls } from './Turn';
 import { VariantsBar, VariantsPanel } from './Variants';
@@ -62,6 +63,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [rule0Open, setRule0Open] = useState(false);
   const [clockOpen, setClockOpen] = useState(false);
   const [variantsOpen, setVariantsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
@@ -166,6 +168,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                   role="menuitem"
                   onClick={() => {
                     close();
+                    setHistoryOpen(true);
+                  }}
+                >
+                  History
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
                     onOpenCamera();
                   }}
                 >
@@ -255,6 +266,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         />
       )}
       {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
+      {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
       {game && variantsOpen && (
         <VariantsPanel game={game.state} players={state.seats} onClose={() => setVariantsOpen(false)} />
       )}

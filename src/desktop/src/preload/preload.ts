@@ -45,6 +45,11 @@ const api: DesktopApi = {
     analyze: (deck) => ipcRenderer.invoke(Channels.decksAnalyze, deck),
     remove: (id) => ipcRenderer.invoke(Channels.decksRemove, id),
   },
+  history: {
+    list: () => ipcRenderer.invoke(Channels.historyList),
+    export: () => ipcRenderer.invoke(Channels.historyExport),
+    import: () => ipcRenderer.invoke(Channels.historyImport),
+  },
   phone: {
     info: () => ipcRenderer.invoke(Channels.phoneInfo),
     send: (message) => ipcRenderer.send(Channels.phoneSend, message),

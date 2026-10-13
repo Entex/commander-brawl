@@ -1,13 +1,15 @@
 import {
   decodeInvite,
   encodeInvite,
+  gamesInLog,
+  type GameRecord,
   type GameSync,
   type GameView,
   type Invite,
   type LoggedEvent,
   type SignalingEvent,
 } from '@commander-brawl/application';
-import { normalizePlayerName, toGameAction } from '@commander-brawl/domain';
+import { normalizePlayerName, toGameAction, type SeatIndex } from '@commander-brawl/domain';
 import {
   FileTableStore,
   globalIpv6Addresses,
@@ -32,6 +34,8 @@ export interface TableServiceOptions {
   readonly tableDir: string;
   readonly emit: (event: SignalingEvent) => void;
   readonly emitGame: (view: GameView) => void;
+  /** Finished games, as they finish (or when the table closes with one decided). */
+  readonly gamesFinished: (games: readonly GameRecord[]) => void;
 }
 
 interface HostingPlan {
@@ -49,6 +53,8 @@ export class TableService {
   private game: GameSync | null = null;
   private store: FileTableStore | null = null;
   private releasePort: (() => Promise<void>) | null = null;
+  /** Everyone who sat at the table, by seat, for the game history. */
+  private readonly names = new Map<SeatIndex, string>();
 
   constructor(private readonly options: TableServiceOptions) {}
 
@@ -179,7 +185,18 @@ export class TableService {
     };
   }
 
+  /** Records the table's finished games. Recording a game again just updates it. */
+  private recordGames(): void {
+    const game = this.game;
+    const logId = game?.getLogId();
+    if (!game || !logId) return;
+    const games = gamesInLog(game.getLog(), logId, (seat) => this.names.get(seat) ?? null);
+    if (games.length > 0) this.options.gamesFinished(games);
+  }
+
   private async stop({ notify, forget }: { notify: boolean; forget: boolean }): Promise<void> {
+    this.recordGames();
+    this.names.clear();
     // Quitting the app isn't leaving: keep the seat, so resuming the table puts everyone back.
     if (notify) this.client?.close();
     else this.client?.disconnect();
@@ -203,12 +220,21 @@ export class TableService {
     this.game = game;
     client.subscribe((event) => {
       if (this.client !== client) return;
+      if (event.type === 'welcome') for (const member of event.members) this.names.set(member.seat, member.name);
+      if (event.type === 'member-joined') this.names.set(event.member.seat, event.member.name);
       // Remember the host's own seat, so resuming the table puts them back in it.
       if (event.type === 'welcome' && store) store.updateMeta({ ownResumeToken: client.currentResumeToken ?? null });
       this.options.emit(event);
     });
+    let games = 0;
     game.subscribe((view) => {
-      if (this.game === game) this.options.emitGame(view);
+      if (this.game !== game) return;
+      this.options.emitGame(view);
+      // A new game means the one before it is over.
+      if (view.state.number > games) {
+        if (games > 0) this.recordGames();
+        games = view.state.number;
+      }
     });
     client.start();
   }
