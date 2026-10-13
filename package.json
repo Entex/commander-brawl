@@ -38,5 +38,8 @@
     "check": "npm run typecheck && npm run lint && prettier --check . && npm test && npm run test:browser",
     "format": "prettier --write .",
     "icons": "node scripts/icons.mjs"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

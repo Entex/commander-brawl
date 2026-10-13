@@ -1,0 +1,49 @@
+# Runs every test on every push: types, lint, formatting, unit and integration tests,
+# real WebRTC video in Chromium, and the whole Electron app under a virtual display.
+name: Check
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium for the browser tests
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npx prettier --check .
+      - run: npm test
+      - run: npm run test:browser
+
+      # Ubuntu 24.04 blocks the sandbox Electron uses (see the note in scripts/install.sh).
+      - name: Allow Electron's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: End-to-end tests (the whole app, two copies)
+        run: xvfb-run -a npm run test:e2e
+
+      - name: Keep what failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
