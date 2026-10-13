@@ -44,8 +44,8 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
                   <li>Scan the code with the phone's camera app.</li>
                   <li>
                     The browser warns that the connection isn't private. That's expected: the page comes from this
-                    computer, not a website. Tap <b>Advanced → Proceed</b> (Android) or <b>Show Details → visit this
-                    website</b> (iPhone).
+                    computer, not a website. Tap <b>Advanced → Proceed</b> (Android) or{' '}
+                    <b>Show Details → visit this website</b> (iPhone).
                   </li>
                   <li>Allow the camera and point the phone at your play area.</li>
                 </ol>

@@ -1,5 +1,12 @@
 import type { SeatView } from '@commander-brawl/application';
-import { POISON_LIMIT, type CommanderIndex, type GameState, type LossReason, type PlayerCounter, type SeatIndex } from '@commander-brawl/domain';
+import {
+  POISON_LIMIT,
+  type CommanderIndex,
+  type GameState,
+  type LossReason,
+  type PlayerCounter,
+  type SeatIndex,
+} from '@commander-brawl/domain';
 
 export type Players = readonly SeatView<unknown>[];
 

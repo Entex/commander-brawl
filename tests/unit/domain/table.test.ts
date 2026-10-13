@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  InvalidPlayerNameError,
-  MAX_SEATS,
-  Table,
-  TableFullError,
-  normalizePlayerName,
-} from '@commander-brawl/domain';
+import { InvalidPlayerNameError, MAX_SEATS, Table, TableFullError, normalizePlayerName } from '@commander-brawl/domain';
 
 describe('Table', () => {
   it('gives each new player the lowest free seat', () => {

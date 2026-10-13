@@ -24,22 +24,24 @@ These scripts avoid the "unknown publisher" warnings. Windows and macOS only sho
 
 ## Play
 
-1. **Camera.** Click *Set up camera* and scan the QR code with your phone, which must be on the same Wi-Fi as your computer. The phone browser warns that the connection isn't private. That's expected, because the page comes from your own computer. Tap *Advanced → Proceed* (Android) or *Show Details → visit this website* (iPhone). Point the phone at your play area. Any webcam works too, including an iPhone through Continuity Camera on a Mac.
-2. **Host.** One player clicks *Host* and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP). If the router refuses, the app says so; turn on UPnP or forward that port manually.
-3. **Join.** Everyone else pastes the invite code and clicks *Join*.
+1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, which must be on the same Wi-Fi as your computer. The phone browser warns that the connection isn't private. That's expected, because the page comes from your own computer. Tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Point the phone at your play area. Any webcam works too, including an iPhone through Continuity Camera on a Mac.
+2. **Host.** One player clicks _Host_ and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP). If the router refuses, the app says so; turn on UPnP or forward that port manually.
+3. **Join.** Everyone else pastes the invite code and clicks _Join_.
 
 The app recovers from these problems by itself:
+
 - **The phone drops off Wi-Fi or its screen locks.** Only your camera pauses. The phone reconnects when it's back.
 - **The connection to the host drops.** Video between players keeps running, and your seat is held for 30 seconds.
 - **A video link fails.** It restarts, first gently and then from scratch.
 
-**Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". *New game* (click twice) resets everything.
+**Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". _New game_ (click twice) resets everything.
 
 Every change goes into a game log kept by the host, and each player's app has a full copy of it.
+
 - If your connection drops, your changes wait and are sent when it's back.
 - A player who reconnects, or joins late, catches up on everything they missed.
 
-Click *Stats* to see resolution, frame rate, bitrate, packet loss and delay for each player.
+Click _Stats_ to see resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development
 
@@ -97,10 +99,10 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 
 ### Settings for development and tests
 
-| Variable | Effect |
-|---|---|
-| `CB_USER_DATA_DIR` | Keep settings and certificates in this folder, so several copies can run side by side. |
-| `CB_UPNP=off` | Don't ask the router to open a port. |
-| `CB_LOCAL_ONLY=1` | Don't use the public address-lookup (STUN) servers; local network only. |
-| `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port). |
-| `CB_RENDERER_URL` | Load the UI from a dev server. |
+| Variable                         | Effect                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------------------- |
+| `CB_USER_DATA_DIR`               | Keep settings and certificates in this folder, so several copies can run side by side. |
+| `CB_UPNP=off`                    | Don't ask the router to open a port.                                                   |
+| `CB_LOCAL_ONLY=1`                | Don't use the public address-lookup (STUN) servers; local network only.                |
+| `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port).                        |
+| `CB_RENDERER_URL`                | Load the UI from a dev server.                                                         |

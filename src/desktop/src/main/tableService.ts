@@ -62,7 +62,12 @@ export class TableService {
       ...lan.slice(0, 3),
     ];
     const fingerprint = this.options.identity.fingerprint;
-    const invite = encodeInvite({ hosts: hosts.length > 0 ? hosts : ['127.0.0.1'], port: server.port, secret, fingerprint });
+    const invite = encodeInvite({
+      hosts: hosts.length > 0 ? hosts : ['127.0.0.1'],
+      port: server.port,
+      secret,
+      fingerprint,
+    });
     this.connect({ hosts: ['127.0.0.1'], port: server.port, secret, fingerprint }, playerName);
     return { invite, reachability: describeReachability(mapping, server.port) };
   }

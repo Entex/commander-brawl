@@ -14,11 +14,15 @@ await Promise.all([buildPhone(), buildMain()]);
 
 const url = server.resolvedUrls?.local[0];
 console.log(`UI served from ${url}`);
-const electron = spawn(resolve(root, 'node_modules/.bin/electron'), [resolve(root, 'build/app'), ...process.argv.slice(2)], {
-  stdio: 'inherit',
-  env: { ...process.env, CB_RENDERER_URL: url },
-  shell: process.platform === 'win32',
-});
+const electron = spawn(
+  resolve(root, 'node_modules/.bin/electron'),
+  [resolve(root, 'build/app'), ...process.argv.slice(2)],
+  {
+    stdio: 'inherit',
+    env: { ...process.env, CB_RENDERER_URL: url },
+    shell: process.platform === 'win32',
+  },
+);
 electron.on('exit', async (code) => {
   await server.close();
   process.exit(code ?? 0);

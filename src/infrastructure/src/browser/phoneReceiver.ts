@@ -61,7 +61,11 @@ export class PhoneReceiver {
     pc.onicecandidate = ({ candidate }) => {
       if (candidate && this.pc === pc) {
         const { sdpMid = null, sdpMLineIndex = null } = candidate;
-        this.events.send({ t: 'candidate', session, candidate: { candidate: candidate.candidate, sdpMid, sdpMLineIndex } });
+        this.events.send({
+          t: 'candidate',
+          session,
+          candidate: { candidate: candidate.candidate, sdpMid, sdpMLineIndex },
+        });
       }
     };
     pc.onconnectionstatechange = () => {

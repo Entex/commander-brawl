@@ -44,7 +44,11 @@ for (const target of targets) {
     overwrite: true,
     quiet: true,
     darwinDarkModeSupport: true,
-    win32metadata: { CompanyName: 'Commander Brawl', ProductName: 'Commander Brawl', FileDescription: 'Commander Brawl' },
+    win32metadata: {
+      CompanyName: 'Commander Brawl',
+      ProductName: 'Commander Brawl',
+      FileDescription: 'Commander Brawl',
+    },
     extendInfo: {
       NSCameraUsageDescription: 'Commander Brawl shows your play area to the other players.',
       NSLocalNetworkUsageDescription: 'Commander Brawl connects to your phone camera and to players on your network.',
@@ -81,12 +85,16 @@ for (const script of ['install.sh', 'install.ps1']) {
 }
 const sums = [];
 for (const name of [...archives, 'install.sh', 'install.ps1']) {
-  const hash = createHash('sha256').update(await readFile(join(release, name))).digest('hex');
+  const hash = createHash('sha256')
+    .update(await readFile(join(release, name)))
+    .digest('hex');
   sums.push(`${hash}  ${name}`);
 }
 await writeFile(join(release, 'SHA256SUMS'), `${sums.join('\n')}\n`);
 await rm(staging, { recursive: true, force: true });
-console.log(`Commander Brawl ${version} is in ${release}:\n  ${[...archives, 'install.sh', 'install.ps1', 'SHA256SUMS'].join('\n  ')}`);
+console.log(
+  `Commander Brawl ${version} is in ${release}:\n  ${[...archives, 'install.sh', 'install.ps1', 'SHA256SUMS'].join('\n  ')}`,
+);
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });

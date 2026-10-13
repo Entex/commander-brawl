@@ -69,13 +69,16 @@ export class TestTable {
     const page = this.page(id);
     const report = () => page.evaluate(() => window.harness.videoReport());
     await expect
-      .poll(async () => {
-        const videos = await report();
-        return videos
-          .filter((v) => v.link === 'connected' && v.width > 0 && v.frames > 0)
-          .map((v) => v.memberId)
-          .sort();
-      }, { timeout: 30_000, message: `${id} should see video from ${from.join(', ')}` })
+      .poll(
+        async () => {
+          const videos = await report();
+          return videos
+            .filter((v) => v.link === 'connected' && v.width > 0 && v.frames > 0)
+            .map((v) => v.memberId)
+            .sort();
+        },
+        { timeout: 30_000, message: `${id} should see video from ${from.join(', ')}` },
+      )
       .toEqual([...from].sort());
 
     // Frames must keep coming, not just one frozen picture. Right after connecting the frame rate

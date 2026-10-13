@@ -169,7 +169,10 @@ export class GameSync {
 
   private buildView(): GameView {
     return {
-      state: applyEvents(this.confirmed, this.pending.map((p) => p.event)),
+      state: applyEvents(
+        this.confirmed,
+        this.pending.map((p) => p.event),
+      ),
       recent: this.log.slice(-RECENT_LIMIT),
       logLength: this.log.length,
       unconfirmed: this.pending.length,

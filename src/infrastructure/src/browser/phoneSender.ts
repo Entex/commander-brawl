@@ -1,9 +1,4 @@
-import {
-  PHONE_REPLACED_CLOSE_CODE,
-  parseDesktopToPhone,
-  type DesktopToPhone,
-  type PhoneToDesktop,
-} from '../protocol';
+import { PHONE_REPLACED_CLOSE_CODE, parseDesktopToPhone, type DesktopToPhone, type PhoneToDesktop } from '../protocol';
 
 export type PhoneSenderStatus =
   | { readonly kind: 'starting' }
@@ -124,7 +119,9 @@ export class PhoneSender {
     track.onended = () => {
       if (!this.stopped && document.visibilityState === 'visible') void this.acquireCamera();
     };
-    await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }).catch(() => undefined);
+    await track
+      .applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] })
+      .catch(() => undefined);
 
     const previous = this.track;
     this.track = track;

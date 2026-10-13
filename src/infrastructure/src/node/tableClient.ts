@@ -211,7 +211,8 @@ export class TableClient implements TableSignaling {
         this.emit({ type: 'signal', from: message.from, data: message.data });
         break;
       case 'events':
-        for (const listener of this.gameListeners) listener({ logId: message.logId, from: message.from, events: message.events });
+        for (const listener of this.gameListeners)
+          listener({ logId: message.logId, from: message.from, events: message.events });
         break;
       case 'rejected':
         this.stop('closed', REJECTION_MESSAGES[message.reason]);

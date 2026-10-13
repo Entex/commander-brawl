@@ -21,9 +21,7 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.cloudflare.com:3478' },
 ];
 
-type LinkSignal =
-  | { readonly description: RTCSessionDescriptionInit }
-  | { readonly candidate: RTCIceCandidateInit };
+type LinkSignal = { readonly description: RTCSessionDescriptionInit } | { readonly candidate: RTCIceCandidateInit };
 
 export class WebRtcPeerLinkFactory implements PeerLinkFactory<MediaStreamTrack> {
   constructor(private readonly config: WebRtcConfig) {}
@@ -115,8 +113,7 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
   }
 
   private async handleDescription(description: RTCSessionDescriptionInit): Promise<void> {
-    const offerCollision =
-      description.type === 'offer' && (this.makingOffer || this.pc.signalingState !== 'stable');
+    const offerCollision = description.type === 'offer' && (this.makingOffer || this.pc.signalingState !== 'stable');
     this.ignoreOffer = !this.polite && offerCollision;
     if (this.ignoreOffer) return;
 

@@ -186,7 +186,15 @@ function Stepper({ label, unit, value, max, big = false, onChange }: StepperProp
   );
 }
 
-function OutStatus({ seat, game, players }: { readonly seat: SeatIndex; readonly game: GameState; readonly players: Players }) {
+function OutStatus({
+  seat,
+  game,
+  players,
+}: {
+  readonly seat: SeatIndex;
+  readonly game: GameState;
+  readonly players: Players;
+}) {
   const state = game.seats[seat];
   if (!state) return null;
   const reason = lossReason(state);
@@ -203,7 +211,9 @@ function OutStatus({ seat, game, players }: { readonly seat: SeatIndex; readonly
   if (isOut(state)) {
     return (
       <div className="status-row">
-        <span>Out{reason && state.outOverride === null ? `: ${describeLoss(reason, game, players).toLowerCase()}` : ''}.</span>
+        <span>
+          Out{reason && state.outOverride === null ? `: ${describeLoss(reason, game, players).toLowerCase()}` : ''}.
+        </span>
         <button onClick={() => set(state.outOverride === true && !reason ? null : false)}>Still in</button>
       </div>
     );

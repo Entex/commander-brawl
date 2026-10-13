@@ -40,7 +40,8 @@ async function setUp(browser: Browser) {
     {
       connected: () => undefined,
       disconnected: () => void desktop.evaluate(() => window.harness.phoneDisconnected()).catch(() => undefined),
-      message: (message) => void desktop.evaluate((m) => window.harness.deliverPhone(m), message).catch(() => undefined),
+      message: (message) =>
+        void desktop.evaluate((m) => window.harness.deliverPhone(m), message).catch(() => undefined),
     },
   );
   table.onPhoneMessage = (_from, message) => server.send(message);

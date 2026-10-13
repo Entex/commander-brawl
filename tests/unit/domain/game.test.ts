@@ -54,7 +54,13 @@ describe('game state', () => {
 });
 
 describe('commander damage', () => {
-  const damage = (amount: number, commander: 0 | 1 = 0): GameEvent => ({ type: 'commander-damage', from: 1, commander, to: 0, amount });
+  const damage = (amount: number, commander: 0 | 1 = 0): GameEvent => ({
+    type: 'commander-damage',
+    from: 1,
+    commander,
+    to: 0,
+    amount,
+  });
 
   it('counts per commander and also comes off life', () => {
     const state = applyEvents(newGame(), [damage(5), damage(3, 1), damage(2)]);
@@ -149,7 +155,12 @@ describe('player counters', () => {
 });
 
 describe('commander tax', () => {
-  const cast = (amount: 1 | -1, commander: 0 | 1 = 0): GameEvent => ({ type: 'commander-cast', seat: 0, commander, amount });
+  const cast = (amount: 1 | -1, commander: 0 | 1 = 0): GameEvent => ({
+    type: 'commander-cast',
+    seat: 0,
+    commander,
+    amount,
+  });
 
   it('goes up by 2 for every cast, per commander', () => {
     const state = applyEvents(newGame(), [cast(1), cast(1), cast(1, 1)]);
@@ -170,7 +181,11 @@ describe('commander tax', () => {
 
 describe('reading game events from the network', () => {
   it('accepts valid events', () => {
-    expect(toGameEvent({ type: 'life-changed', seat: 3, amount: 5 })).toEqual({ type: 'life-changed', seat: 3, amount: 5 });
+    expect(toGameEvent({ type: 'life-changed', seat: 3, amount: 5 })).toEqual({
+      type: 'life-changed',
+      seat: 3,
+      amount: 5,
+    });
     expect(toGameEvent({ type: 'new-game', startingLife: 40 })).toEqual({ type: 'new-game', startingLife: 40 });
   });
 

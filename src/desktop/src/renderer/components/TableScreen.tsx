@@ -113,7 +113,13 @@ function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
   );
 }
 
-function LastChange({ game, state }: { readonly game: GameView | null; readonly state: TableSessionState<MediaStreamTrack> }) {
+function LastChange({
+  game,
+  state,
+}: {
+  readonly game: GameView | null;
+  readonly state: TableSessionState<MediaStreamTrack>;
+}) {
   const last = game?.recent.at(-1);
   if (!game || !last) return null;
   return (
@@ -158,7 +164,11 @@ function ConnectionBanner({ state, unconfirmed, onLeave }: ConnectionBannerProps
     case 'connected':
       return null;
     case 'connecting':
-      return <div className="banner">Connecting to the table…{state.connectionReason ? ` (${state.connectionReason})` : ''}</div>;
+      return (
+        <div className="banner">
+          Connecting to the table…{state.connectionReason ? ` (${state.connectionReason})` : ''}
+        </div>
+      );
     case 'reconnecting':
       return <div className="banner">Reconnecting to the host… Video between players keeps running.{waiting}</div>;
     case 'closed':

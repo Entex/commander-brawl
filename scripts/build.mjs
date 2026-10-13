@@ -43,8 +43,10 @@ const inlineSsdpPackageJson = {
     build.onLoad({ filter: /[\\/]@achingbrain[\\/]ssdp[\\/]dist[\\/]src[\\/]ssdp\.js$/ }, async (args) => {
       const source = await readFile(args.path, 'utf8');
       const pkg = JSON.parse(await readFile(resolve(args.path, '../../../package.json'), 'utf8'));
-      const pattern = /const req = createRequire\(import\.meta\.url\);\s*const \{ name, version \} = req\('\.\.\/\.\.\/package\.json'\);/;
-      if (!pattern.test(source)) throw new Error('@achingbrain/ssdp changed; update inlineSsdpPackageJson in scripts/build.mjs');
+      const pattern =
+        /const req = createRequire\(import\.meta\.url\);\s*const \{ name, version \} = req\('\.\.\/\.\.\/package\.json'\);/;
+      if (!pattern.test(source))
+        throw new Error('@achingbrain/ssdp changed; update inlineSsdpPackageJson in scripts/build.mjs');
       const values = JSON.stringify({ name: pkg.name, version: pkg.version });
       return { contents: source.replace(pattern, `const { name, version } = ${values};`), loader: 'js' };
     });
@@ -64,7 +66,11 @@ export async function buildMain() {
   };
   await Promise.all([
     esbuild({ ...shared, entryPoints: [resolve(desktop, 'src/main/main.ts')], outfile: resolve(out, 'main.cjs') }),
-    esbuild({ ...shared, entryPoints: [resolve(desktop, 'src/preload/preload.ts')], outfile: resolve(out, 'preload.cjs') }),
+    esbuild({
+      ...shared,
+      entryPoints: [resolve(desktop, 'src/preload/preload.ts')],
+      outfile: resolve(out, 'preload.cjs'),
+    }),
   ]);
 }
 

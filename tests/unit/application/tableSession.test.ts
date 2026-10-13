@@ -210,7 +210,10 @@ describe('TableSession', () => {
 
   it('reports the host connection state', () => {
     signaling.emit({ type: 'connection', state: 'reconnecting', reason: 'Lost the connection to the host.' });
-    expect(session.getState()).toMatchObject({ connection: 'reconnecting', connectionReason: 'Lost the connection to the host.' });
+    expect(session.getState()).toMatchObject({
+      connection: 'reconnecting',
+      connectionReason: 'Lost the connection to the host.',
+    });
   });
 
   it('closes everything on dispose', () => {

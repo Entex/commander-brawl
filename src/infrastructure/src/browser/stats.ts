@@ -57,10 +57,23 @@ export class LinkStatsReader {
     const rtt = num(pair, 'currentRoundTripTime');
 
     const inbound = inboundRtp
-      ? this.video(inboundRtp, 'inbound', num(inboundRtp, 'bytesReceived'), num(inboundRtp, 'packetsReceived'), num(inboundRtp, 'packetsLost'))
+      ? this.video(
+          inboundRtp,
+          'inbound',
+          num(inboundRtp, 'bytesReceived'),
+          num(inboundRtp, 'packetsReceived'),
+          num(inboundRtp, 'packetsLost'),
+        )
       : null;
     const outbound = outboundRtp
-      ? this.video(outboundRtp, 'outbound', num(outboundRtp, 'bytesSent'), num(outboundRtp, 'packetsSent'), null, num(remoteInbound, 'fractionLost'))
+      ? this.video(
+          outboundRtp,
+          'outbound',
+          num(outboundRtp, 'bytesSent'),
+          num(outboundRtp, 'packetsSent'),
+          null,
+          num(remoteInbound, 'fractionLost'),
+        )
       : null;
 
     return { route, roundTripMs: rtt === null ? null : Math.round(rtt * 1000), inbound, outbound };

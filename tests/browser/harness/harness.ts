@@ -1,7 +1,12 @@
 // A bare player for browser tests: the real TableSession and WebRTC links, with signaling
 // bridged to the test process instead of the Electron main process.
 import { TableSession, type SignalingEvent, type TableSignaling } from '@commander-brawl/application';
-import { openCamera, PhoneReceiver, WebRtcPeerLinkFactory, type PhoneCameraState } from '@commander-brawl/infrastructure/browser';
+import {
+  openCamera,
+  PhoneReceiver,
+  WebRtcPeerLinkFactory,
+  type PhoneCameraState,
+} from '@commander-brawl/infrastructure/browser';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 export type HarnessOutbound =
@@ -110,8 +115,9 @@ const harness = {
   },
 
   videoReport(): VideoReport[] {
-    return session.getState().seats
-      .filter((seat) => !seat.isSelf)
+    return session
+      .getState()
+      .seats.filter((seat) => !seat.isSelf)
       .map((seat) => {
         const video = videos.get(seat.player.id);
         return {

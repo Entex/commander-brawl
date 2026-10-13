@@ -43,7 +43,8 @@ const rules: Rule[] = [
     check: (s) => {
       if (isNodeBuiltin(s)) return 'browser code may not use Node modules';
       if (s.includes('/node')) return 'browser code may not use Node infrastructure';
-      if (isOwnPackage(s) && s !== `${PACKAGE}domain` && s !== `${PACKAGE}application`) return 'infrastructure may not depend on apps';
+      if (isOwnPackage(s) && s !== `${PACKAGE}domain` && s !== `${PACKAGE}application`)
+        return 'infrastructure may not depend on apps';
       return null;
     },
   },
@@ -51,7 +52,8 @@ const rules: Rule[] = [
     folder: 'src/infrastructure/src/node',
     check: (s) => {
       if (s.includes('/browser')) return 'Node code may not use browser infrastructure';
-      if (isOwnPackage(s) && s !== `${PACKAGE}domain` && s !== `${PACKAGE}application`) return 'infrastructure may not depend on apps';
+      if (isOwnPackage(s) && s !== `${PACKAGE}domain` && s !== `${PACKAGE}application`)
+        return 'infrastructure may not depend on apps';
       return null;
     },
   },
@@ -59,7 +61,8 @@ const rules: Rule[] = [
     folder: 'src/desktop/src/renderer',
     check: (s) => {
       if (isNodeBuiltin(s) || s === 'electron') return 'the UI runs sandboxed and may not use Node or Electron';
-      if (s === `${PACKAGE}infrastructure/node`) return 'the UI may not use Node infrastructure; go through the main process';
+      if (s === `${PACKAGE}infrastructure/node`)
+        return 'the UI may not use Node infrastructure; go through the main process';
       return null;
     },
   },
@@ -84,7 +87,8 @@ function sourceFiles(folder: string): string[] {
 
 function importsOf(file: string): string[] {
   const source = readFileSync(file, 'utf8');
-  const pattern = /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
+  const pattern =
+    /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
   return [...source.matchAll(pattern)].map((match) => (match[1] ?? match[2])!);
 }
 

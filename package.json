@@ -17,6 +17,7 @@
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
+    "prettier": "^3.9.10",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
@@ -32,6 +33,7 @@
     "test": "vitest run",
     "test:browser": "playwright test -c tests/browser",
     "test:e2e": "node scripts/build.mjs && playwright test -c tests/e2e",
-    "check": "npm run typecheck && npm run lint && npm test && npm run test:browser"
+    "check": "npm run typecheck && npm run lint && prettier --check . && npm test && npm run test:browser",
+    "format": "prettier --write ."
   }
 }

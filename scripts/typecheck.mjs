@@ -17,7 +17,11 @@ const projects = [
 
 let failed = false;
 for (const project of projects) {
-  const result = spawnSync('npx', ['tsc', '-p', project], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+  const result = spawnSync('npx', ['tsc', '-p', project], {
+    cwd: root,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
   if (result.status !== 0) {
     console.error(`Type errors in ${project}`);
     failed = true;

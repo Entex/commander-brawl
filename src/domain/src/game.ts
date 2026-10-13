@@ -57,8 +57,18 @@ export type GameEvent =
     }
   | { readonly type: 'commanders-named'; readonly seat: SeatIndex; readonly names: readonly string[] }
   | { readonly type: 'out-set'; readonly seat: SeatIndex; readonly out: boolean | null }
-  | { readonly type: 'counter-changed'; readonly seat: SeatIndex; readonly counter: PlayerCounter; readonly amount: number }
-  | { readonly type: 'commander-cast'; readonly seat: SeatIndex; readonly commander: CommanderIndex; readonly amount: number }
+  | {
+      readonly type: 'counter-changed';
+      readonly seat: SeatIndex;
+      readonly counter: PlayerCounter;
+      readonly amount: number;
+    }
+  | {
+      readonly type: 'commander-cast';
+      readonly seat: SeatIndex;
+      readonly commander: CommanderIndex;
+      readonly amount: number;
+    }
   | { readonly type: 'new-game'; readonly startingLife: number };
 
 export type LossReason =
@@ -109,7 +119,9 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
     case 'commander-cast':
       return updateSeat(state, event.seat, (seat) => ({
         ...seat,
-        commanderCasts: seat.commanderCasts.map((casts, c) => (c === event.commander ? Math.max(0, casts + event.amount) : casts)),
+        commanderCasts: seat.commanderCasts.map((casts, c) =>
+          c === event.commander ? Math.max(0, casts + event.amount) : casts,
+        ),
       }));
     case 'new-game':
       return newGame(event.startingLife, state.number + 1, state);

@@ -55,9 +55,13 @@ export function parseClientMessage(raw: string): TableClientMessage | null {
         ? { t: 'hello', v: message.v, secret: message.secret, name: message.name, resumeToken: message.resumeToken }
         : null;
     case 'signal':
-      return isShortString(message.to) && 'data' in message ? { t: 'signal', to: message.to, data: message.data } : null;
+      return isShortString(message.to) && 'data' in message
+        ? { t: 'signal', to: message.to, data: message.data }
+        : null;
     case 'event':
-      return isShortString(message.id) && 'event' in message ? { t: 'event', id: message.id, event: message.event } : null;
+      return isShortString(message.id) && 'event' in message
+        ? { t: 'event', id: message.id, event: message.event }
+        : null;
     case 'sync':
       return (message.logId === null || isShortString(message.logId)) && isPosition(message.from)
         ? { t: 'sync', logId: message.logId, from: message.from }
@@ -91,7 +95,9 @@ export function parseServerMessage(raw: string): TableServerMessage | null {
     case 'events': {
       if (!isShortString(message.logId) || !isPosition(message.from) || !Array.isArray(message.events)) return null;
       const events = message.events.map(toLoggedEvent);
-      return events.every((e): e is LoggedEvent => e !== null) ? { t: 'events', logId: message.logId, from: message.from, events } : null;
+      return events.every((e): e is LoggedEvent => e !== null)
+        ? { t: 'events', logId: message.logId, from: message.from, events }
+        : null;
     }
     case 'rejected':
       return isRejection(message.reason) ? { t: 'rejected', reason: message.reason } : null;

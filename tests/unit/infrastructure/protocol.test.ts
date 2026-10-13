@@ -70,22 +70,29 @@ describe('game messages', () => {
 
   it('rejects a batch with an invalid entry', () => {
     const broken = { ...entry, event: { type: 'life-changed', seat: 1, amount: 0 } };
-    expect(parseServerMessage(JSON.stringify({ t: 'events', logId: 'l', from: 0, events: [entry, broken] }))).toBeNull();
+    expect(
+      parseServerMessage(JSON.stringify({ t: 'events', logId: 'l', from: 0, events: [entry, broken] })),
+    ).toBeNull();
   });
 });
 
 describe('phone protocol', () => {
   it('accepts offers and candidates', () => {
-    expect(parsePhoneToDesktop('{"t":"offer","session":2,"sdp":"v=0"}')).toEqual({ t: 'offer', session: 2, sdp: 'v=0' });
+    expect(parsePhoneToDesktop('{"t":"offer","session":2,"sdp":"v=0"}')).toEqual({
+      t: 'offer',
+      session: 2,
+      sdp: 'v=0',
+    });
     expect(
       parseDesktopToPhone('{"t":"candidate","session":1,"candidate":{"candidate":"c","sdpMid":"0","sdpMLineIndex":0}}'),
     ).toEqual({ t: 'candidate', session: 1, candidate: { candidate: 'c', sdpMid: '0', sdpMLineIndex: 0 } });
   });
 
-  it.each(['{"t":"offer","session":-1,"sdp":"v=0"}', '{"t":"offer","session":1}', '{"t":"answer","session":1,"sdp":"x"}'])(
-    'rejects phone message %s',
-    (raw) => {
-      expect(parsePhoneToDesktop(raw)).toBeNull();
-    },
-  );
+  it.each([
+    '{"t":"offer","session":-1,"sdp":"v=0"}',
+    '{"t":"offer","session":1}',
+    '{"t":"answer","session":1,"sdp":"x"}',
+  ])('rejects phone message %s', (raw) => {
+    expect(parsePhoneToDesktop(raw)).toBeNull();
+  });
 });

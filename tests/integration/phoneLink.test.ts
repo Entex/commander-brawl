@@ -68,7 +68,9 @@ describe('phone link server', () => {
 
   it('only lets phones with the token connect', async () => {
     const intruder = phone('wrong-token');
-    const rejected = await new Promise<string>((resolve) => intruder.on('unexpected-response', (_req, res) => resolve(String(res.statusCode))));
+    const rejected = await new Promise<string>((resolve) =>
+      intruder.on('unexpected-response', (_req, res) => resolve(String(res.statusCode))),
+    );
     expect(rejected).toBe('401');
     expect(events).toEqual([]);
   });

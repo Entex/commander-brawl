@@ -160,7 +160,9 @@ function StatsLine({ stats }: { readonly stats: LinkStats }) {
   const video = stats.inbound;
   return (
     <div className="seat-stats">
-      {video ? `${video.width}×${video.height} · ${video.fps} fps · ${(video.kbps / 1000).toFixed(1)} Mbps` : 'no video'}
+      {video
+        ? `${video.width}×${video.height} · ${video.fps} fps · ${(video.kbps / 1000).toFixed(1)} Mbps`
+        : 'no video'}
       {video && video.lossPercent > 0 ? ` · ${video.lossPercent}% lost` : ''}
       {stats.roundTripMs !== null ? ` · ${stats.roundTripMs} ms` : ''}
       {stats.route === 'relay' ? ' · relayed' : ''}
