@@ -68,6 +68,7 @@ async function start(): Promise<void> {
     identity,
     preferredPort: env.tablePort,
     useUpnp: env.useUpnp,
+    findPublicAddress: !env.localOnly,
     tableDir: join(dataDir, 'hosted-table'),
     emit: (event) => mainWindow?.webContents.send(Channels.tableEvent, event),
     emitGame: (view) => mainWindow?.webContents.send(Channels.gameUpdate, view),

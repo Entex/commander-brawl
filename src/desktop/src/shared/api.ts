@@ -12,6 +12,11 @@ import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastruc
 /** How friends outside your home can reach the table you host. */
 export type Reachability =
   | { readonly kind: 'internet'; readonly address: string; readonly port: number }
+  /**
+   * The router didn't open the port itself, and it couldn't be checked from here whether it's forwarded by hand
+   * (to `localAddress`). The invite has the public `address` in case it is.
+   */
+  | { readonly kind: 'forward'; readonly address: string; readonly localAddress: string | null; readonly port: number }
   | { readonly kind: 'blocked'; readonly reason: string; readonly port: number };
 
 export interface HostInfo {

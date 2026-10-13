@@ -21,6 +21,9 @@ for (const target of targets) {
 
 const { out: appDir, version } = await buildApp();
 const electronVersion = JSON.parse(await readFile(resolve(root, 'node_modules/electron/package.json'), 'utf8')).version;
+// The checksums the electron package comes with: an Electron already downloaded is checked against them,
+// instead of against a checksum file fetched from GitHub, so packaging works without the internet.
+const electronChecksums = JSON.parse(await readFile(resolve(root, 'node_modules/electron/checksums.json'), 'utf8'));
 await rm(release, { recursive: true, force: true });
 await mkdir(staging, { recursive: true });
 
@@ -34,6 +37,7 @@ for (const target of targets) {
     platform,
     arch,
     electronVersion,
+    download: { checksums: electronChecksums },
     name: 'Commander Brawl',
     executableName: 'commander-brawl',
     appVersion: version,

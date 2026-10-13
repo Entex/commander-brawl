@@ -463,6 +463,13 @@ function ReachabilityBadge({ host }: { readonly host: HostInfo }) {
       </span>
     );
   }
+  if (reachability.kind === 'forward') {
+    return (
+      <span className="badge badge-warn" title="Friends outside your home can join if the port is forwarded">
+        <Icon name="open-gate" /> Open if the port is forwarded
+      </span>
+    );
+  }
   return (
     <span className="badge badge-warn" title="Only players on your network can join">
       <Icon name="padlock" /> Local network only
@@ -473,6 +480,15 @@ function ReachabilityBadge({ host }: { readonly host: HostInfo }) {
 function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
   const { reachability } = host;
   if (reachability.kind === 'internet') return null;
+  if (reachability.kind === 'forward') {
+    return (
+      <p className="banner">
+        Your router didn't open the port by itself (UPnP). If TCP port {reachability.port} is forwarded to this computer
+        {reachability.localAddress ? ` (${reachability.localAddress})` : ''}, friends can join with the invite: it has
+        your internet address ({reachability.address}). Your router doesn't let this computer check that itself.
+      </p>
+    );
+  }
   return (
     <p className="banner">
       {reachability.reason} To let friends in, turn on UPnP in your router settings, or forward TCP port{' '}

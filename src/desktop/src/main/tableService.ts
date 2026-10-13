@@ -13,9 +13,13 @@ import { normalizePlayerName, toGameAction, type SeatIndex } from '@commander-br
 import {
   FileTableStore,
   globalIpv6Addresses,
+  isCarrierGradeNat,
+  isPrivateIpv4,
   lanAddresses,
   openRouterPort,
+  publicIpv4,
   randomId,
+  reachesServer,
   syncGame,
   TableClient,
   TableServer,
@@ -30,6 +34,11 @@ export interface TableServiceOptions {
   readonly preferredPort: number;
   /** Set to false to skip asking the router to open a port (tests, or when it's forwarded manually). */
   readonly useUpnp: boolean;
+  /**
+   * When the router doesn't open the port itself: ask a STUN server on the internet for this computer's public
+   * address, for friends to reach a port forwarded by hand. Off for tests, which stay off the internet.
+   */
+  readonly findPublicAddress: boolean;
   /** Folder for the table you host, so it can be resumed if the app restarts. */
   readonly tableDir: string;
   readonly emit: (event: SignalingEvent) => void;
@@ -164,9 +173,11 @@ export class TableService {
         ? await openRouterPort(server.port, lan[0])
         : { ok: false, reason: this.options.useUpnp ? 'Not connected to a network.' : 'Router port opening is off.' };
     if (mapping.ok) this.releasePort = () => mapping.release();
+    const forwarded = mapping.ok ? null : await this.forwardedByHand(server.port, lan[0] ?? null);
 
     const hosts = [
       ...(mapping.ok && mapping.reachable ? [mapping.externalIp] : []),
+      ...(forwarded ? [forwarded.address] : []),
       ...globalIpv6Addresses().slice(0, 2),
       ...lan.slice(0, 3),
     ];
@@ -184,9 +195,21 @@ export class TableService {
     );
     return {
       invite,
-      reachability: describeReachability(mapping, server.port),
+      reachability: describeReachability(mapping, forwarded, server.port),
       portChanged: plan.saved !== undefined && server.port !== plan.saved.port,
     };
+  }
+
+  /**
+   * Without the router opening the port, friends outside can still reach a port forwarded by hand, at this
+   * computer's public address. Whether it is forwarded is checked by connecting to it from here, which works
+   * when the router lets a computer at home reach the home's own public address (most do).
+   */
+  private async forwardedByHand(port: number, localAddress: string | null): Promise<ForwardedPort | null> {
+    if (!this.options.findPublicAddress) return null;
+    const address = await publicIpv4();
+    if (!address || isPrivateIpv4(address) || isCarrierGradeNat(address)) return null;
+    return { address, localAddress, checked: await reachesServer(address, port, this.options.identity.fingerprint) };
   }
 
   /** Records the table's finished games. Recording a game again just updates it. */
@@ -245,9 +268,22 @@ export class TableService {
   }
 }
 
-function describeReachability(mapping: PortMappingResult, port: number): Reachability {
+/** A port the router didn't open itself, maybe forwarded by hand: this computer's public address, and if it's reached. */
+interface ForwardedPort {
+  readonly address: string;
+  /** This computer's address at home, which the port has to be forwarded to. */
+  readonly localAddress: string | null;
+  /** Reached from here, so it's forwarded. Not reached proves nothing: some routers don't let it through. */
+  readonly checked: boolean;
+}
+
+function describeReachability(mapping: PortMappingResult, forwarded: ForwardedPort | null, port: number): Reachability {
   if (mapping.ok && mapping.reachable) {
     return { kind: 'internet', address: mapping.externalIp, port };
+  }
+  if (forwarded?.checked) return { kind: 'internet', address: forwarded.address, port };
+  if (forwarded) {
+    return { kind: 'forward', address: forwarded.address, localAddress: forwarded.localAddress, port };
   }
   if (mapping.ok) {
     return {
