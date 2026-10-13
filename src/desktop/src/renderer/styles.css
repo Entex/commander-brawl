@@ -793,6 +793,40 @@ button.swatch.selected {
   font-weight: 600;
 }
 
+/* Dice, coins and random picks */
+
+.roll-banner {
+  position: absolute;
+  top: 0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  pointer-events: none;
+  padding: 0.6rem 1.4rem;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: #151a2b;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 50%);
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.roll-banner p {
+  margin: 0.2rem 0;
+}
+
+.custom-roll {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.custom-roll input {
+  width: 4rem;
+}
+
 /* Phases and the clock */
 
 .phases {

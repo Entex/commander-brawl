@@ -43,6 +43,8 @@ The app recovers from these problems by itself:
 
 **Markers.** A player's _Details_ has the monarch, the initiative (which ventures into Undercity), dungeon progress room by room for every paper dungeon, the Ring's temptations and the city's blessing; they show on the seat. Day and night and the storm count (for the current turn) are under _Counters_ and show in the bar at the top.
 
+**🎲 Roll** has dice (d6, d20 and the rest, or any number of dice with any number of sides), a coin flip, and a random opponent or player. The host rolls, so everyone can trust the result: it shows on every screen and lands in the game log, and nobody can send a result of their own.
+
 **Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". _New game_ (click twice) resets everything.
 
 Every change goes into a game log kept by the host, and each player's app has a full copy of it.

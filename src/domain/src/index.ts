@@ -4,7 +4,7 @@ export { normalizeCardName } from './cards';
 export { MAX_COMMANDERS, MAX_DECK_ENTRIES, MAX_DECK_NAME_LENGTH, deckSize, toDeckList } from './decks';
 export type { DeckCard, DeckList } from './decks';
 export type { Card, CardFace, CommanderLegality, Ruling } from './cards';
-export { isIntent, resolveAction, toGameAction } from './actions';
+export { MAX_DIE_SIDES, MAX_ROLLS, isChanceResult, isIntent, resolveAction, toGameAction } from './actions';
 export type { GameAction, GameIntent } from './actions';
 export {
   COUNTER_COLORS,
@@ -39,7 +39,7 @@ export {
   newGame,
   toGameEvent,
 } from './game';
-export type { CommanderIndex, GameEvent, GameState, LossReason, PlayerCounter, SeatGameState } from './game';
+export type { CoinSide, CommanderIndex, GameEvent, GameState, LossReason, PlayerCounter, SeatGameState } from './game';
 export {
   InvalidPlayerNameError,
   MAX_NAME_LENGTH,

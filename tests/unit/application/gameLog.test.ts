@@ -55,6 +55,12 @@ describe('HostGameLog', () => {
     expect(entry.event.type).toBe('turn-order-set');
   });
 
+  it('rolls dice itself, and turns down a result a player sends', () => {
+    const rolled = added(log.append(alice, 'r1', { type: 'roll-dice', sides: 6, count: 2 }));
+    expect(rolled.event).toMatchObject({ type: 'dice-rolled', sides: 6 });
+    expect(log.append(alice, 'r2', { type: 'dice-rolled', sides: 6, results: [6, 6] })).toEqual(refused);
+  });
+
   it('lets players take back their own changes, once', () => {
     log.append(alice, 'e1', hit(1, -3));
     expect(added(log.append(alice, 'u1', { type: 'undo', target: 'e1' })).event).toEqual({
@@ -191,9 +197,16 @@ describe('GameSync', () => {
     });
     expect(sync.getView().hostClockOffset).toBe(5_000);
 
-    // Your turn starts now: on the host's clock that's 5 seconds later than here.
+    localNow = 4_500;
+    sync.received({
+      logId: 'log',
+      from: 1,
+      events: [at(1, 9_500, { type: 'turn-order-set', order: [0, 1] })],
+      live: true,
+    });
+    // You start the clock over now: on the host's clock that's 5 seconds later than here.
     localNow = 10_000;
-    sync.submit({ type: 'turn-order-set', order: [0, 1] });
+    sync.submit({ type: 'clock-set', settings: { kind: 'turn', minutes: 1 } });
     expect(sync.getView().state.clock?.running).toEqual({ seat: 0, since: 15_000 });
   });
 

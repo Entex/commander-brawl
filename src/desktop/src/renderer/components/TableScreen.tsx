@@ -22,6 +22,7 @@ import { DecksPanel } from './DecksPanel';
 import { PointerLayer } from './PointerLayer';
 import { ClockPanel, TurnControls } from './Turn';
 import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
+import { RollBanner, RollMenu } from './Rolls';
 import { Rule0Panel } from './Rule0Panel';
 import { SnapshotView } from './SnapshotView';
 import { Spotlight } from './Spotlight';
@@ -173,6 +174,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {game && (
         <div className="status-bar">
           <ResponseButton />
+          <RollMenu game={game.state} players={state.seats} />
           <button onClick={() => setRule0Open(true)}>Rule 0</button>
           <TurnControls game={game.state} players={state.seats} hostClockOffset={game.hostClockOffset} />
           <LastChange game={game} state={state} />
@@ -235,6 +237,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
       <PointerLayer marks={pointerMarks} onPoint={point} selfSeat={selfSeat}>
         <ResponseBanner calls={responseCalls} self={selfSeat} />
+        <RollBanner game={game} players={state.seats} />
         {seats.map((seat, index) =>
           seat ? (
             <SeatTile

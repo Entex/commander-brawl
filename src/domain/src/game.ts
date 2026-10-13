@@ -166,6 +166,10 @@ export type GameEvent =
   | { readonly type: 'citys-blessing-set'; readonly seat: SeatIndex; readonly has: boolean }
   | { readonly type: 'day-night-set'; readonly value: DayNight | null }
   | { readonly type: 'storm-changed'; readonly amount: number }
+  /** Results of chance, recorded by the host (see GameIntent). Like a card shown, they change nothing. */
+  | { readonly type: 'dice-rolled'; readonly sides: number; readonly results: readonly number[] }
+  | { readonly type: 'coins-flipped'; readonly results: readonly CoinSide[] }
+  | { readonly type: 'seat-picked'; readonly seats: readonly SeatIndex[]; readonly picked: SeatIndex }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -184,6 +188,8 @@ export type GameEvent =
    * event never happened, so this is handled where the whole log is known (see replayLog), not here.
    */
   | { readonly type: 'undo'; readonly target: string };
+
+export type CoinSide = 'heads' | 'tails';
 
 export type LossReason =
   | { readonly kind: 'life' }
@@ -310,6 +316,9 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
     case 'bracket-declared':
       return updateSeat(state, event.seat, (seat) => ({ ...seat, bracket: event.bracket }));
     case 'card-shown':
+    case 'dice-rolled':
+    case 'coins-flipped':
+    case 'seat-picked':
       return state;
     case 'response-called':
       // Waiting for a response isn't anyone's time running out.
@@ -572,6 +581,31 @@ export function toGameEvent(raw: unknown): GameEvent | null {
         : null;
     case 'storm-changed':
       return isChange(value.amount) ? { type: 'storm-changed', amount: value.amount } : null;
+    case 'dice-rolled': {
+      const { sides, results } = value;
+      return isWholeNumber(sides) &&
+        sides >= 2 &&
+        sides <= 1000 &&
+        Array.isArray(results) &&
+        results.length >= 1 &&
+        results.length <= 10 &&
+        results.every((r) => isWholeNumber(r) && r >= 1 && r <= sides)
+        ? { type: 'dice-rolled', sides, results: [...(results as number[])] }
+        : null;
+    }
+    case 'coins-flipped': {
+      const { results } = value;
+      return Array.isArray(results) &&
+        results.length >= 1 &&
+        results.length <= 10 &&
+        results.every((r) => r === 'heads' || r === 'tails')
+        ? { type: 'coins-flipped', results: [...(results as CoinSide[])] }
+        : null;
+    }
+    case 'seat-picked':
+      return isSeatList(value.seats) && isSeatIndex(value.picked) && value.seats.includes(value.picked)
+        ? { type: 'seat-picked', seats: value.seats, picked: value.picked }
+        : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
@@ -594,7 +628,13 @@ function clamp(value: number, min: number, max: number): number {
  * nothing to undo about them.
  */
 export function isAnnouncement(event: GameEvent): boolean {
-  return event.type === 'card-shown' || event.type === 'response-called';
+  return (
+    event.type === 'card-shown' ||
+    event.type === 'response-called' ||
+    event.type === 'dice-rolled' ||
+    event.type === 'coins-flipped' ||
+    event.type === 'seat-picked'
+  );
 }
 
 /** One to four different seats. */

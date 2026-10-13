@@ -114,6 +114,8 @@ function seatsIn(event: GameEvent): SeatIndex[] {
       return event.seat === null ? [] : [event.seat];
     case 'turn-order-set':
       return [...event.order];
+    case 'seat-picked':
+      return [event.picked];
     case 'monarch-set':
     case 'initiative-taken':
       return event.seat === null ? [] : [event.seat];
@@ -137,6 +139,8 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'clock-resumed':
     case 'day-night-set':
     case 'storm-changed':
+    case 'dice-rolled':
+    case 'coins-flipped':
     case 'custom-counter-saved':
     case 'custom-counter-removed':
     case 'new-game':

@@ -13,15 +13,27 @@ const COOLDOWN_MS = 3_000;
  * before this screen opened aren't shown.
  */
 export function useResponseCalls(game: GameView | null): readonly LoggedEvent[] {
-  const calls = (game?.live ?? []).filter((entry) => entry.event.type === 'response-called');
-  const [shownUpTo, setShownUpTo] = useState(() => calls.at(-1)?.seq ?? -1);
-  const visible = calls.filter((entry) => entry.seq > shownUpTo);
+  return useFreshLive(game, (entry) => entry.event.type === 'response-called', SHOW_FOR_MS);
+}
+
+/**
+ * Live events of one kind as they come in, oldest first, each shown for `showForMs` after the newest one
+ * arrives. Ones from before the screen opened aren't shown.
+ */
+export function useFreshLive(
+  game: GameView | null,
+  matches: (entry: LoggedEvent) => boolean,
+  showForMs: number,
+): readonly LoggedEvent[] {
+  const entries = (game?.live ?? []).filter(matches);
+  const [shownUpTo, setShownUpTo] = useState(() => entries.at(-1)?.seq ?? -1);
+  const visible = entries.filter((entry) => entry.seq > shownUpTo);
   const newest = visible.at(-1)?.seq;
   useEffect(() => {
     if (newest === undefined) return;
-    const timer = setTimeout(() => setShownUpTo((upTo) => Math.max(upTo, newest)), SHOW_FOR_MS);
+    const timer = setTimeout(() => setShownUpTo((upTo) => Math.max(upTo, newest)), showForMs);
     return () => clearTimeout(timer);
-  }, [newest]);
+  }, [newest, showForMs]);
   return visible;
 }
 

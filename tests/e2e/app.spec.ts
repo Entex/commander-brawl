@@ -687,6 +687,35 @@ test('markers: monarch, initiative and the Undercity, day and night, the storm c
   await expect(bar).not.toContainText('Storm count');
 });
 
+test('dice, coin flips and random picks, rolled by the host and shown to everyone', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await friend.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await friend.page.getByRole('menuitem', { name: 'd20' }).click();
+  const banner = host.page.getByTestId('roll-banner');
+  await expect(banner).toHaveText(/🎲 Friend rolled a d20: ([1-9]|1[0-9]|20)$/);
+  const roll = await banner.textContent();
+  // The same result for everyone.
+  await expect(friend.page.getByTestId('roll-banner')).toHaveText(roll!);
+
+  await host.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await host.page.getByLabel('How many dice').fill('3');
+  await host.page.getByLabel('Sides').fill('6');
+  await host.page.getByRole('button', { name: 'Roll', exact: true }).click();
+  await expect(friend.page.getByTestId('roll-banner')).toContainText(/Host rolled 3d6: \d, \d, \d \(\d+\)/);
+
+  await host.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await host.page.getByRole('menuitem', { name: 'Random opponent' }).click();
+  await expect(friend.page.getByTestId('roll-banner')).toContainText('Host picked a random opponent: Friend');
+  await friend.page.screenshot({ path: test.info().outputPath('rolls.png') });
+
+  await friend.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await friend.page.getByRole('menuitem', { name: 'Flip a coin' }).click();
+  await expect(host.page.getByTestId('roll-banner')).toContainText(/Friend flipped a coin: (heads|tails)/);
+  // In the log too, and nothing to undo.
+  await expect(friend.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

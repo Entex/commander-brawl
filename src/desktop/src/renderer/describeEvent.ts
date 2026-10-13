@@ -114,6 +114,10 @@ export function describeEvent(
       return event.value ? `${by.name}: it became ${event.value}` : `${by.name}: no more day and night`;
     case 'storm-changed':
       return `${by.name}: storm count ${formatChange(event.amount)}`;
+    case 'dice-rolled':
+    case 'coins-flipped':
+    case 'seat-picked':
+      return describeRoll(entry, players);
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {
@@ -126,5 +130,29 @@ export function describeEvent(
       const target = find(event.target);
       return target ? `${by.name} undid “${describeEvent(target, players, game)}”` : `${by.name} undid a change`;
     }
+  }
+}
+
+/** "Robin rolled a d20: 17", "Robin flipped a coin: heads", "Robin picked a random opponent: Alex". */
+export function describeRoll(entry: LoggedEvent, players: Players): string {
+  const { event, by } = entry;
+  switch (event.type) {
+    case 'dice-rolled': {
+      const dice = event.results.length === 1 ? `a d${event.sides}` : `${event.results.length}d${event.sides}`;
+      const total = event.results.reduce((sum, r) => sum + r, 0);
+      return event.results.length === 1
+        ? `${by.name} rolled ${dice}: ${total}`
+        : `${by.name} rolled ${dice}: ${event.results.join(', ')} (${total})`;
+    }
+    case 'coins-flipped':
+      return event.results.length === 1
+        ? `${by.name} flipped a coin: ${event.results[0]}`
+        : `${by.name} flipped ${event.results.length} coins: ${event.results.join(', ')}`;
+    case 'seat-picked': {
+      const kind = event.seats.includes(by.seat) ? 'player' : 'opponent';
+      return `${by.name} picked a random ${kind}: ${seatName(players, event.picked)}`;
+    }
+    default:
+      return '';
   }
 }
