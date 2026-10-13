@@ -2,7 +2,7 @@
 
 Play Magic: The Gathering Commander over webcams, with up to four players. Use your phone as the camera without installing anything on it.
 
-There are no servers. Everyone installs the app on their computer, and one player hosts the table. Video goes directly between the players. Voice stays on Discord.
+There are no servers. Everyone installs the app, one player hosts the table, and video goes directly between the players. Voice stays on Discord.
 
 ## Install
 
@@ -18,70 +18,28 @@ irm https://github.com/Entex/commander-brawl/releases/latest/download/install.ps
 curl -fsSL https://github.com/Entex/commander-brawl/releases/latest/download/install.sh | sh
 ```
 
-Run the same command again to update. The previous version is kept. To go back to it, run `sh install.sh --rollback`, or on Windows set `$env:CB_ROLLBACK = '1'` and run the installer again.
-
-These scripts avoid the "unknown publisher" warnings. Windows and macOS only show those warnings for files a browser downloaded, and the scripts download and unpack the app themselves. If you got the archive another way, put it next to the install script and run the script. It removes the "downloaded from the internet" mark.
+Run it again to update. The previous version is kept: `sh install.sh --rollback` goes back to it (on Windows, set `$env:CB_ROLLBACK = '1'` and run the installer again). The scripts download and unpack the app themselves, so there are no "unknown publisher" warnings.
 
 ## Play
 
-1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, which must be on the same Wi-Fi as your computer. The phone browser warns that the connection isn't private. That's expected, because the page comes from your own computer. Tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Point the phone at your play area. Any webcam works too, including an iPhone through Continuity Camera on a Mac.
+1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, on the same Wi-Fi. The phone warns that the connection isn't private, because the page comes from your own computer: tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Any webcam works too. _Straighten the view_ turns an angled view of your playmat into a top-down one.
+2. **Host.** One player clicks _Host_ and shares the invite code. The app asks the router to open TCP port 47801 (UPnP or NAT-PMP). If it can't, it says why, and you can forward the port by hand. On a Mac, the app needs Local Network access (System Settings → Privacy & Security → Local Network).
+3. **Join.** Everyone else pastes the invite code and clicks _Join_, or _Watch_ to spectate (up to 8).
 
-   A phone usually looks at the table at an angle. Under _What the others see_, click _Straighten the view_ and click the four corners of your playmat: the others get a straight top-down view of it (your computer does the straightening). The corners are remembered for that camera; set them again if you move it.
+A dropped connection, a phone that locks, or a host app that crashes doesn't end the game: the app reconnects and holds your seat, and the host clicks _Resume table_.
 
-2. **Host.** One player clicks _Host_ and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP, or NAT-PMP), and it's removed again when the table closes. If the router doesn't, the app says why; turn on UPnP, or forward that port to your computer in the router's settings (the invite has your internet address either way). On a Mac, the app needs Local Network access for this (System Settings → Privacy & Security → Local Network).
-3. **Join.** Everyone else pastes the invite code and clicks _Join_. To watch instead of play, click _Watch_: you see every seat and the whole game, take no seat, and change nothing (up to 8 spectators).
+## What's in it
 
-For streaming, _Clean view for streaming_ in the menu shows just the seats, names, big life totals and commanders, without any buttons, for OBS to capture the window. Escape leaves it.
-
-The app recovers from these problems by itself:
-
-- **The phone drops off Wi-Fi or its screen locks.** Only your camera pauses. The phone reconnects when it's back.
-- **The connection to the host drops.** Video between players keeps running, and your seat is held for 30 seconds.
-- **A video link fails.** It restarts, first gently and then from scratch.
-- **The host's app crashes or is closed by accident.** The host opens it again and clicks _Resume table_. Friends' apps are still trying to reconnect, so they come back by themselves, to the same seats and the same game. (_Close table_ in the menu ends the table for everyone.)
-
-**Colors.** Every player has a color, by seat: red, yellow, blue and green. It frames their video, and marks their name, their life total, the phase strip on their turn, their pings and arrows, and their lines in the game log.
-
-**Turns.** _Random turn order_ starts the first turn. The active player clicks through the phases (upkeep, draw, main, combat with its steps, second main, end), so everyone can see where they are, and passes the turn when done. For a turn timer or a chess clock, pick _Clock_ in the menu. Running out doesn't stop anyone: it just shows.
-
-**Wait!** (the orange button, or the W key) is "Wait, I have a response!": it flashes on every screen with your name, and your seat lights up, so it isn't lost when everyone talks at once. It also pauses the clock until the active player moves on.
-
-**Pointing.** Right-click a spot on any video to ping it ("this creature"); drag from one spot to another, on the same video or someone else's, to draw an arrow ("attacking you"). Everyone sees it in the same spot, even with a flipped video, in your color and with your name, for a few seconds.
-
-**On the battlefield.** In a player's _Details_, keep track of cards with counters on them (+1/+1, loyalty, shield… or a custom counter made for cards) and groups of tokens (how many, how many tapped); they show on the seat, and untap when that player's turn starts. A card picked out in a close-up can be tracked from there.
-
-**Markers.** A player's _Details_ has the monarch, the initiative (which ventures into Undercity), dungeon progress room by room for every paper dungeon, the Ring's temptations and the city's blessing; they show on the seat. What shows on a seat (markers, counters, tracked cards) folds down to its icon after a few seconds and unfolds when you point near it, and clicks and pings go through it to the video. Day and night and the storm count (for the current turn) are under _Counters_ and show in the bar at the top.
-
-**Roll** has dice (d6, d20 and the rest, or any number of dice with any number of sides), a coin flip, and a random opponent or player. The host rolls, so everyone can trust the result: it shows on every screen and lands in the game log, and nobody can send a result of their own.
-
-**Planechase and Archenemy** (menu). Planechase uses one shared planar deck with every plane there is (phenomena optional): the current plane is in a bar at the top, shown big when it changes, with the planar die (first roll each turn free, then {1}, {2}…) and Planeswalk. Archenemy gives the archenemy a deck of every scheme: they set schemes in motion, everyone sees each one, and ongoing schemes stay until abandoned. The host shuffles the decks and rolls the planar die.
-
-**Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". _New game_ (click twice) resets everything.
-
-Every change goes into a game log kept by the host, and each player's app has a full copy of it.
-
-**Recap.** When a game is decided, everyone sees who won, and the recap is a click away: the standings with each deck's commander, the turn count, and key moments (big life swings, knockouts, combos). _Copy as text_ for Discord, or save it as a file; it's also in _History_ for every game.
-
-**History** (on the start screen, or in the menu) keeps every finished game on your computer: who won, in how many turns, and who knocked out whom and how. Stats per player (win rate, average game length, knockouts, commander-damage kills) and per deck. _Export_ saves it as a file to share; _Import_ adds a friend's, without counting a game twice. A game counts once it's decided and the table starts a new one or closes.
-
-- If your connection drops, your changes wait and are sent when it's back.
-- A player who reconnects, or joins late, catches up on everything they missed.
-
-**Cards** (or Ctrl+K) looks up any card: picture, text, both faces, official rulings, and whether it's a Game Changer or banned in Commander. Search forgives typos ("rhystc stdy"). The app downloads all cards from [Scryfall](https://scryfall.com) once (about 30 MB, in the background on first start) and refreshes them weekly, so searching is instant and works offline. Pictures load from Scryfall.
-
-**Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield, Archidekt, TappedOut, Deckstats or Scryfall link (read by [Commander Spellbook](https://commanderspellbook.com), and named for the commander until you rename it), or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
-
-**Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, combos, mass land denial and extra turns, lists the deck's combos, and points out what doesn't usually fit the bracket. A seat shows its bracket, with a warning sign if something doesn't fit.
-
-**Combo warnings.** During the game, when a player has all but one piece of a combo from their deck on the battlefield (as kept track of at the table), everyone sees a warning: "Alex has 2 of 3 pieces of …, missing …".
-
-**Close-ups.** Click a card on a player's video, anywhere on it (your own too): the card is outlined there, and their computer takes a sharp picture of the whole card straight from their camera, without the blur of video compression; a phone takes a full-resolution photo (often 12 megapixels instead of 2). When a click picks the wrong thing (cards in a pile, say), Ctrl+drag a box around the card instead (⌘+drag on a Mac). The card shows up big in _Seen_, a column beside the table, with which card it is (point at it to see what their camera saw). If it guessed wrong, the other likely cards are small buttons underneath, or _Search…_ for any card. _Details_ opens it in _Cards_, and _Track_ keeps track of it on their side of the table. Every card you've looked at stays listed below, newest first.
-
-The app finds the card's outline in the video where you clicked (however big the card is in the picture), asks for just that card, then straightens it, reads the name on your computer (with [Tesseract](https://github.com/tesseract-ocr/tesseract), offline), and, if the player is playing a deck, compares the artwork with that deck's cards. Artwork works even when the name is too small to read, and tells which way up a tapped or upside-down card is. It goes by the artwork of each card's usual printing, so a different printing relies on the name.
-
-**Clips.** Switch on _Record clips_ in the menu, and _Last 30 s_ saves the last half minute of the table (every seat, with names and life totals) as a video file, for that ridiculous turn. It's off by default, because recording takes some CPU and memory.
-
-_Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
+- **Turns:** random turn order, phases, and a turn timer or chess clock. **Wait!** (W) flashes "I have a response!" on every screen.
+- **Pointing:** right-click a video to ping a card, or drag to draw an arrow, in your color.
+- **Life and counters:** life totals, commander damage, poison, counters on cards, tokens, the monarch, the initiative, dungeons, the Ring, day and night, storm.
+- **Close-ups:** click a card on any video, or Ctrl+drag (⌘+drag) a box around it. You get a sharp picture straight from that player's camera, and which card it is (read on your computer, offline).
+- **Cards:** search every card (Ctrl+K), with rulings. They come from Scryfall once, then work offline.
+- **Decks and Rule 0:** import a deck from a Moxfield, Archidekt, TappedOut, Deckstats or Scryfall link, or a pasted list. Rule 0 checks each deck against its bracket (Game Changers, combos, land denial, extra turns), and the table warns when someone is one piece away from a combo.
+- **Roll:** dice, coin flips and random players, rolled by the host so everyone can trust the result.
+- **Planechase and Archenemy.**
+- **Recap and History:** who won and the key moments of each game, the game log, and stats per player and deck. Export them to share with friends.
+- **Streaming and clips:** a clean view for OBS, and _Last 30 s_ saves the last half minute as a video.
 
 ## Development
 
@@ -91,81 +49,42 @@ You need Node.js 24 or newer.
 npm install
 npm run dev          # the app, with live reload for the UI
 npm run check        # type-check, lint, unit + integration tests, browser video tests
-npm run test:e2e     # the full app, two copies (needs a display; on a headless Linux box: xvfb-run -a npm run test:e2e)
+npm run test:e2e     # the full app, two copies (needs a display; on headless Linux: xvfb-run -a npm run test:e2e)
 npm run package      # release/: one archive per platform, the install scripts, SHA256SUMS
 ```
 
-The browser tests use Playwright's Chromium (`npx playwright install chromium`). To use a Chromium you already have, set `CB_CHROMIUM=/usr/bin/chromium`.
+The browser tests use Playwright's Chromium (`npx playwright install chromium`), or set `CB_CHROMIUM` to one you have. To add an icon, put its name in `scripts/game-icons.mjs` and run `npm run game-icons`.
 
-### Icons and fonts
-
-The icons are from [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The app carries only the ones it uses, in `src/desktop/src/renderer/icons/gameIcons.ts`; to add one, put its name in `scripts/game-icons.mjs` and run `npm run game-icons`. Headings, names and life totals use [Cinzel](https://fonts.google.com/specimen/Cinzel) (SIL Open Font License).
-
-### Layout
-
-The code follows clean architecture. Inner layers never depend on outer ones, and `tests/unit/architecture.test.ts` enforces it.
+The code follows clean architecture: inner layers never depend on outer ones, which `tests/unit/architecture.test.ts` enforces.
 
 ```
 src/
-  domain/          Game rules: seats, players, game events and the state they add up to. No dependencies.
-  application/     Use cases and the interfaces they need: TableHost (who sits where),
-                   HostGameLog and GameSync (one shared, ordered game log),
-                   TableSession (a direct video link to every other player), invite codes,
-                   card search, and working out which card is in a camera picture.
-  infrastructure/
-    protocol/      Messages between host and players, and between phone and computer.
-    node/          Host server, connection to the host, phone page server, TLS certificate, UPnP and NAT-PMP.
-    browser/       WebRTC video links, phone camera sender and receiver, webcams, reading text (Tesseract).
+  domain/          Game rules: seats, events and the state they add up to. No dependencies.
+  application/     Use cases: seating, the shared game log, video links, invites, card search and recognition.
+  infrastructure/  protocol/ (messages), node/ (host server, TLS, router ports), browser/ (WebRTC, cameras, OCR).
   desktop/         The Electron app: main process, preload bridge, React UI.
   phone/           The camera page that phones open.
-tests/
-  unit/            Domain and application logic, protocol parsing, architecture rules.
-  integration/     Host and players over real TLS connections, including dropped connections.
-  browser/         Real WebRTC in headless Chromium: four-player mesh, phone → computer → others;
-                   reading a card's name with Tesseract.
-  e2e/             The packaged app, driven like a player would.
+tests/             unit/, integration/, browser/ (real WebRTC in Chromium), e2e/ (the packaged app).
 ```
 
-### How the video flows
+**How it works.** The phone sends its video only to its own player's computer, which sends it on directly to each other player (WebRTC), encoded separately for each. The host introduces the players and keeps the game log in order; video doesn't pass through it. Every change is an event ("Alex −3 life") that the host puts in order and sends to everyone. Changes are relative, so two at the same moment both count, and each has an id, so resending one after a dropped connection never applies it twice.
 
-```
-phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each other player
-```
-
-- **The phone talks only to its own player's computer**, over the local network. It never connects to other players or decodes their video.
-- **Your computer sends the phone's video to each of the other players**, re-encoded separately for each one so every connection gets the quality it can handle.
-- **The host only introduces players to each other and keeps the game log in order.** Video does not pass through the host. Close-ups do: they're sent like the connection setup, through the host's connection, so a picture is a few hundred kilobytes once rather than a constant stream.
-
-### How the game stays in sync
-
-- **Every change is an event** ("Alex −3 life"). The game state is what you get by applying the events in order (`src/domain/src/game.ts`).
-- **Changes are relative, not absolute,** so two players changing the same total at the same moment both count.
-- **The host gives each event its place in the log** and sends it to everyone, including the player who made it; that's their confirmation.
-- **Your own changes show at once** and stay queued until the host confirms them. Each change has an id, so resending after a dropped connection never applies it twice.
-
-### Settings for development and tests
-
-| Variable                         | Effect                                                                                 |
+| Setting (environment variable)   | Effect                                                                                 |
 | -------------------------------- | -------------------------------------------------------------------------------------- |
 | `CB_USER_DATA_DIR`               | Keep settings and certificates in this folder, so several copies can run side by side. |
 | `CB_UPNP=off`                    | Don't ask the router to open a port.                                                   |
-| `CB_LOCAL_ONLY=1`                | Don't use the public address-lookup (STUN) servers; local network only.                |
+| `CB_LOCAL_ONLY=1`                | Don't use the public address-lookup (STUN) server; local network only.                 |
 | `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port).                        |
 | `CB_RENDERER_URL`                | Load the UI from a dev server.                                                         |
 | `CB_SCRYFALL_API`                | A stand-in for Scryfall's API (tests use a local fake).                                |
 | `CB_SPELLBOOK_API`               | A stand-in for Commander Spellbook (tests use a local fake).                           |
 | `CB_SAVE_DIR`                    | Save files (like the game log) here without asking.                                    |
 
-## Credits
+## Credits and license
 
 - Icons: [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
 - Font: [Cinzel](https://github.com/NDISCOVER/Cinzel-Typeface) by Natanael Gama, SIL Open Font License 1.1.
-- Card data and pictures: [Scryfall](https://scryfall.com). Combos and deck links: [Commander Spellbook](https://commanderspellbook.com).
-- Finding your internet address: [Cloudflare's STUN server](https://developers.cloudflare.com/realtime/turn/).
-- Libraries: the app comes with their licenses, in `THIRD_PARTY_LICENSES.txt` (in the app's resources folder; `npm run build` writes it to `build/app`).
+- Card data and pictures: [Scryfall](https://scryfall.com). Combos and deck links: [Commander Spellbook](https://commanderspellbook.com). Finding your internet address: [Cloudflare's STUN server](https://developers.cloudflare.com/realtime/turn/).
+- The libraries' licenses come with the app, in `THIRD_PARTY_LICENSES.txt`.
 
-Commander Brawl is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
-
-## License
-
-[MIT](LICENSE), for Commander Brawl's own code. Magic: The Gathering, its cards and their pictures belong to Wizards of the Coast, and the libraries keep their own licenses.
+Commander Brawl's own code is [MIT](LICENSE) licensed. Commander Brawl is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
