@@ -322,15 +322,15 @@ export function toGameEvent(raw: unknown): GameEvent | null {
   const value = raw as Record<string, unknown>;
   switch (value.type) {
     case 'life-changed':
-      return isSeat(value.seat) && isChange(value.amount)
+      return isSeatIndex(value.seat) && isChange(value.amount)
         ? { type: 'life-changed', seat: value.seat, amount: value.amount }
         : null;
     case 'commander-damage':
-      return isSeat(value.from) && isCommander(value.commander) && isSeat(value.to) && isChange(value.amount)
+      return isSeatIndex(value.from) && isCommander(value.commander) && isSeatIndex(value.to) && isChange(value.amount)
         ? { type: 'commander-damage', from: value.from, commander: value.commander, to: value.to, amount: value.amount }
         : null;
     case 'commanders-named': {
-      if (!isSeat(value.seat) || !Array.isArray(value.names)) return null;
+      if (!isSeatIndex(value.seat) || !Array.isArray(value.names)) return null;
       const names = value.names;
       const valid =
         names.length >= 1 &&
@@ -339,15 +339,15 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return valid ? { type: 'commanders-named', seat: value.seat, names: names.map((n: string) => n.trim()) } : null;
     }
     case 'out-set':
-      return isSeat(value.seat) && (value.out === null || typeof value.out === 'boolean')
+      return isSeatIndex(value.seat) && (value.out === null || typeof value.out === 'boolean')
         ? { type: 'out-set', seat: value.seat, out: value.out }
         : null;
     case 'counter-changed':
-      return isSeat(value.seat) && isPlayerCounter(value.counter) && isChange(value.amount)
+      return isSeatIndex(value.seat) && isPlayerCounter(value.counter) && isChange(value.amount)
         ? { type: 'counter-changed', seat: value.seat, counter: value.counter, amount: value.amount }
         : null;
     case 'commander-cast':
-      return isSeat(value.seat) && isCommander(value.commander) && (value.amount === 1 || value.amount === -1)
+      return isSeatIndex(value.seat) && isCommander(value.commander) && (value.amount === 1 || value.amount === -1)
         ? { type: 'commander-cast', seat: value.seat, commander: value.commander, amount: value.amount }
         : null;
     case 'custom-counter-saved': {
@@ -357,23 +357,23 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     case 'custom-counter-removed':
       return isCounterId(value.id) ? { type: 'custom-counter-removed', id: value.id } : null;
     case 'custom-counter-changed':
-      return isCounterId(value.id) && (value.seat === null || isSeat(value.seat)) && isChange(value.amount)
+      return isCounterId(value.id) && (value.seat === null || isSeatIndex(value.seat)) && isChange(value.amount)
         ? { type: 'custom-counter-changed', id: value.id, seat: value.seat, amount: value.amount }
         : null;
     case 'deck-chosen': {
-      if (!isSeat(value.seat)) return null;
+      if (!isSeatIndex(value.seat)) return null;
       if (value.deck === null) return { type: 'deck-chosen', seat: value.seat, deck: null };
       const deck = toDeckList(value.deck);
       return deck ? { type: 'deck-chosen', seat: value.seat, deck } : null;
     }
     case 'deck-analyzed': {
       const analysis = toDeckAnalysis(value.analysis);
-      return isSeat(value.seat) && typeof value.deckName === 'string' && value.deckName.length <= 60 && analysis
+      return isSeatIndex(value.seat) && typeof value.deckName === 'string' && value.deckName.length <= 60 && analysis
         ? { type: 'deck-analyzed', seat: value.seat, deckName: value.deckName, analysis }
         : null;
     }
     case 'bracket-declared':
-      return isSeat(value.seat) && (value.bracket === null || isBracket(value.bracket))
+      return isSeatIndex(value.seat) && (value.bracket === null || isBracket(value.bracket))
         ? { type: 'bracket-declared', seat: value.seat, bracket: value.bracket }
         : null;
     case 'card-shown': {
@@ -399,7 +399,7 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     case 'turn-order-set':
       return isSeatList(value.order) ? { type: 'turn-order-set', order: value.order } : null;
     case 'turn-passed':
-      return isSeat(value.from) ? { type: 'turn-passed', from: value.from } : null;
+      return isSeatIndex(value.from) ? { type: 'turn-passed', from: value.from } : null;
     case 'undo':
       return isEventId(value.target) ? { type: 'undo', target: value.target } : null;
     case 'response-called':
@@ -435,7 +435,7 @@ export function isSeatList(value: unknown): value is SeatIndex[] {
     Array.isArray(value) &&
     value.length >= 1 &&
     value.length <= MAX_SEATS &&
-    value.every(isSeat) &&
+    value.every(isSeatIndex) &&
     new Set(value).size === value.length
   );
 }
@@ -457,7 +457,8 @@ function updateSeat(state: GameState, seat: SeatIndex, update: (seat: SeatGameSt
   return { ...state, seats: state.seats.map((s, index) => (index === seat ? update(s) : s)) };
 }
 
-function isSeat(value: unknown): value is SeatIndex {
+/** One of the four seats. */
+export function isSeatIndex(value: unknown): value is SeatIndex {
   return isWholeNumber(value) && value >= 0 && value < MAX_SEATS;
 }
 

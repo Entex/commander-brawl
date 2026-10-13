@@ -308,6 +308,8 @@ textarea {
 }
 
 .seats {
+  /* Pings and arrows are drawn over the seats. */
+  position: relative;
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -762,6 +764,64 @@ button.swatch.selected {
 .seat-active {
   outline: 3px solid var(--accent);
   outline-offset: -3px;
+}
+
+/* Pings and arrows on the videos */
+
+.pointer-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.pointer-mark {
+  animation: pointer-fade 6s linear forwards;
+}
+
+.pointer-preview line {
+  stroke-dasharray: 10 8;
+  opacity: 0.85;
+}
+
+.ping-ring {
+  fill: none;
+  stroke-width: 4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ping-pulse 1s ease-out 3;
+}
+
+.pointer-name {
+  font-size: 14px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 75%);
+  stroke-width: 3px;
+}
+
+@keyframes pointer-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ping-pulse {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.4);
+    opacity: 0.3;
+  }
 }
 
 /* "Wait, I have a response!" */

@@ -10,6 +10,8 @@ export type { CardImageSize } from './scryfallImages';
 export { LinkStatsReader } from './stats';
 export { TesseractReader } from './textReader';
 export type { TesseractFiles } from './textReader';
+export { pictureToScreen, screenToPicture } from './videoGeometry';
+export type { PicturePoint, VideoFit } from './videoGeometry';
 export { listCameras, openCamera } from './webcam';
 export type { CameraDevice } from './webcam';
 export { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from './webRtcPeerLink';

@@ -33,6 +33,7 @@ export {
   isAnnouncement,
   isEventId,
   isOut,
+  isSeatIndex,
   isSeatList,
   lossReason,
   newGame,

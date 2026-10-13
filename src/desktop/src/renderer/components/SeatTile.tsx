@@ -18,6 +18,7 @@ import {
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
+import { pictureAt } from '../videoPoints';
 import { submitGameEvent } from '../useGame';
 import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
@@ -79,12 +80,17 @@ export function SeatTile({
           rotation={rotation}
           className={`seat-video${seat.isSelf ? '' : ' seat-video-look'}`}
           testId="seat-video"
-          title={seat.isSelf ? undefined : 'Click a card for a sharp picture of it'}
+          seat={index}
+          title={
+            seat.isSelf
+              ? 'Right-click to point at something; drag to draw an arrow'
+              : 'Click a card for a sharp picture of it. Right-click to point at it; drag to draw an arrow'
+          }
           onClick={
             seat.isSelf
               ? undefined
               : (event) => {
-                  const crop = cardCropAt(event.currentTarget, event.nativeEvent.offsetX, event.nativeEvent.offsetY);
+                  const crop = cardCropAt(event.currentTarget, event.clientX, event.clientY);
                   if (crop) onLook(crop, rotation);
                 }
           }
@@ -223,22 +229,15 @@ const CARD_WIDTH_SHARE = 0.2;
 const CARD_ASPECT = 88 / 63;
 
 /**
- * The card-sized part of the camera picture around a click on the video. The click is in the video
- * element's own coordinates (so a flipped picture is already accounted for), and the picture may be
- * letterboxed inside the element; a click on the bars outside the picture gives null.
+ * The card-sized part of the camera picture around a click on the video (a point on screen). The picture may
+ * be fitted inside the element with bars beside it, and turned around; a click on the bars gives null.
  */
-export function cardCropAt(video: HTMLVideoElement, offsetX: number, offsetY: number): CropRect | null {
-  const { videoWidth, videoHeight, clientWidth, clientHeight } = video;
-  if (!videoWidth || !videoHeight) return null;
-  const scale = Math.min(clientWidth / videoWidth, clientHeight / videoHeight);
-  const shownWidth = videoWidth * scale;
-  const shownHeight = videoHeight * scale;
-  const x = (offsetX - (clientWidth - shownWidth) / 2) / shownWidth;
-  const y = (offsetY - (clientHeight - shownHeight) / 2) / shownHeight;
-  if (x < 0 || x > 1 || y < 0 || y > 1) return null;
+export function cardCropAt(video: HTMLVideoElement, clientX: number, clientY: number): CropRect | null {
+  const point = pictureAt(video, clientX, clientY);
+  if (!point) return null;
   const width = CARD_WIDTH_SHARE;
-  const height = Math.min(1, width * (videoWidth / videoHeight) * CARD_ASPECT);
-  return clampCrop({ x: x - width / 2, y: y - height / 2, width, height });
+  const height = Math.min(1, width * (video.videoWidth / video.videoHeight) * CARD_ASPECT);
+  return clampCrop({ x: point.x - width / 2, y: point.y - height / 2, width, height });
 }
 
 function BracketBadge({ state }: { readonly state: SeatGameState }) {

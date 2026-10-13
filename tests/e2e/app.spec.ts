@@ -529,6 +529,75 @@ test('"Wait, I have a response!" flashes on every screen', async () => {
   await expect(friend.page.getByRole('button', { name: '✋ Wait!' })).toBeEnabled();
 });
 
+test('pings and arrows on the videos, in the same spot for everyone, also on a flipped video', async () => {
+  const { host, friend } = await hostAndFriend();
+  await expectVideoFrom(host.page, 'Friend');
+  const seatVideo = (page: Page, name: string) => page.locator('.seat', { hasText: name }).getByTestId('seat-video');
+  // The friend sees the host's video upside down.
+  await friend.page.locator('.seat', { hasText: 'Host' }).getByRole('button', { name: 'Flip' }).click();
+
+  // The host right-clicks a spot on their own picture, near its top left.
+  const spot = await onPicture(seatVideo(host.page, 'Host (you)'), 0.25, 0.3);
+  await host.page.mouse.click(spot.x, spot.y, { button: 'right' });
+
+  // The friend sees it there on the host's picture, which for them is near the bottom right.
+  const ping = friend.page.getByTestId('ping');
+  await expect(ping).toHaveCount(1);
+  await expect(ping).toContainText('Host');
+  const expected = await onPicture(seatVideo(friend.page, 'Host'), 0.25, 0.3);
+  const shown = await centerOf(ping.locator('circle').first());
+  expect(Math.abs(shown.x - expected.x)).toBeLessThan(3);
+  expect(Math.abs(shown.y - expected.y)).toBeLessThan(3);
+  const box = (await seatVideo(friend.page, 'Host').boundingBox())!;
+  expect(shown.x).toBeGreaterThan(box.x + box.width / 2);
+  expect(shown.y).toBeGreaterThan(box.y + box.height / 2);
+
+  // An arrow: dragged from the host's picture to a spot on the friend's.
+  const from = await onPicture(seatVideo(host.page, 'Host (you)'), 0.5, 0.5);
+  const to = await onPicture(seatVideo(host.page, 'Friend'), 0.6, 0.4);
+  await host.page.mouse.move(from.x, from.y);
+  await host.page.mouse.down();
+  await host.page.mouse.move(to.x, to.y, { steps: 8 });
+  await host.page.mouse.up();
+  await expect(friend.page.getByTestId('arrow')).toHaveCount(1);
+  await expect(host.page.getByTestId('arrow')).toContainText('You');
+  await friend.page.screenshot({ path: test.info().outputPath('pointers.png') });
+
+  // A drag within one video draws an arrow too, and isn't taken for a click (no close-up).
+  const a = await onPicture(seatVideo(friend.page, 'Host'), 0.3, 0.5);
+  await friend.page.mouse.move(a.x, a.y);
+  await friend.page.mouse.down();
+  await friend.page.mouse.move(a.x + 60, a.y + 20, { steps: 5 });
+  await friend.page.mouse.up();
+  await expect(host.page.getByTestId('arrow')).toHaveCount(2);
+  await expect(friend.page.getByTestId('snapshot')).toHaveCount(0);
+
+  // They go away after a few seconds.
+  await expect(friend.page.getByTestId('ping')).toHaveCount(0, { timeout: 10_000 });
+});
+
+/** Where a point of a video's picture (as fractions) is on the page, allowing for bars and a flipped video. */
+async function onPicture(video: ReturnType<Page['locator']>, x: number, y: number): Promise<{ x: number; y: number }> {
+  return video.evaluate(
+    (element: HTMLVideoElement, [px, py]) => {
+      const box = element.getBoundingClientRect();
+      const scale = Math.min(box.width / element.videoWidth, box.height / element.videoHeight);
+      const width = element.videoWidth * scale;
+      const height = element.videoHeight * scale;
+      let ex = (box.width - width) / 2 + px! * width;
+      let ey = (box.height - height) / 2 + py! * height;
+      if (element.dataset.rotation === '180') [ex, ey] = [box.width - ex, box.height - ey];
+      return { x: box.left + ex, y: box.top + ey };
+    },
+    [x, y],
+  );
+}
+
+async function centerOf(locator: ReturnType<Page['locator']>): Promise<{ x: number; y: number }> {
+  const box = (await locator.boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

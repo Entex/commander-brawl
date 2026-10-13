@@ -15,10 +15,12 @@ import { describeEvent } from '../describeEvent';
 import { seatName, type Players } from '../names';
 import { cameraStatus, type CameraState } from '../useCamera';
 import { useCloseUps } from '../useCloseUps';
+import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
+import { PointerLayer } from './PointerLayer';
 import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
 import { Rule0Panel } from './Rule0Panel';
 import { SnapshotView } from './SnapshotView';
@@ -59,6 +61,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
   const responseCalls = useResponseCalls(game);
+  const { marks: pointerMarks, point } = usePointers(session);
   const responding = new Set(responseCalls.map((call) => call.by.seat));
   const [copied, setCopied] = useState(false);
 
@@ -219,7 +222,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
       )}
 
-      <main className="seats">
+      <PointerLayer marks={pointerMarks} onPoint={point} selfSeat={selfSeat}>
         {seats.map((seat, index) =>
           seat ? (
             <SeatTile
@@ -246,7 +249,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             <EmptySeat key={`empty-${index}`} index={index} />
           ),
         )}
-      </main>
+      </PointerLayer>
     </div>
   );
 }

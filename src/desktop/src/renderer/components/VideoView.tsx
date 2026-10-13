@@ -5,11 +5,13 @@ interface VideoViewProps {
   readonly rotation?: 0 | 180;
   readonly className?: string;
   readonly testId?: string;
+  /** The seat whose camera this is, for pointing at things on it. */
+  readonly seat?: number;
   readonly title?: string | undefined;
   readonly onClick?: ((event: MouseEvent<HTMLVideoElement>) => void) | undefined;
 }
 
-export function VideoView({ track, rotation = 0, className, testId, title, onClick }: VideoViewProps) {
+export function VideoView({ track, rotation = 0, className, testId, seat, title, onClick }: VideoViewProps) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -23,6 +25,8 @@ export function VideoView({ track, rotation = 0, className, testId, title, onCli
       ref={ref}
       className={className}
       data-testid={testId}
+      data-seat={seat}
+      data-rotation={rotation}
       title={title}
       onClick={onClick}
       autoPlay

@@ -21,6 +21,8 @@ export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';
 export { crop, extract, toGray } from './pixels';
 export type { GrayImage, PixelRect, RgbaImage } from './pixels';
 export type { Invite } from './invite';
+export { Pointers, toPointer } from './pointers';
+export type { Pointer, TablePoint } from './pointers';
 export { SnapshotError, Snapshots, clampCrop } from './snapshots';
 export type { CropRect, SnapshotSource, SnapshotsOptions } from './snapshots';
 export { TableHost } from './tableHost';
