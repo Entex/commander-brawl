@@ -19,12 +19,15 @@ interface TurnControlsProps {
   readonly players: Players;
   /** See GameView.hostClockOffset. */
   readonly hostClockOffset: number;
+  /** Shown, without the buttons that change things (watching). */
+  readonly readOnly?: boolean;
 }
 
 /** Whose turn it is, where they are in it, the clock, and passing the turn. Before the first turn: deciding the order. */
-export function TurnControls({ game, players, hostClockOffset }: TurnControlsProps) {
+export function TurnControls({ game, players, hostClockOffset, readOnly = false }: TurnControlsProps) {
   const self = players.find((p) => p.isSelf)?.player.seat;
   if (game.turnOrder === null || game.activeSeat === null) {
+    if (readOnly) return <span className="hint">The game hasn't started yet.</span>;
     return (
       <div className="turn">
         <button
@@ -45,7 +48,9 @@ export function TurnControls({ game, players, hostClockOffset }: TurnControlsPro
         <strong>{yours ? 'Your turn' : `${seatName(players, game.activeSeat)}'s turn`}</strong>
       </span>
       {game.phase && <PhaseStrip phase={game.phase} canChange={yours} />}
-      {game.clock && <ClockControl clock={game.clock} seat={game.activeSeat} hostClockOffset={hostClockOffset} />}
+      {game.clock && (
+        <ClockControl clock={game.clock} seat={game.activeSeat} hostClockOffset={hostClockOffset} readOnly={readOnly} />
+      )}
       {yours && (
         <button className="primary" onClick={() => submitGameEvent({ type: 'turn-passed', from: game.activeSeat! })}>
           Pass turn
@@ -87,10 +92,12 @@ function ClockControl({
   clock,
   seat,
   hostClockOffset,
+  readOnly,
 }: {
   readonly clock: Clock;
   readonly seat: SeatIndex;
   readonly hostClockOffset: number;
+  readonly readOnly: boolean;
 }) {
   const now = useHostNow(hostClockOffset, clock.running !== null);
   const left = timeLeft(clock, seat, now);
@@ -103,9 +110,11 @@ function ClockControl({
     >
       ⏱ {formatClock(left)}
       {!running && <span className="clock-state">{clock.paused ? 'Paused' : 'Stopped'}</span>}
-      <button onClick={() => submitGameEvent({ type: running ? 'clock-paused' : 'clock-resumed' })}>
-        {running ? 'Pause' : 'Resume'}
-      </button>
+      {!readOnly && (
+        <button onClick={() => submitGameEvent({ type: running ? 'clock-paused' : 'clock-resumed' })}>
+          {running ? 'Pause' : 'Resume'}
+        </button>
+      )}
     </span>
   );
 }

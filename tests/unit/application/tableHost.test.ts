@@ -37,6 +37,40 @@ describe('TableHost', () => {
     expect(joined.map((m) => m.name)).toEqual(['Alice', 'Bob']);
   });
 
+  it('lets people watch: no seat, and the players hear about them', () => {
+    const watched: string[] = [];
+    const gone: string[] = [];
+    host.addListener({
+      memberJoined: () => undefined,
+      memberLeft: () => undefined,
+      spectatorJoined: (s) => watched.push(s.name),
+      spectatorLeft: (s) => gone.push(s.name),
+    });
+    accepted(join('Alice'));
+    const sam = host.watch({ secret: SECRET, name: 'Sam' });
+    if (!sam.ok) throw new Error(sam.reason);
+    expect(sam.members.map((m) => m.name)).toEqual(['Alice']);
+    expect(sam.spectators).toEqual([sam.spectator]);
+    expect(watched).toEqual(['Sam']);
+    // Not taking a seat: four players still fit.
+    for (const name of ['Bob', 'Carol', 'Dave']) accepted(join(name));
+    expect(host.members).toHaveLength(4);
+
+    // Back after a dropped connection, as the same spectator; gone for good after the grace period.
+    host.connectionLost(sam.spectator.id);
+    const again = host.watch({ secret: SECRET, name: 'Sam', resumeToken: sam.resumeToken });
+    expect(again).toMatchObject({ ok: true, resumed: true, spectator: sam.spectator });
+    host.leave(sam.spectator.id);
+    expect(gone).toEqual(['Sam']);
+    expect(host.spectators).toEqual([]);
+  });
+
+  it('turns away a spectator with the wrong secret, and too many spectators', () => {
+    expect(host.watch({ secret: 'nope', name: 'Sam' })).toEqual({ ok: false, reason: 'bad-secret' });
+    for (let i = 0; i < 8; i++) expect(host.watch({ secret: SECRET, name: `Fan ${i}` }).ok).toBe(true);
+    expect(host.watch({ secret: SECRET, name: 'One too many' })).toEqual({ ok: false, reason: 'too-many-spectators' });
+  });
+
   it('turns away wrong secrets, bad names and a fifth player', () => {
     expect(host.join({ secret: 'nope', name: 'Mallory' })).toEqual({ ok: false, reason: 'bad-secret' });
     expect(join('   ')).toEqual({ ok: false, reason: 'bad-name' });

@@ -55,6 +55,8 @@ export class TableServer {
         this.save(() => store?.membersChanged(host.savedMembers()));
         this.broadcast({ t: 'member-left', memberId: member.id }, member.id);
       },
+      spectatorJoined: (spectator) => this.broadcast({ t: 'spectator-joined', spectator }, spectator.id),
+      spectatorLeft: (spectator) => this.broadcast({ t: 'member-left', memberId: spectator.id }, spectator.id),
     });
     sockets.on('connection', (ws) => this.accept(ws));
   }
@@ -129,16 +131,23 @@ export class TableServer {
           this.reject(ws, 'bad-version');
           return;
         }
-        const result = this.host.join({ secret: message.secret, name: message.name, resumeToken: message.resumeToken });
+        const request = { secret: message.secret, name: message.name, resumeToken: message.resumeToken };
+        const result = message.spectator ? this.host.watch(request) : this.host.join(request);
         if (!result.ok) {
           this.reject(ws, result.reason);
           return;
         }
-        memberId = result.member.id;
+        memberId = 'member' in result ? result.member.id : result.spectator.id;
         // A player who reconnects before we noticed the old connection died replaces it.
         this.connections.get(memberId)?.close(TableCloseCode.replaced, 'Replaced by a new connection');
         this.connections.set(memberId, ws);
-        send(ws, { t: 'welcome', selfId: memberId, resumeToken: result.resumeToken, members: result.members });
+        send(ws, {
+          t: 'welcome',
+          selfId: memberId,
+          resumeToken: result.resumeToken,
+          members: result.members,
+          spectators: result.spectators,
+        });
         return;
       }
 
@@ -150,7 +159,11 @@ export class TableServer {
         }
         case 'event': {
           const author = this.host.members.find((m) => m.id === memberId);
-          if (!author) break;
+          if (!author) {
+            // A spectator: watching changes nothing.
+            send(ws, { t: 'refused', id: message.id });
+            break;
+          }
           const result = this.game.append(author, message.id, message.event);
           if (result.ok) {
             const { entry } = result;

@@ -42,6 +42,8 @@ interface SeatTileProps {
   readonly responding: boolean;
   /** See GameView.hostClockOffset. For a chess clock's time. */
   readonly hostClockOffset: number;
+  /** Shown, not changed: when watching, or in the clean view for streaming. */
+  readonly readOnly?: boolean;
   readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
   /** Shows a card in the Cards panel. */
@@ -64,6 +66,7 @@ export function SeatTile({
   active,
   responding,
   hostClockOffset,
+  readOnly = false,
   showStats,
   getStats,
   onOpenCard,
@@ -119,7 +122,7 @@ export function SeatTile({
       )}
       <div className="seat-info">
         <div className="seat-label">
-          <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
+          <span className="seat-name">{seat.isSelf && !readOnly ? `${seat.player.name} (you)` : seat.player.name}</span>
           {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
           {state?.bracket && <BracketBadge state={state} />}
           {game?.clock?.settings.kind === 'chess' && (
@@ -140,7 +143,7 @@ export function SeatTile({
         <button title="Turn the picture upside down" onClick={() => setRotation(rotation === 0 ? 180 : 0)}>
           Flip
         </button>
-        {game && (
+        {game && !readOnly && (
           <button aria-label={`${seat.player.name}'s details`} onClick={() => setDetailsOpen(!detailsOpen)}>
             Details
           </button>
@@ -150,10 +153,10 @@ export function SeatTile({
         <LifeCounter
           seat={index}
           life={state.life}
-          onChange={(amount) => submitGameEvent({ type: 'life-changed', seat: index, amount })}
+          onChange={readOnly ? undefined : (amount) => submitGameEvent({ type: 'life-changed', seat: index, amount })}
         />
       )}
-      {game && detailsOpen && (
+      {game && detailsOpen && !readOnly && (
         <SeatDetails
           seat={index}
           game={game}

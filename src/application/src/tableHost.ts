@@ -1,4 +1,12 @@
-import { InvalidPlayerNameError, Table, TableFullError, type Player } from '@commander-brawl/domain';
+import {
+  InvalidPlayerNameError,
+  MAX_SPECTATORS,
+  Table,
+  TableFullError,
+  normalizePlayerName,
+  type Player,
+  type Spectator,
+} from '@commander-brawl/domain';
 import type { Timers } from './ports';
 
 export interface TableHostOptions {
@@ -13,6 +21,8 @@ export interface TableHostOptions {
 export interface TableHostListener {
   memberJoined(member: Player): void;
   memberLeft(member: Player): void;
+  spectatorJoined?(spectator: Spectator): void;
+  spectatorLeft?(spectator: Spectator): void;
 }
 
 export interface JoinRequest {
@@ -27,14 +37,27 @@ export interface SavedMember {
   readonly resumeToken: string;
 }
 
-export type JoinRejection = 'bad-secret' | 'table-full' | 'bad-name';
+export type JoinRejection = 'bad-secret' | 'table-full' | 'bad-name' | 'too-many-spectators';
 
 export type JoinResult =
   | {
       readonly ok: true;
       readonly member: Player;
       readonly members: readonly Player[];
+      readonly spectators: readonly Spectator[];
       /** Lets the player reclaim their seat after a dropped connection. */
+      readonly resumeToken: string;
+      readonly resumed: boolean;
+    }
+  | { readonly ok: false; readonly reason: JoinRejection };
+
+export type WatchResult =
+  | {
+      readonly ok: true;
+      readonly spectator: Spectator;
+      readonly members: readonly Player[];
+      readonly spectators: readonly Spectator[];
+      /** Lets them come back after a dropped connection, as the same spectator. */
       readonly resumeToken: string;
       readonly resumed: boolean;
     }
@@ -47,11 +70,48 @@ export class TableHost {
   private readonly tokenByMember = new Map<string, string>();
   private readonly pendingRemovals = new Map<string, () => void>();
   private readonly listeners = new Set<TableHostListener>();
+  private readonly watching = new Map<string, Spectator>();
 
   constructor(private readonly options: TableHostOptions) {}
 
   get members(): readonly Player[] {
     return this.table.all;
+  }
+
+  get spectators(): readonly Spectator[] {
+    return [...this.watching.values()];
+  }
+
+  /** Lets someone watch the table: no seat, nothing to change. Spectators aren't kept across a host restart. */
+  watch(request: JoinRequest): WatchResult {
+    if (!constantTimeEquals(request.secret, this.options.secret)) {
+      return { ok: false, reason: 'bad-secret' };
+    }
+    const resumedId = request.resumeToken ? this.memberByToken.get(request.resumeToken) : undefined;
+    const resumed = resumedId === undefined ? undefined : this.watching.get(resumedId);
+    if (resumed) {
+      this.pendingRemovals.get(resumed.id)?.();
+      this.pendingRemovals.delete(resumed.id);
+      return { ok: true, spectator: resumed, ...this.everyone(), resumeToken: request.resumeToken!, resumed: true };
+    }
+    if (this.watching.size >= MAX_SPECTATORS) return { ok: false, reason: 'too-many-spectators' };
+    let name: string;
+    try {
+      name = normalizePlayerName(request.name);
+    } catch {
+      return { ok: false, reason: 'bad-name' };
+    }
+    const spectator: Spectator = { id: this.options.createId(), name };
+    this.watching.set(spectator.id, spectator);
+    const resumeToken = this.options.createId();
+    this.memberByToken.set(resumeToken, spectator.id);
+    this.tokenByMember.set(spectator.id, resumeToken);
+    for (const listener of this.listeners) listener.spectatorJoined?.(spectator);
+    return { ok: true, spectator, ...this.everyone(), resumeToken, resumed: false };
+  }
+
+  private everyone(): { members: readonly Player[]; spectators: readonly Spectator[] } {
+    return { members: this.table.all, spectators: this.spectators };
   }
 
   savedMembers(): SavedMember[] {
@@ -99,12 +159,12 @@ export class TableHost {
     this.memberByToken.set(resumeToken, member.id);
     this.tokenByMember.set(member.id, resumeToken);
     for (const listener of this.listeners) listener.memberJoined(member);
-    return { ok: true, member, members: this.table.all, resumeToken, resumed: false };
+    return { ok: true, member, ...this.everyone(), resumeToken, resumed: false };
   }
 
-  /** The member's connection dropped. They keep their seat for the grace period. */
+  /** The member's connection dropped. They keep their seat (or their place watching) for the grace period. */
   connectionLost(memberId: string): void {
-    if (!this.table.get(memberId) || this.pendingRemovals.has(memberId)) {
+    if ((!this.table.get(memberId) && !this.watching.has(memberId)) || this.pendingRemovals.has(memberId)) {
       return;
     }
     this.scheduleRemoval(memberId, this.options.reconnectGraceMs);
@@ -134,12 +194,21 @@ export class TableHost {
     }
     this.pendingRemovals.get(member.id)?.();
     this.pendingRemovals.delete(member.id);
-    return { ok: true, member, members: this.table.all, resumeToken, resumed: true };
+    return { ok: true, member, ...this.everyone(), resumeToken, resumed: true };
   }
 
   private remove(memberId: string): void {
     this.pendingRemovals.get(memberId)?.();
     this.pendingRemovals.delete(memberId);
+    const spectator = this.watching.get(memberId);
+    if (spectator) {
+      this.watching.delete(memberId);
+      const token = this.tokenByMember.get(memberId);
+      if (token !== undefined) this.memberByToken.delete(token);
+      this.tokenByMember.delete(memberId);
+      for (const listener of this.listeners) listener.spectatorLeft?.(spectator);
+      return;
+    }
     const member = this.table.unseat(memberId);
     const token = this.tokenByMember.get(memberId);
     if (token !== undefined) {

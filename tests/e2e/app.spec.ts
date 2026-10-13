@@ -982,6 +982,38 @@ test('saving the last half minute of the table as a video', async () => {
   await expect(host.page.getByRole('button', { name: /Last 30 s/ })).toHaveCount(0);
 });
 
+test('a spectator watches without a seat, and the clean view for streaming', async () => {
+  const { host, friend } = await hostAndFriend();
+  const invite = await host.page.getByTestId('invite-code').inputValue();
+  const sam = await launch('Sam');
+  await sam.page.getByTestId('invite-input').fill(invite);
+  await sam.page.getByTestId('watch').click();
+
+  // Sam sees both players, takes no seat, and has nothing to change the game with.
+  await expectVideoFrom(sam.page, 'Host');
+  await expectVideoFrom(sam.page, 'Friend');
+  await expect(sam.page.getByText('👁 Watching')).toBeVisible();
+  await expect(sam.page.locator('.seat:not(.seat-free)')).toHaveCount(2);
+  for (const name of ['Undo', '✋ Wait!', '🎲 Roll', 'Counters', 'Lose 1 life', "Host's details"]) {
+    await expect(sam.page.getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
+  await expect(host.page.getByTestId('spectators')).toHaveText('👁 1 watching');
+
+  // The game, as it happens.
+  await friend.page.getByTestId('life-0').getByRole('button', { name: 'Lose 5 life' }).click();
+  await expect(sam.page.getByTestId('life-total-0')).toHaveText('35');
+
+  // The host streams it: a clean view, without the buttons; Escape brings them back.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Clean view for streaming' }).click();
+  await expect(host.page.getByRole('button', { name: 'Menu' })).toBeHidden();
+  await expect(host.page.getByTestId('life-total-0')).toHaveText('35');
+  await expect(host.page.getByRole('button', { name: 'Lose 1 life' })).toHaveCount(0);
+  await host.page.screenshot({ path: test.info().outputPath('clean-view.png') });
+  await host.page.keyboard.press('Escape');
+  await expect(host.page.getByRole('button', { name: 'Menu' })).toBeVisible();
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

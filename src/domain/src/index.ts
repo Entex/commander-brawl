@@ -51,11 +51,12 @@ export {
   InvalidPlayerNameError,
   MAX_NAME_LENGTH,
   MAX_SEATS,
+  MAX_SPECTATORS,
   Table,
   TableFullError,
   normalizePlayerName,
 } from './table';
-export type { Player, SeatIndex } from './table';
+export type { Player, SeatIndex, Spectator } from './table';
 export {
   COMBAT_STEPS,
   MAX_CLOCK_MINUTES,

@@ -15,6 +15,7 @@ const api: DesktopApi = {
     resume: () => ipcRenderer.invoke(Channels.tableResume),
     discardSavedTable: () => ipcRenderer.invoke(Channels.tableDiscardSaved),
     join: (invite, name) => ipcRenderer.invoke(Channels.tableJoin, invite, name),
+    watch: (invite, name) => ipcRenderer.invoke(Channels.tableWatch, invite, name),
     leave: () => ipcRenderer.invoke(Channels.tableLeave),
     send: (to, data) => ipcRenderer.send(Channels.tableSend, to, data),
     snapshot: () => ipcRenderer.invoke(Channels.tableSnapshot),

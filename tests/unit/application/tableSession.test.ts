@@ -108,6 +108,35 @@ describe('TableSession', () => {
     ]);
   });
 
+  it('sends its camera to spectators too, who are not seats', () => {
+    welcome('a', [player('a', 0), player('b', 1)]);
+    signaling.emit({ type: 'spectator-joined', spectator: { id: 's', name: 'Sam' } });
+    expect(factory.links.map((l) => l.options.remoteId)).toEqual(['b', 's']);
+    expect(session.getState()).toMatchObject({ spectating: false, spectators: [{ id: 's', name: 'Sam' }] });
+    expect(session.getState().seats.map((seat) => seat.player.id)).toEqual(['a', 'b']);
+
+    signaling.emit({ type: 'member-left', memberId: 's' });
+    expect(factory.links.find((l) => l.options.remoteId === 's')!.closed).toBe(true);
+    expect(session.getState().spectators).toEqual([]);
+  });
+
+  it('as a spectator: links to every player, none to other spectators', () => {
+    signaling.emit({
+      type: 'welcome',
+      selfId: 's',
+      members: [player('a', 0), player('b', 1)],
+      spectators: [
+        { id: 'r', name: 'Robin' },
+        { id: 's', name: 'Sam' },
+      ],
+    });
+    expect(factory.links.map((l) => l.options.remoteId)).toEqual(['a', 'b']);
+    expect(session.getState().spectating).toBe(true);
+    // A signal from another spectator is ignored.
+    signaling.emit({ type: 'signal', from: 'r', data: { gen: 0, body: {} } });
+    expect(factory.links).toHaveLength(2);
+  });
+
   it('adds and removes links as players come and go', () => {
     welcome('a', [player('a', 0)]);
     signaling.emit({ type: 'member-joined', member: player('b', 1) });

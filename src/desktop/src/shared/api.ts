@@ -79,6 +79,8 @@ export interface DesktopApi {
     resume(): Promise<HostInfo>;
     discardSavedTable(): Promise<void>;
     join(invite: string, name: string): Promise<void>;
+    /** Joins to watch: no seat, no camera, nothing to change. */
+    watch(invite: string, name: string): Promise<void>;
     leave(): Promise<void>;
     send(to: string, data: unknown): void;
     /** Events that describe the current state, for when the UI starts listening late. */
@@ -147,6 +149,7 @@ export const Channels = {
   tableResume: 'table:resume',
   tableDiscardSaved: 'table:discard-saved',
   tableJoin: 'table:join',
+  tableWatch: 'table:watch',
   tableLeave: 'table:leave',
   tableSend: 'table:send',
   tableSnapshot: 'table:snapshot',

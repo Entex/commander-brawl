@@ -1,4 +1,4 @@
-import type { Player } from '@commander-brawl/domain';
+import type { Player, Spectator } from '@commander-brawl/domain';
 import type {
   LinkState,
   LinkStats,
@@ -29,6 +29,10 @@ export interface TableSessionState<TTrack> {
   readonly connectionReason: string | null;
   readonly selfId: string | null;
   readonly seats: readonly SeatView<TTrack>[];
+  /** People watching the table. */
+  readonly spectators: readonly Spectator[];
+  /** You're watching, not playing. */
+  readonly spectating: boolean;
 }
 
 export interface TableSessionOptions {
@@ -66,6 +70,7 @@ interface LinkEntry<TTrack> {
  */
 export class TableSession<TTrack> {
   private readonly members = new Map<string, Player>();
+  private readonly spectators = new Map<string, Spectator>();
   private readonly links = new Map<string, LinkEntry<TTrack>>();
   private readonly listeners = new Set<(state: TableSessionState<TTrack>) => void>();
   private connection: SignalingConnectionState = 'connecting';
@@ -136,16 +141,19 @@ export class TableSession<TTrack> {
         this.selfId = event.selfId;
         this.members.clear();
         for (const member of event.members) this.members.set(member.id, member);
+        this.spectators.clear();
+        for (const spectator of event.spectators ?? []) this.spectators.set(spectator.id, spectator);
         for (const memberId of [...this.links.keys()]) {
-          if (!this.members.has(memberId)) this.closeLink(memberId);
+          if (!this.linksTo(memberId)) this.closeLink(memberId);
         }
         for (const memberId of [...this.cameraStatuses.keys()]) {
           if (!this.members.has(memberId)) this.cameraStatuses.delete(memberId);
         }
         // Tell everyone what our camera is doing: after a reconnect, they may have missed a change.
-        for (const member of event.members) {
-          this.ensureLink(member.id);
-          this.sendStatus(member.id);
+        for (const memberId of [...this.members.keys(), ...this.spectators.keys()]) {
+          if (!this.linksTo(memberId)) continue;
+          this.ensureLink(memberId);
+          this.sendStatus(memberId);
         }
         break;
       case 'member-joined':
@@ -153,8 +161,16 @@ export class TableSession<TTrack> {
         this.ensureLink(event.member.id);
         this.sendStatus(event.member.id);
         break;
+      case 'spectator-joined':
+        this.spectators.set(event.spectator.id, event.spectator);
+        if (this.linksTo(event.spectator.id)) {
+          this.ensureLink(event.spectator.id);
+          this.sendStatus(event.spectator.id);
+        }
+        break;
       case 'member-left':
         this.members.delete(event.memberId);
+        this.spectators.delete(event.memberId);
         this.cameraStatuses.delete(event.memberId);
         this.closeLink(event.memberId);
         break;
@@ -169,8 +185,18 @@ export class TableSession<TTrack> {
     this.publish();
   }
 
+  /**
+   * Whether there's a video link with this member: between players, and from each player to each spectator.
+   * Spectators don't link with each other: they have nothing to send.
+   */
+  private linksTo(memberId: string): boolean {
+    if (memberId === this.selfId) return false;
+    if (this.members.has(memberId)) return true;
+    return this.spectators.has(memberId) && this.selfId !== null && this.members.has(this.selfId);
+  }
+
   private handleSignal(from: string, data: unknown): void {
-    if (!this.members.has(from)) return;
+    if (!this.linksTo(from)) return;
     if (isStatusMessage(data)) {
       this.cameraStatuses.set(from, data.status.camera);
       return;
@@ -286,7 +312,14 @@ export class TableSession<TTrack> {
           camera: this.cameraStatuses.get(player.id) ?? null,
         };
       });
-    return { connection: this.connection, connectionReason: this.connectionReason, selfId: this.selfId, seats };
+    return {
+      connection: this.connection,
+      connectionReason: this.connectionReason,
+      selfId: this.selfId,
+      seats,
+      spectators: [...this.spectators.values()],
+      spectating: this.selfId !== null && this.spectators.has(this.selfId),
+    };
   }
 }
 

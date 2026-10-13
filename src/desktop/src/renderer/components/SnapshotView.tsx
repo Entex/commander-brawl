@@ -24,8 +24,8 @@ interface SnapshotViewProps {
   readonly snapshot: SnapshotState;
   /** Shows a card in the Cards panel. */
   onOpenCard(cardId: string): void;
-  /** Keeps track of the card (its counters, tapped or not) on their side of the table. */
-  onTrack(card: Card, seat: SeatIndex): void;
+  /** Keeps track of the card (its counters, tapped or not) on their side of the table. Not when watching. */
+  onTrack?: (card: Card, seat: SeatIndex) => void;
   /** Opens the Cards panel to search. */
   onSearch(): void;
   onClose(): void;
@@ -53,7 +53,7 @@ export function SnapshotView({ snapshot, onOpenCard, onTrack, onSearch, onClose 
             <Guesses
               identification={snapshot.identification}
               onOpenCard={onOpenCard}
-              onTrack={(card) => onTrack(card, snapshot.seat)}
+              onTrack={onTrack ? (card) => onTrack(card, snapshot.seat) : undefined}
               onSearch={onSearch}
             />
           </div>
@@ -71,7 +71,7 @@ function Guesses({
 }: {
   readonly identification: Identification;
   onOpenCard(cardId: string): void;
-  onTrack(card: Card): void;
+  onTrack: ((card: Card) => void) | undefined;
   onSearch(): void;
 }) {
   if (identification.status === 'working') {
@@ -95,14 +95,16 @@ function Guesses({
                   <span className="guess-name">{guess.card.name}</span>
                   <span className="hint">{describe(guess)}</span>
                 </button>
-                <button
-                  className="guess-track"
-                  title="Keep track of its counters and whether it's tapped"
-                  aria-label={`Track ${guess.card.name}`}
-                  onClick={() => onTrack(guess.card)}
-                >
-                  Track
-                </button>
+                {onTrack && (
+                  <button
+                    className="guess-track"
+                    title="Keep track of its counters and whether it's tapped"
+                    aria-label={`Track ${guess.card.name}`}
+                    onClick={() => onTrack(guess.card)}
+                  >
+                    Track
+                  </button>
+                )}
               </li>
             ))}
           </ul>

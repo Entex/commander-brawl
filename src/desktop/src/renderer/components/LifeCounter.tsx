@@ -5,14 +5,24 @@ import { formatChange, useGroupedChange } from '../useGroupedChange';
 interface LifeCounterProps {
   readonly seat: SeatIndex;
   readonly life: number;
-  onChange(amount: number): void;
+  /** Without it, the total is only shown (watching, or the clean view for streaming). */
+  onChange?: (amount: number) => void;
 }
 
 export function LifeCounter({ seat, life, onChange }: LifeCounterProps) {
-  const { draft, add, flush } = useGroupedChange(onChange);
+  const { draft, add, flush } = useGroupedChange(onChange ?? noChange);
   const [typing, setTyping] = useState(false);
   const shown = life + draft;
 
+  if (!onChange) {
+    return (
+      <div className="life life-shown" data-testid={`life-${seat}`}>
+        <span className="life-total" data-testid={`life-total-${seat}`}>
+          {life}
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="life" data-testid={`life-${seat}`}>
       <button aria-label="Lose 5 life" onClick={() => add(-5)}>
@@ -54,6 +64,8 @@ export function LifeCounter({ seat, life, onChange }: LifeCounterProps) {
     </div>
   );
 }
+
+function noChange(): void {}
 
 /** Type a new total. Enter or clicking away sets it, Escape cancels. */
 function LifeInput({ current, onDone }: { readonly current: number; onDone(value: number | null): void }) {

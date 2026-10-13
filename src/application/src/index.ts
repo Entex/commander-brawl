@@ -46,6 +46,7 @@ export type {
   SavedMember,
   TableHostListener,
   TableHostOptions,
+  WatchResult,
 } from './tableHost';
 export { TableSession } from './tableSession';
 export type { CameraStatus, SeatView, TableSessionOptions, TableSessionState } from './tableSession';

@@ -137,18 +137,22 @@ export function VariantsPanel({ game, players, onClose }: VariantsPanelProps) {
 interface VariantsBarProps {
   readonly game: GameView;
   readonly players: Players;
+  /** Shown, without the buttons that change things. */
+  readonly readOnly?: boolean;
 }
 
 /** The plane and the scheme in play, under the status bar, with what players do with them. */
-export function VariantsBar({ game, players }: VariantsBarProps) {
+export function VariantsBar({ game, players, readOnly = false }: VariantsBarProps) {
   const { planechase, archenemy } = game.state;
   const [opened, setOpened] = useState<VariantCard | null>(null);
   return (
     <>
       {(planechase || archenemy) && (
         <div className="variants-bar" data-testid="variants-bar">
-          {planechase && <PlanechaseControls planechase={planechase} onShow={setOpened} />}
-          {archenemy && <ArchenemyControls archenemy={archenemy} players={players} onShow={setOpened} />}
+          {planechase && <PlanechaseControls planechase={planechase} readOnly={readOnly} onShow={setOpened} />}
+          {archenemy && (
+            <ArchenemyControls archenemy={archenemy} players={players} readOnly={readOnly} onShow={setOpened} />
+          )}
         </div>
       )}
       {/* There from the start, so it knows a plane or scheme that comes up later is new. */}
@@ -159,9 +163,11 @@ export function VariantsBar({ game, players }: VariantsBarProps) {
 
 function PlanechaseControls({
   planechase,
+  readOnly,
   onShow,
 }: {
   readonly planechase: Planechase;
+  readonly readOnly: boolean;
   onShow(card: VariantCard): void;
 }) {
   const plane = currentPlane(planechase);
@@ -175,8 +181,12 @@ function PlanechaseControls({
           {plane.name}
         </button>
       )}
-      <button onClick={() => submitGameEvent({ type: 'roll-planar-die' })}>Roll the planar die ({cost})</button>
-      {next && <button onClick={() => submitGameEvent({ type: 'planeswalked', to: next })}>Planeswalk</button>}
+      {!readOnly && (
+        <button onClick={() => submitGameEvent({ type: 'roll-planar-die' })}>Roll the planar die ({cost})</button>
+      )}
+      {!readOnly && next && (
+        <button onClick={() => submitGameEvent({ type: 'planeswalked', to: next })}>Planeswalk</button>
+      )}
     </div>
   );
 }
@@ -184,14 +194,16 @@ function PlanechaseControls({
 function ArchenemyControls({
   archenemy,
   players,
+  readOnly,
   onShow,
 }: {
   readonly archenemy: Archenemy;
   readonly players: Players;
+  readonly readOnly: boolean;
   onShow(card: VariantCard): void;
 }) {
   const self = players.find((p) => p.isSelf)?.player.seat;
-  const yours = archenemy.seat === self;
+  const yours = archenemy.seat === self && !readOnly;
   const scheme = currentScheme(archenemy);
   const next = archenemy.deck[setSchemeInMotion(archenemy).index];
   return (

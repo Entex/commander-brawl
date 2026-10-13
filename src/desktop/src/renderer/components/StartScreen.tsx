@@ -19,13 +19,13 @@ const NAME_KEY = 'cb.name';
 export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined }: StartScreenProps) {
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
   const [invite, setInvite] = useState('');
-  const [busy, setBusy] = useState<'host' | 'join' | 'resume' | null>(null);
+  const [busy, setBusy] = useState<'host' | 'join' | 'watch' | 'resume' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const saved = useSavedTable();
   const [decksOpen, setDecksOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const run = async (kind: 'host' | 'join' | 'resume') => {
+  const run = async (kind: 'host' | 'join' | 'watch' | 'resume') => {
     setBusy(kind);
     setError(null);
     if (kind !== 'resume') localStorage.setItem(NAME_KEY, name);
@@ -35,7 +35,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
       } else if (kind === 'host') {
         onHosted(await api.table.host(name));
       } else {
-        await api.table.join(invite, name);
+        await (kind === 'watch' ? api.table.watch(invite, name) : api.table.join(invite, name));
         onJoined();
       }
     } catch (caught) {
@@ -120,6 +120,14 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
               data-testid="join"
             >
               {busy === 'join' ? 'Joining…' : 'Join'}
+            </button>
+            <button
+              disabled={busy !== null || !name.trim() || !invite.trim()}
+              onClick={() => void run('watch')}
+              title="Watch the game without taking a seat: you see everything and change nothing"
+              data-testid="watch"
+            >
+              {busy === 'watch' ? 'Joining…' : 'Watch'}
             </button>
           </section>
         </div>

@@ -16,8 +16,8 @@ class Player {
   readonly events: SignalingEvent[] = [];
   readonly client: TableClient;
 
-  constructor(invite: Invite, name: string) {
-    this.client = new TableClient({ invite, name, connectTimeoutMs: 1_000, silenceTimeoutMs: 1_000 });
+  constructor(invite: Invite, name: string, spectator = false) {
+    this.client = new TableClient({ invite, name, spectator, connectTimeoutMs: 1_000, silenceTimeoutMs: 1_000 });
     this.client.subscribe((event) => this.events.push(event));
     this.client.start();
   }
@@ -69,8 +69,8 @@ describe('hosting and joining a table', () => {
     return { server, invite };
   }
 
-  function join(invite: Invite, name: string): Player {
-    const player = new Player(invite, name);
+  function join(invite: Invite, name: string, spectator = false): Player {
+    const player = new Player(invite, name, spectator);
     cleanups.push(() => player.client.close());
     return player;
   }
@@ -84,6 +84,30 @@ describe('hosting and joining a table', () => {
 
     expect(bob.welcomes()[0]!.members.map((m) => m.name)).toEqual(['Alice', 'Bob']);
     await waitFor(() => alice.events.some((e) => e.type === 'member-joined' && e.member.id === bobId));
+  });
+
+  it('lets a spectator watch: the players hear about them, and the game turns down their changes', async () => {
+    const { invite } = await host();
+    const alice = join(invite, 'Alice');
+    await alice.seated();
+    const sam = join(invite, 'Sam', true);
+    const samId = await sam.seated();
+
+    expect(sam.welcomes()[0]).toMatchObject({ members: [{ name: 'Alice' }], spectators: [{ id: samId, name: 'Sam' }] });
+    await waitFor(() => alice.events.some((e) => e.type === 'spectator-joined' && e.spectator.id === samId));
+    // Not a seat: four players can still sit down.
+    const others = ['Bob', 'Carol', 'Dave'].map((name) => join(invite, name));
+    await Promise.all(others.map((p) => p.seated()));
+
+    const refused: string[] = [];
+    sam.client.subscribeGame((update) => update.type === 'refused' && refused.push(update.id));
+    sam.client.sendGame({ kind: 'event', id: 'sneaky', event: { type: 'life-changed', seat: 0, amount: -40 } });
+    await waitFor(() => refused[0]);
+    expect(refused).toEqual(['sneaky']);
+
+    // Relaying video setup works with a spectator too.
+    alice.client.send(samId, { offer: 'sdp' });
+    await waitFor(() => sam.signals()[0]);
   });
 
   it('relays connection details between two players', async () => {

@@ -9,6 +9,14 @@ export interface Player {
   readonly seat: SeatIndex;
 }
 
+/** Someone watching the table: they see everything, take no seat, and change nothing. */
+export interface Spectator {
+  readonly id: string;
+  readonly name: string;
+}
+
+export const MAX_SPECTATORS = 8;
+
 export class TableFullError extends Error {
   constructor() {
     super(`The table already has ${MAX_SEATS} players.`);

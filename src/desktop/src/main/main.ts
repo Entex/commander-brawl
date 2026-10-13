@@ -155,6 +155,7 @@ function registerIpc(
   handle(Channels.tableResume, () => table.resume());
   handle(Channels.tableDiscardSaved, () => table.discardSavedTable());
   handle(Channels.tableJoin, (invite, name) => table.join(requireString(invite), requireString(name)));
+  handle(Channels.tableWatch, (invite, name) => table.join(requireString(invite), requireString(name), true));
   handle(Channels.tableLeave, () => table.leave());
   handle(Channels.tableSnapshot, () => table.snapshot());
   handle(Channels.gameView, () => table.gameView());

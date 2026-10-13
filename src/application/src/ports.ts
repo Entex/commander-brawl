@@ -1,4 +1,4 @@
-import type { Player } from '@commander-brawl/domain';
+import type { Player, Spectator } from '@commander-brawl/domain';
 
 export type Unsubscribe = () => void;
 
@@ -11,8 +11,16 @@ export interface Timers {
 export type SignalingConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'closed';
 
 export type SignalingEvent =
-  | { readonly type: 'welcome'; readonly selfId: string; readonly members: readonly Player[] }
+  | {
+      readonly type: 'welcome';
+      readonly selfId: string;
+      readonly members: readonly Player[];
+      /** People watching. You're one of them if your id is among them. */
+      readonly spectators?: readonly Spectator[];
+    }
   | { readonly type: 'member-joined'; readonly member: Player }
+  | { readonly type: 'spectator-joined'; readonly spectator: Spectator }
+  /** A player or a spectator left. */
   | { readonly type: 'member-left'; readonly memberId: string }
   | { readonly type: 'signal'; readonly from: string; readonly data: unknown }
   | { readonly type: 'connection'; readonly state: SignalingConnectionState; readonly reason?: string };

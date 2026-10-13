@@ -53,6 +53,8 @@ export class TableService {
   private game: GameSync | null = null;
   private store: FileTableStore | null = null;
   private releasePort: (() => Promise<void>) | null = null;
+  /** Joined to watch: changes from this app aren't sent. */
+  private watching = false;
   /** Everyone who sat at the table, by seat, for the game history. */
   private readonly names = new Map<SeatIndex, string>();
 
@@ -92,11 +94,12 @@ export class TableService {
     new FileTableStore(this.options.tableDir).clear();
   }
 
-  async join(inviteCode: string, name: string): Promise<void> {
+  /** Joins as a player, or (`watch`) as a spectator: no seat, and nothing you do changes the game. */
+  async join(inviteCode: string, name: string, watch = false): Promise<void> {
     const playerName = normalizePlayerName(name);
     const invite = decodeInvite(inviteCode);
     await this.leave();
-    this.connect(invite, playerName);
+    this.connect(invite, playerName, undefined, watch);
   }
 
   /** Leaving on purpose. If you were hosting, the table is over for everyone. */
@@ -130,6 +133,7 @@ export class TableService {
 
   /** A change from the UI. It comes from the renderer, so check it like anything else from outside. */
   submitGameEvent(raw: unknown): void {
+    if (this.watching) return;
     const action = toGameAction(raw);
     if (action) this.game?.submit(action);
   }
@@ -212,8 +216,9 @@ export class TableService {
     if (forget) store?.clear();
   }
 
-  private connect(invite: Invite, name: string, resumeToken?: string): void {
-    const client = new TableClient({ invite, name, resumeToken });
+  private connect(invite: Invite, name: string, resumeToken?: string, watch = false): void {
+    this.watching = watch;
+    const client = new TableClient({ invite, name, resumeToken, spectator: watch });
     const game = syncGame(client);
     const store = this.store;
     this.client = client;

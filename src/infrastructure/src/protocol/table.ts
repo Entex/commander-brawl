@@ -1,5 +1,12 @@
 import type { JoinRejection, LoggedEvent } from '@commander-brawl/application';
-import { MAX_SEATS, toGameEvent, type Player, type SeatIndex } from '@commander-brawl/domain';
+import {
+  MAX_NAME_LENGTH,
+  MAX_SEATS,
+  toGameEvent,
+  type Player,
+  type SeatIndex,
+  type Spectator,
+} from '@commander-brawl/domain';
 
 /** Bump when the host and players can no longer understand each other. */
 export const TABLE_PROTOCOL_VERSION = 2;
@@ -14,6 +21,8 @@ export type TableClientMessage =
       readonly secret: string;
       readonly name: string;
       readonly resumeToken?: string | undefined;
+      /** To watch: no seat, no changes. */
+      readonly spectator?: boolean;
     }
   | { readonly t: 'signal'; readonly to: string; readonly data: unknown }
   /** A game event. The host checks it, gives it a place in the log, and sends it to everyone. */
@@ -28,8 +37,10 @@ export type TableServerMessage =
       readonly selfId: string;
       readonly resumeToken: string;
       readonly members: readonly Player[];
+      readonly spectators?: readonly Spectator[];
     }
   | { readonly t: 'member-joined'; readonly member: Player }
+  | { readonly t: 'spectator-joined'; readonly spectator: Spectator }
   | { readonly t: 'member-left'; readonly memberId: string }
   | { readonly t: 'signal'; readonly from: string; readonly data: unknown }
   | {
@@ -60,8 +71,16 @@ export function parseClientMessage(raw: string): TableClientMessage | null {
       return typeof message.v === 'number' &&
         isShortString(message.secret) &&
         isShortString(message.name) &&
-        (message.resumeToken === undefined || isShortString(message.resumeToken))
-        ? { t: 'hello', v: message.v, secret: message.secret, name: message.name, resumeToken: message.resumeToken }
+        (message.resumeToken === undefined || isShortString(message.resumeToken)) &&
+        (message.spectator === undefined || typeof message.spectator === 'boolean')
+        ? {
+            t: 'hello',
+            v: message.v,
+            secret: message.secret,
+            name: message.name,
+            resumeToken: message.resumeToken,
+            ...(message.spectator ? { spectator: true } : {}),
+          }
         : null;
     case 'signal':
       return isShortString(message.to) && 'data' in message
@@ -90,11 +109,21 @@ export function parseServerMessage(raw: string): TableServerMessage | null {
       return isShortString(message.selfId) &&
         isShortString(message.resumeToken) &&
         Array.isArray(message.members) &&
-        message.members.every(isPlayer)
-        ? { t: 'welcome', selfId: message.selfId, resumeToken: message.resumeToken, members: message.members }
+        message.members.every(isPlayer) &&
+        (message.spectators === undefined ||
+          (Array.isArray(message.spectators) && message.spectators.every(isSpectator)))
+        ? {
+            t: 'welcome',
+            selfId: message.selfId,
+            resumeToken: message.resumeToken,
+            members: message.members,
+            spectators: (message.spectators as Spectator[] | undefined) ?? [],
+          }
         : null;
     case 'member-joined':
       return isPlayer(message.member) ? { t: 'member-joined', member: message.member } : null;
+    case 'spectator-joined':
+      return isSpectator(message.spectator) ? { t: 'spectator-joined', spectator: message.spectator } : null;
     case 'member-left':
       return isShortString(message.memberId) ? { t: 'member-left', memberId: message.memberId } : null;
     case 'signal':
@@ -163,5 +192,17 @@ function isSeat(value: unknown): value is SeatIndex {
 }
 
 function isRejection(value: unknown): value is TableRejection {
-  return value === 'bad-secret' || value === 'table-full' || value === 'bad-name' || value === 'bad-version';
+  return (
+    value === 'bad-secret' ||
+    value === 'table-full' ||
+    value === 'bad-name' ||
+    value === 'bad-version' ||
+    value === 'too-many-spectators'
+  );
+}
+
+export function isSpectator(value: unknown): value is Spectator {
+  if (typeof value !== 'object' || value === null) return false;
+  const { id, name } = value as Record<string, unknown>;
+  return isShortString(id) && typeof name === 'string' && name.length > 0 && name.length <= MAX_NAME_LENGTH;
 }

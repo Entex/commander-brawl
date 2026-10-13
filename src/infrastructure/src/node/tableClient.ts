@@ -7,7 +7,7 @@ import type {
   TableSignaling,
   Unsubscribe,
 } from '@commander-brawl/application';
-import type { Player } from '@commander-brawl/domain';
+import type { Player, Spectator } from '@commander-brawl/domain';
 import type { IncomingMessage } from 'node:http';
 import type { TLSSocket } from 'node:tls';
 import { WebSocket } from 'ws';
@@ -26,6 +26,8 @@ export interface TableClientOptions {
   readonly name: string;
   /** Reclaims a seat from before, e.g. the host's own seat after its app restarted. */
   readonly resumeToken?: string | undefined;
+  /** Watch instead of taking a seat. */
+  readonly spectator?: boolean;
   /** Give up on one address after this long and rely on the others. */
   readonly connectTimeoutMs?: number;
   /** Treat the connection as dead if the host has been silent this long. */
@@ -42,6 +44,7 @@ const REJECTION_MESSAGES: Record<TableRejection, string> = {
   'table-full': 'The table is full.',
   'bad-name': 'Pick a name between 1 and 24 characters.',
   'bad-version': 'You and the host are on different versions of the app. Both of you should update.',
+  'too-many-spectators': 'Too many people are watching this table already.',
 };
 
 /**
@@ -52,6 +55,7 @@ export class TableClient implements TableSignaling {
   private readonly listeners = new Set<(event: SignalingEvent) => void>();
   private readonly gameListeners = new Set<(update: GameUpdate) => void>();
   private readonly members = new Map<string, Player>();
+  private readonly spectators = new Map<string, Spectator>();
   private socket: WebSocket | null = null;
   private selfId: string | null = null;
   private resumeToken: string | undefined;
@@ -84,7 +88,12 @@ export class TableClient implements TableSignaling {
   snapshot(): SignalingEvent[] {
     const events: SignalingEvent[] = [{ type: 'connection', state: this.connection, ...this.reasonField() }];
     if (this.selfId !== null) {
-      events.push({ type: 'welcome', selfId: this.selfId, members: [...this.members.values()] });
+      events.push({
+        type: 'welcome',
+        selfId: this.selfId,
+        members: [...this.members.values()],
+        spectators: [...this.spectators.values()],
+      });
     }
     return events;
   }
@@ -148,6 +157,7 @@ export class TableClient implements TableSignaling {
       secret: this.options.invite.secret,
       name: this.options.name,
       resumeToken: this.resumeToken,
+      ...(this.options.spectator ? { spectator: true } : {}),
     });
   }
 
@@ -215,15 +225,27 @@ export class TableClient implements TableSignaling {
         this.resumeToken = message.resumeToken;
         this.members.clear();
         for (const member of message.members) this.members.set(member.id, member);
+        this.spectators.clear();
+        for (const spectator of message.spectators ?? []) this.spectators.set(spectator.id, spectator);
         this.setConnection('connected', undefined);
-        this.emit({ type: 'welcome', selfId: message.selfId, members: message.members });
+        this.emit({
+          type: 'welcome',
+          selfId: message.selfId,
+          members: message.members,
+          spectators: message.spectators ?? [],
+        });
         break;
       case 'member-joined':
         this.members.set(message.member.id, message.member);
         this.emit({ type: 'member-joined', member: message.member });
         break;
+      case 'spectator-joined':
+        this.spectators.set(message.spectator.id, message.spectator);
+        this.emit({ type: 'spectator-joined', spectator: message.spectator });
+        break;
       case 'member-left':
         this.members.delete(message.memberId);
+        this.spectators.delete(message.memberId);
         this.emit({ type: 'member-left', memberId: message.memberId });
         break;
       case 'signal':

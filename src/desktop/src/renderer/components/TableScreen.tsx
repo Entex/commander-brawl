@@ -75,10 +75,23 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const clips = useClips();
   const responding = new Set(responseCalls.map((call) => call.by.seat));
   const [copied, setCopied] = useState(false);
+  // Watching: you see everything and change nothing, and your camera isn't sent.
+  const spectating = state.spectating;
+  // The clean view for streaming (OBS): seats, life totals and commanders, none of the buttons.
+  const [clean, setClean] = useState(false);
+  const readOnly = spectating || clean;
+  useEffect(() => {
+    if (!clean) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setClean(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clean]);
 
   useEffect(() => {
-    void session.setLocalTrack(camera.track);
-  }, [session, camera.track]);
+    void session.setLocalTrack(spectating ? null : camera.track);
+  }, [session, camera.track, spectating]);
 
   const { closeUp, look, close: closeCloseUp } = useCloseUps(camera);
 
@@ -98,10 +111,21 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const activeSeat = game?.state.activeSeat ?? null;
 
   return (
-    <div className="table-screen">
+    <div className={`table-screen${clean ? ' clean-view' : ''}`} data-testid="table-screen">
+      {clean && (
+        <button className="leave-clean-view" onClick={() => setClean(false)}>
+          Leave the clean view (Esc)
+        </button>
+      )}
       <header className="toolbar">
         <div className="toolbar-group">
           {game && <span className="hint">Game {game.state.number}</span>}
+          {spectating && <span className="badge">👁 Watching</span>}
+          {state.spectators.length > 0 && !spectating && (
+            <span className="hint" title={state.spectators.map((s) => s.name).join(', ')} data-testid="spectators">
+              👁 {state.spectators.length} watching
+            </span>
+          )}
           {host && (
             <>
               <button onClick={() => void copyInvite()} data-testid="copy-invite">
@@ -112,62 +136,70 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           )}
         </div>
         <div className="toolbar-group">
-          <button
-            disabled={!undoTarget}
-            title={
-              undoTarget && game ? `Undo “${describeEvent(undoTarget, state.seats, game.state)}” (Ctrl+Z)` : undefined
-            }
-            onClick={() => undoTarget && submitGameEvent({ type: 'undo', target: undoTarget.id })}
-          >
-            Undo
-          </button>
+          {!spectating && (
+            <button
+              disabled={!undoTarget}
+              title={
+                undoTarget && game ? `Undo “${describeEvent(undoTarget, state.seats, game.state)}” (Ctrl+Z)` : undefined
+              }
+              onClick={() => undoTarget && submitGameEvent({ type: 'undo', target: undoTarget.id })}
+            >
+              Undo
+            </button>
+          )}
           <button onClick={() => setCardsOpen(!cardsOpen)} aria-pressed={cardsOpen} title="Look up a card (Ctrl+K)">
             Cards
           </button>
           <button onClick={() => setLogOpen(!logOpen)} aria-pressed={logOpen} disabled={!game}>
             Log
           </button>
-          <button onClick={() => setCountersOpen(true)} disabled={!game}>
-            Counters
-          </button>
+          {!spectating && (
+            <button onClick={() => setCountersOpen(true)} disabled={!game}>
+              Counters
+            </button>
+          )}
           <Menu label="Menu">
             {(close) => (
               <>
-                <NewGameButton
-                  onConfirm={() => {
-                    close();
-                    submitGameEvent({ type: 'new-game', startingLife: STARTING_LIFE });
-                  }}
-                />
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    close();
-                    setDecksOpen(true);
-                  }}
-                >
-                  Decks
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    close();
-                    setClockOpen(true);
-                  }}
-                  disabled={!game}
-                >
-                  Clock
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    close();
-                    setVariantsOpen(true);
-                  }}
-                  disabled={!game}
-                >
-                  Planechase and Archenemy
-                </button>
+                {!spectating && (
+                  <>
+                    <NewGameButton
+                      onConfirm={() => {
+                        close();
+                        submitGameEvent({ type: 'new-game', startingLife: STARTING_LIFE });
+                      }}
+                    />
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        close();
+                        setDecksOpen(true);
+                      }}
+                    >
+                      Decks
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        close();
+                        setClockOpen(true);
+                      }}
+                      disabled={!game}
+                    >
+                      Clock
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        close();
+                        setVariantsOpen(true);
+                      }}
+                      disabled={!game}
+                    >
+                      Planechase and Archenemy
+                    </button>
+                  </>
+                )}
                 <button
                   role="menuitem"
                   onClick={() => {
@@ -177,14 +209,26 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 >
                   History
                 </button>
+                {!spectating && (
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      close();
+                      onOpenCamera();
+                    }}
+                  >
+                    Camera
+                  </button>
+                )}
                 <button
                   role="menuitem"
+                  title="Just the seats, life totals and commanders, for streaming (OBS can capture the window)"
                   onClick={() => {
                     close();
-                    onOpenCamera();
+                    setClean(true);
                   }}
                 >
-                  Camera
+                  Clean view for streaming
                 </button>
                 {clips.supported && (
                   <button
@@ -214,7 +258,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {/* Its own row, so the turn and Pass turn are never squeezed out by the toolbar on a narrow window. */}
       {game && (
         <div className="status-bar">
-          <ResponseButton />
+          {!spectating && <ResponseButton />}
           {clips.recording && (
             <button onClick={clips.save} title="Save the last half minute of the table as a video">
               💾 Last {CLIP_SECONDS} s
@@ -226,13 +270,18 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             </span>
           )}
           {recap.record && !recap.banner && !recap.viewing && <button onClick={recap.view}>Recap</button>}
-          <RollMenu game={game.state} players={state.seats} />
+          {!spectating && <RollMenu game={game.state} players={state.seats} />}
           <button onClick={() => setRule0Open(true)}>Rule 0</button>
-          <TurnControls game={game.state} players={state.seats} hostClockOffset={game.hostClockOffset} />
+          <TurnControls
+            game={game.state}
+            players={state.seats}
+            hostClockOffset={game.hostClockOffset}
+            readOnly={spectating}
+          />
           <LastChange game={game} state={state} />
         </div>
       )}
-      {game && <VariantsBar game={game} players={state.seats} />}
+      {game && <VariantsBar game={game} players={state.seats} readOnly={readOnly} />}
       {game && <ComboWarnings game={game.state} players={state.seats} />}
       <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
@@ -241,7 +290,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           The table couldn't get its old port back, so your friends need the new invite. Copy it and send it to them.
         </p>
       )}
-      {game && <TableCounters game={game.state} />}
+      {game && <TableCounters game={game.state} readOnly={readOnly} />}
       {game && countersOpen && <CountersPanel game={game.state} onClose={() => setCountersOpen(false)} />}
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
 
@@ -250,10 +299,14 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <CardsPanel
           key={cardFocus?.at ?? 'search'}
           initialCardId={cardFocus?.id ?? null}
-          onSpotlight={(card, reason) => {
-            submitGameEvent({ type: 'card-shown', card: { id: card.id, name: card.name }, reason });
-            setCardsOpen(false);
-          }}
+          onSpotlight={
+            spectating
+              ? undefined
+              : (card, reason) => {
+                  submitGameEvent({ type: 'card-shown', card: { id: card.id, name: card.name }, reason });
+                  setCardsOpen(false);
+                }
+          }
           onClose={() => {
             setCardsOpen(false);
             setCardFocus(null);
@@ -276,15 +329,19 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             closeCloseUp();
             openCard(id);
           }}
-          onTrack={(card, seat) => {
-            closeCloseUp();
-            const token = card.layout === 'token' || card.typeLine.startsWith('Token');
-            submitGameEvent({
-              type: 'permanent-added',
-              seat,
-              permanent: { id: crypto.randomUUID(), name: card.name, cardId: card.id, token, count: 1 },
-            });
-          }}
+          onTrack={
+            spectating
+              ? undefined
+              : (card, seat) => {
+                  closeCloseUp();
+                  const token = card.layout === 'token' || card.typeLine.startsWith('Token');
+                  submitGameEvent({
+                    type: 'permanent-added',
+                    seat,
+                    permanent: { id: crypto.randomUUID(), name: card.name, cardId: card.id, token, count: 1 },
+                  });
+                }
+          }
           onSearch={() => {
             closeCloseUp();
             setCardFocus(null);
@@ -305,7 +362,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
       )}
 
-      <PointerLayer marks={pointerMarks} onPoint={point} selfSeat={selfSeat}>
+      <PointerLayer marks={pointerMarks} onPoint={spectating ? ignore : point} selfSeat={selfSeat}>
         <ResponseBanner calls={responseCalls} self={selfSeat} />
         <RollBanner game={game} players={state.seats} />
         {recap.record && recap.banner && (
@@ -321,6 +378,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               active={seat.player.seat === activeSeat}
               responding={responding.has(seat.player.seat)}
               hostClockOffset={game?.hostClockOffset ?? 0}
+              readOnly={readOnly}
               showStats={showStats}
               getStats={getStats}
               onOpenCard={openCard}
@@ -343,6 +401,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     </div>
   );
 }
+
+/** Spectators point at nothing: they send nothing. */
+function ignore(): void {}
 
 function ReachabilityBadge({ host }: { readonly host: HostInfo }) {
   const { reachability } = host;
