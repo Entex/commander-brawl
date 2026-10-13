@@ -1,0 +1,92 @@
+# Commander Brawl
+
+Play Magic: The Gathering Commander over webcams, with up to four players. Use your phone as the camera without installing anything on it.
+
+There are no servers. Everyone installs the app on their computer, and one player hosts the table. Video goes directly between the players. Voice stays on Discord.
+
+## Install
+
+**Windows** (in PowerShell):
+
+```powershell
+irm https://github.com/Entex/commander-brawl/releases/latest/download/install.ps1 | iex
+```
+
+**macOS and Linux** (in a terminal):
+
+```sh
+curl -fsSL https://github.com/Entex/commander-brawl/releases/latest/download/install.sh | sh
+```
+
+Run the same command again to update. The previous version is kept. To go back to it, run `sh install.sh --rollback`, or on Windows set `$env:CB_ROLLBACK = '1'` and run the installer again.
+
+These scripts avoid the "unknown publisher" warnings. Windows and macOS only show those warnings for files a browser downloaded, and the scripts download and unpack the app themselves. If you got the archive another way, put it next to the install script and run the script. It removes the "downloaded from the internet" mark.
+
+## Play
+
+1. **Camera.** Click *Set up camera* and scan the QR code with your phone, which must be on the same Wi-Fi as your computer. The phone browser warns that the connection isn't private. That's expected, because the page comes from your own computer. Tap *Advanced → Proceed* (Android) or *Show Details → visit this website* (iPhone). Point the phone at your play area. Any webcam works too, including an iPhone through Continuity Camera on a Mac.
+2. **Host.** One player clicks *Host* and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP). If the router refuses, the app says so; turn on UPnP or forward that port manually.
+3. **Join.** Everyone else pastes the invite code and clicks *Join*.
+
+The app recovers from these problems by itself:
+- **The phone drops off Wi-Fi or its screen locks.** Only your camera pauses. The phone reconnects when it's back.
+- **The connection to the host drops.** Video between players keeps running, and your seat is held for 30 seconds.
+- **A video link fails.** It restarts, first gently and then from scratch.
+
+Click *Stats* to see resolution, frame rate, bitrate, packet loss and delay for each player.
+
+## Development
+
+You need Node.js 24 or newer.
+
+```sh
+npm install
+npm run dev          # the app, with live reload for the UI
+npm run check        # type-check, lint, unit + integration tests, browser video tests
+npm run test:e2e     # the full app, two copies (needs a display; on a headless Linux box: xvfb-run -a npm run test:e2e)
+npm run package      # release/: one archive per platform, the install scripts, SHA256SUMS
+```
+
+The browser tests use Playwright's Chromium (`npx playwright install chromium`). To use a Chromium you already have, set `CB_CHROMIUM=/usr/bin/chromium`.
+
+### Layout
+
+The code follows clean architecture. Inner layers never depend on outer ones, and `tests/unit/architecture.test.ts` enforces it.
+
+```
+src/
+  domain/          Game rules: seats, players. No dependencies.
+  application/     Use cases and the interfaces they need: TableHost (who sits where),
+                   TableSession (a direct video link to every other player), invite codes.
+  infrastructure/
+    protocol/      Messages between host and players, and between phone and computer.
+    node/          Host server, connection to the host, phone page server, TLS certificate, UPnP.
+    browser/       WebRTC video links, phone camera sender and receiver, webcams.
+  desktop/         The Electron app: main process, preload bridge, React UI.
+  phone/           The camera page that phones open.
+tests/
+  unit/            Domain and application logic, protocol parsing, architecture rules.
+  integration/     Host and players over real TLS connections, including dropped connections.
+  browser/         Real WebRTC in headless Chromium: four-player mesh, phone → computer → others.
+  e2e/             The packaged app, driven like a player would.
+```
+
+### How the video flows
+
+```
+phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each other player
+```
+
+- **The phone talks only to its own player's computer**, over the local network. It never connects to other players or decodes their video.
+- **Your computer sends the phone's video to each of the other players**, re-encoded separately for each one so every connection gets the quality it can handle.
+- **The host only introduces players to each other.** Video does not pass through the host.
+
+### Settings for development and tests
+
+| Variable | Effect |
+|---|---|
+| `CB_USER_DATA_DIR` | Keep settings and certificates in this folder, so several copies can run side by side. |
+| `CB_UPNP=off` | Don't ask the router to open a port. |
+| `CB_LOCAL_ONLY=1` | Don't use the public address-lookup (STUN) servers; local network only. |
+| `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port). |
+| `CB_RENDERER_URL` | Load the UI from a dev server. |

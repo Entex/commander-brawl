@@ -1,0 +1,8 @@
+node_modules/
+build/
+release/
+dist/
+test-results/
+playwright-report/
+*.log
+.DS_Store
