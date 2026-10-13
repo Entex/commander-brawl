@@ -1,4 +1,4 @@
-import type { DesktopToPhone, PhoneToDesktop } from '../protocol';
+import type { DesktopToPhone, PhoneCrop, PhoneToDesktop } from '../protocol';
 
 export type PhoneCameraState = 'waiting' | 'connecting' | 'live' | 'reconnecting';
 
@@ -16,10 +16,45 @@ export class PhoneReceiver {
   private pc: RTCPeerConnection | null = null;
   private session = -1;
   private state: PhoneCameraState = 'waiting';
+  private nextSnapshot = 0;
+  private readonly snapshots = new Map<string, { resolve(image: string): void; reject(error: Error): void }>();
 
   constructor(private readonly events: PhoneReceiverEvents) {}
 
+  get isLive(): boolean {
+    return this.state === 'live';
+  }
+
+  /** Asks the phone for a full-resolution picture of part of its view. A JPEG data URL. */
+  requestSnapshot(crop: PhoneCrop, timeoutMs = 10_000): Promise<string> {
+    const id = `s${++this.nextSnapshot}`;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.snapshots.delete(id);
+        reject(new Error("The phone didn't answer in time."));
+      }, timeoutMs);
+      this.snapshots.set(id, {
+        resolve: (image) => {
+          clearTimeout(timer);
+          resolve(image);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      this.events.send({ t: 'snapshot', id, crop });
+    });
+  }
+
   async handle(message: PhoneToDesktop): Promise<void> {
+    if (message.t === 'snapshot' || message.t === 'snapshot-failed') {
+      const waiting = this.snapshots.get(message.id);
+      this.snapshots.delete(message.id);
+      if (message.t === 'snapshot') waiting?.resolve(message.image);
+      else waiting?.reject(new Error(message.message));
+      return;
+    }
     try {
       if (message.t === 'offer') {
         await this.answer(message.session, message.sdp);

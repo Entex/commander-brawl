@@ -15,14 +15,26 @@ export interface IceCandidate {
   readonly sdpMLineIndex: number | null;
 }
 
+/** A part of the camera picture, as fractions of its width and height from the top left. */
+export interface PhoneCrop {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export type PhoneToDesktop =
   | { readonly t: 'offer'; readonly session: number; readonly sdp: string }
   | { readonly t: 'candidate'; readonly session: number; readonly candidate: IceCandidate }
+  | { readonly t: 'snapshot'; readonly id: string; readonly image: string }
+  | { readonly t: 'snapshot-failed'; readonly id: string; readonly message: string }
   | { readonly t: 'ping' };
 
 export type DesktopToPhone =
   | { readonly t: 'answer'; readonly session: number; readonly sdp: string }
   | { readonly t: 'candidate'; readonly session: number; readonly candidate: IceCandidate }
+  /** Take a sharp picture of this part of the camera view. */
+  | { readonly t: 'snapshot'; readonly id: string; readonly crop: PhoneCrop }
   | { readonly t: 'pong' };
 
 export function parsePhoneToDesktop(raw: string): PhoneToDesktop | null {
@@ -36,6 +48,17 @@ export function parsePhoneToDesktop(raw: string): PhoneToDesktop | null {
     case 'candidate':
       return isSession(message.session) && isCandidate(message.candidate)
         ? { t: 'candidate', session: message.session, candidate: message.candidate }
+        : null;
+    case 'snapshot':
+      return isId(message.id) &&
+        typeof message.image === 'string' &&
+        message.image.startsWith('data:image/') &&
+        message.image.length <= MAX_SNAPSHOT_LENGTH
+        ? { t: 'snapshot', id: message.id, image: message.image }
+        : null;
+    case 'snapshot-failed':
+      return isId(message.id) && typeof message.message === 'string'
+        ? { t: 'snapshot-failed', id: message.id, message: message.message.slice(0, 300) }
         : null;
     case 'ping':
       return { t: 'ping' };
@@ -56,6 +79,8 @@ export function parseDesktopToPhone(raw: string): DesktopToPhone | null {
       return isSession(message.session) && isCandidate(message.candidate)
         ? { t: 'candidate', session: message.session, candidate: message.candidate }
         : null;
+    case 'snapshot':
+      return isId(message.id) && isCrop(message.crop) ? { t: 'snapshot', id: message.id, crop: message.crop } : null;
     case 'pong':
       return { t: 'pong' };
     default:
@@ -72,6 +97,21 @@ function parseObject(raw: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** A snapshot from the phone as a data URL: a few megabytes at most. */
+export const MAX_SNAPSHOT_LENGTH = 8_000_000;
+
+function isId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 64;
+}
+
+function isCrop(value: unknown): value is PhoneCrop {
+  if (typeof value !== 'object' || value === null) return false;
+  const crop = value as Record<string, unknown>;
+  return ['x', 'y', 'width', 'height'].every(
+    (key) => typeof crop[key] === 'number' && (crop[key] as number) >= 0 && (crop[key] as number) <= 1,
+  );
 }
 
 function isSession(value: unknown): value is number {

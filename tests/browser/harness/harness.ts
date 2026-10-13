@@ -7,7 +7,7 @@ import {
   WebRtcPeerLinkFactory,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
-import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
+import type { DesktopToPhone, PhoneCrop, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 export type HarnessOutbound =
   | { readonly kind: 'signal'; readonly to: string; readonly data: unknown }
@@ -117,6 +117,20 @@ const harness = {
 
   deliverPhone(message: PhoneToDesktop): void {
     void phoneReceiver?.handle(message);
+  },
+
+  /** Asks the linked phone for a sharp picture of part of its view. Its size and type, or the error. */
+  async phoneSnapshot(crop: PhoneCrop): Promise<{ width: number; height: number; type: string } | string> {
+    if (!phoneReceiver) return 'no phone receiver';
+    try {
+      const image = await phoneReceiver.requestSnapshot(crop);
+      const element = new Image();
+      element.src = image;
+      await element.decode();
+      return { width: element.naturalWidth, height: element.naturalHeight, type: image.slice(5, image.indexOf(';')) };
+    } catch (error) {
+      return (error as Error).message;
+    }
   },
 
   phoneDisconnected(): void {

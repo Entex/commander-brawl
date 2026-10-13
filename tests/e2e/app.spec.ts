@@ -432,6 +432,30 @@ test('casting a card puts it in the spotlight for everyone', async () => {
   await expect(spotlight).toHaveCount(0);
 });
 
+test("clicking a card on another player's video shows a sharp picture of it", async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video').click();
+
+  const snapshot = friend.page.getByTestId('snapshot');
+  await expect(snapshot).toContainText("From Host's camera");
+  const image = snapshot.getByRole('img', { name: 'Close-up' });
+  await expect(image).toBeVisible({ timeout: 20_000 });
+  const size = await image.evaluate((img: HTMLImageElement) => ({
+    width: img.naturalWidth,
+    height: img.naturalHeight,
+  }));
+  // A card-sized part of the host's camera picture, portrait like a card.
+  expect(size.height).toBeGreaterThan(size.width);
+  expect(size.width).toBeGreaterThan(50);
+  await friend.page.screenshot({ path: test.info().outputPath('snapshot.png') });
+
+  await snapshot.getByRole('button', { name: 'Close' }).click();
+  await expect(snapshot).toHaveCount(0);
+  // Your own video isn't for looking at close up.
+  await expect(host.page.locator('.seat-video-look')).toHaveCount(1);
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

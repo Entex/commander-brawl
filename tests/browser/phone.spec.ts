@@ -75,6 +75,24 @@ test('the phone camera reaches the other players through its own computer', asyn
   await tearDown();
 });
 
+test('the computer gets a sharp picture of part of the phone view', async ({ browser }) => {
+  const { table, openPhone, tearDown } = await setUp(browser);
+  const phone = await openPhone();
+  await expect(phone.locator('#status')).toHaveText('Live', { timeout: 20_000 });
+
+  // A card-sized part of the view: a fifth of its width.
+  const snapshot = await table
+    .page('p1')
+    .evaluate(() => window.harness.phoneSnapshot({ x: 0.4, y: 0.3, width: 0.2, height: 0.5 }));
+
+  expect(snapshot).toMatchObject({ type: 'image/jpeg' });
+  const { width, height } = snapshot as { width: number; height: number };
+  // At least as sharp as the same part of the 1280-wide video, and portrait like a card.
+  expect(width).toBeGreaterThanOrEqual(256);
+  expect(height).toBeGreaterThan(width);
+  await tearDown();
+});
+
 test('the phone recovers from a Wi-Fi drop and the others get its video back', async ({ browser }) => {
   const { table, wifi, openPhone, tearDown } = await setUp(browser);
   const phone = await openPhone();

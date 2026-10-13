@@ -1,13 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MouseEvent } from 'react';
 
 interface VideoViewProps {
   readonly track: MediaStreamTrack | null;
   readonly rotation?: 0 | 180;
   readonly className?: string;
   readonly testId?: string;
+  readonly title?: string | undefined;
+  readonly onClick?: ((event: MouseEvent<HTMLVideoElement>) => void) | undefined;
 }
 
-export function VideoView({ track, rotation = 0, className, testId }: VideoViewProps) {
+export function VideoView({ track, rotation = 0, className, testId, title, onClick }: VideoViewProps) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -21,6 +23,8 @@ export function VideoView({ track, rotation = 0, className, testId }: VideoViewP
       ref={ref}
       className={className}
       data-testid={testId}
+      title={title}
+      onClick={onClick}
       autoPlay
       playsInline
       muted

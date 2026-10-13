@@ -1083,6 +1083,26 @@ button.swatch.selected {
   color: var(--warn);
 }
 
+.seat-video-look {
+  cursor: zoom-in;
+}
+
+.snapshot-panel {
+  width: min(720px, 96vw);
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.snapshot-image {
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+  align-self: center;
+  border-radius: 6px;
+}
+
 /* Camera panel */
 
 .overlay {

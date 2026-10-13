@@ -5,6 +5,8 @@ export { GameSync, HostGameLog, MAX_LOG_LENGTH, replayLog, undoneIds } from './g
 export type { AppendResult, GameSyncMessage, GameSyncTransport, GameView, LogBatch, LoggedEvent } from './gameLog';
 export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';
 export type { Invite } from './invite';
+export { SnapshotError, Snapshots, clampCrop } from './snapshots';
+export type { CropRect, SnapshotSource, SnapshotsOptions } from './snapshots';
 export { TableHost } from './tableHost';
 export type {
   JoinRejection,

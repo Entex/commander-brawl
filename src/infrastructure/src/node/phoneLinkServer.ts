@@ -58,7 +58,8 @@ export class PhoneLinkServer {
     const server = createServer({ key: options.identity.key, cert: options.identity.cert }, (request, response) => {
       void serveStatic(options.staticDir, request, response);
     });
-    const sockets = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+    // Room for full-resolution card snapshots from the phone.
+    const sockets = new WebSocketServer({ noServer: true, maxPayload: 10 * 1024 * 1024 });
     const port = await listenWithFallback(server, options.preferredPort);
     const heartbeat = setInterval(() => link.checkHeartbeat(), options.heartbeatMs ?? 5_000);
     const link = new PhoneLinkServer(server, sockets, port, options.token, heartbeat);

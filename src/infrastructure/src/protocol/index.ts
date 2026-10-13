@@ -1,5 +1,11 @@
-export { PHONE_LINK_PATH, PHONE_REPLACED_CLOSE_CODE, parseDesktopToPhone, parsePhoneToDesktop } from './phone';
-export type { DesktopToPhone, IceCandidate, PhoneToDesktop } from './phone';
+export {
+  MAX_SNAPSHOT_LENGTH,
+  PHONE_LINK_PATH,
+  PHONE_REPLACED_CLOSE_CODE,
+  parseDesktopToPhone,
+  parsePhoneToDesktop,
+} from './phone';
+export type { DesktopToPhone, IceCandidate, PhoneCrop, PhoneToDesktop } from './phone';
 export {
   TABLE_PATH,
   TABLE_PROTOCOL_VERSION,

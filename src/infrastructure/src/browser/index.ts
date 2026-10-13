@@ -1,3 +1,4 @@
+export { captureFrame, capturePhoto, videoToPhoto, widen } from './capture';
 export { PhoneReceiver } from './phoneReceiver';
 export type { PhoneCameraState, PhoneReceiverEvents } from './phoneReceiver';
 export { PhoneSender } from './phoneSender';

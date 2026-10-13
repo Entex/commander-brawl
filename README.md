@@ -48,6 +48,8 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, two-card combos, mass land denial and extra turns, and points out what doesn't usually fit the bracket. A seat shows its bracket, with ⚠ if something doesn't fit.
 
+**Close-ups.** Click a card on another player's video to get a sharp picture of it. Their computer takes the picture straight from their camera, without the blur of video compression; a phone takes a full-resolution photo (often 12 megapixels instead of 2). If you've flipped their video, the picture is flipped too.
+
 _Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development
@@ -95,7 +97,7 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 
 - **The phone talks only to its own player's computer**, over the local network. It never connects to other players or decodes their video.
 - **Your computer sends the phone's video to each of the other players**, re-encoded separately for each one so every connection gets the quality it can handle.
-- **The host only introduces players to each other and keeps the game log in order.** Video does not pass through the host.
+- **The host only introduces players to each other and keeps the game log in order.** Video does not pass through the host. Close-ups do: they're sent like the connection setup, through the host's connection, so a picture is a few hundred kilobytes once rather than a constant stream.
 
 ### How the game stays in sync
 

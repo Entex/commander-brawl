@@ -1,4 +1,11 @@
-import { PHONE_REPLACED_CLOSE_CODE, parseDesktopToPhone, type DesktopToPhone, type PhoneToDesktop } from '../protocol';
+import {
+  PHONE_REPLACED_CLOSE_CODE,
+  parseDesktopToPhone,
+  type DesktopToPhone,
+  type PhoneCrop,
+  type PhoneToDesktop,
+} from '../protocol';
+import { capturePhoto } from './capture';
 
 export type PhoneSenderStatus =
   | { readonly kind: 'starting' }
@@ -207,6 +214,10 @@ export class PhoneSender {
   }
 
   private async handle(message: DesktopToPhone): Promise<void> {
+    if (message.t === 'snapshot') {
+      await this.takeSnapshot(message.id, message.crop);
+      return;
+    }
     if (message.t === 'pong' || message.session !== this.session || !this.pc) return;
     try {
       if (message.t === 'answer') {
@@ -216,6 +227,19 @@ export class PhoneSender {
       }
     } catch (error) {
       console.warn('[phone] could not apply message', error);
+    }
+  }
+
+  /** A full-resolution photo of part of the view, for a player who wants to read a card on this table. */
+  private async takeSnapshot(id: string, crop: PhoneCrop): Promise<void> {
+    if (!this.track || this.track.readyState !== 'live') {
+      this.send({ t: 'snapshot-failed', id, message: 'The camera is off.' });
+      return;
+    }
+    try {
+      this.send({ t: 'snapshot', id, image: await capturePhoto(this.track, crop) });
+    } catch (error) {
+      this.send({ t: 'snapshot-failed', id, message: (error as Error).message });
     }
   }
 

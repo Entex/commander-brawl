@@ -1,11 +1,12 @@
 import {
+  captureFrame,
   listCameras,
   openCamera,
   PhoneReceiver,
   type CameraDevice,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
-import type { CameraStatus } from '@commander-brawl/application';
+import type { CameraStatus, CropRect } from '@commander-brawl/application';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from './api';
 
@@ -41,6 +42,8 @@ export interface CameraState {
   selectPhone(): void;
   selectWebcam(deviceId: string): Promise<void>;
   refreshDevices(): Promise<void>;
+  /** A sharp picture of part of your camera view, for another player who wants to read a card. */
+  snapshot(crop: CropRect): Promise<string>;
 }
 
 /** Your camera: a phone linked over Wi-Fi (preferred) or a webcam on this computer. */
@@ -55,6 +58,8 @@ export function useCamera(): CameraState {
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const webcamTrackRef = useRef<MediaStreamTrack | null>(null);
 
+  const receiverRef = useRef<PhoneReceiver | null>(null);
+
   useEffect(() => {
     const receiver = new PhoneReceiver({
       send: (message) => api.phone.send(message),
@@ -65,6 +70,7 @@ export function useCamera(): CameraState {
         if (state === 'live') setSource('phone');
       },
     });
+    receiverRef.current = receiver;
     const off = api.phone.onEvent((event) => {
       if (event.type === 'message') void receiver.handle(event.message);
       if (event.type === 'disconnected') receiver.phoneDisconnected();
@@ -73,6 +79,7 @@ export function useCamera(): CameraState {
     return () => {
       off();
       receiver.close();
+      receiverRef.current = null;
     };
   }, []);
 
@@ -130,9 +137,22 @@ export function useCamera(): CameraState {
     };
   }, [stopWebcam]);
 
+  const track = source === 'phone' ? phoneTrack : webcamTrack;
+  const snapshot = useCallback(
+    async (crop: CropRect) => {
+      const receiver = receiverRef.current;
+      // The phone can take a full-resolution photo; a webcam gives its current frame.
+      if (source === 'phone' && receiver?.isLive) return receiver.requestSnapshot(crop);
+      if (track) return captureFrame(track, crop);
+      throw new Error('The camera is off.');
+    },
+    [source, track],
+  );
+
   return {
+    snapshot,
     source,
-    track: source === 'phone' ? phoneTrack : webcamTrack,
+    track,
     phone: { state: phoneState, urls },
     webcam: { devices, deviceId, error: webcamError },
     selectPhone,

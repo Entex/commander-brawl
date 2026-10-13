@@ -63,7 +63,8 @@ export class TableServer {
     const server = createServer({ key: options.identity.key, cert: options.identity.cert }, (_request, response) => {
       response.writeHead(404).end();
     });
-    const sockets = new WebSocketServer({ server, path: TABLE_PATH, maxPayload: 64 * 1024 });
+    // Room for card snapshots, which are passed between players through the host.
+    const sockets = new WebSocketServer({ server, path: TABLE_PATH, maxPayload: 8 * 1024 * 1024 });
     const host = new TableHost({
       secret: options.secret,
       reconnectGraceMs: options.reconnectGraceMs ?? 30_000,
