@@ -32,6 +32,8 @@ const api: DesktopApi = {
     onStatus: (listener) => listen(Channels.cardsStatusUpdate, listener),
     search: (query) => ipcRenderer.invoke(Channels.cardsSearch, query),
     byNames: (names) => ipcRenderer.invoke(Channels.cardsByNames, names),
+    byIds: (ids) => ipcRenderer.invoke(Channels.cardsByIds, ids),
+    closest: (texts) => ipcRenderer.invoke(Channels.cardsClosest, texts),
     details: (id) => ipcRenderer.invoke(Channels.cardsDetails, id),
     refresh: () => ipcRenderer.invoke(Channels.cardsRefresh),
   },

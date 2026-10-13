@@ -35,6 +35,15 @@ export default defineConfig({
     outDir: resolve(import.meta.dirname, '../../build/app/renderer'),
     emptyOutDir: true,
     target: 'chrome140',
+    rollupOptions: {
+      output: {
+        // Tesseract finds its language file by name in a folder, so that one keeps its name.
+        assetFileNames: (asset) =>
+          asset.names.some((name) => name.endsWith('.traineddata.gz'))
+            ? 'ocr/[name][extname]'
+            : 'assets/[name]-[hash][extname]',
+      },
+    },
   },
   server: { port: 5173, strictPort: true },
 });

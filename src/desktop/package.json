@@ -7,9 +7,12 @@
     "@commander-brawl/application": "0.1.0",
     "@commander-brawl/domain": "0.1.0",
     "@commander-brawl/infrastructure": "0.1.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^7.0.0"
   },
   "devDependencies": {
     "@types/qrcode": "^1.5.6",

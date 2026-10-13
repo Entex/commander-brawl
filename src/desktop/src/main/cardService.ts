@@ -1,4 +1,4 @@
-import { CardIndex } from '@commander-brawl/application';
+import { CardIndex, type NameMatch } from '@commander-brawl/application';
 import type { Card, Ruling } from '@commander-brawl/domain';
 import { ScryfallCards } from '@commander-brawl/infrastructure/node';
 import type { CardDataStatus, CardDetails } from '../shared/api';
@@ -14,6 +14,7 @@ export interface CardServiceOptions {
 /** Scryfall asks apps not to download more often than this; the data changes about daily, cards much less. */
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 const RESULTS = 20;
+const CLOSEST = 10;
 
 /** Every card, kept on this computer and refreshed weekly, so searching is instant and works offline. */
 export class CardService {
@@ -55,6 +56,15 @@ export class CardService {
   /** The cards with these names (as written in a deck list), null where there's no such card. */
   byNames(names: readonly string[]): (Card | null)[] {
     return names.map((name) => this.index?.byName(name) ?? null);
+  }
+
+  byIds(ids: readonly string[]): (Card | null)[] {
+    return ids.map((id) => this.index?.get(id) ?? null);
+  }
+
+  /** The cards whose names best match text read off a card in a camera picture. */
+  closest(texts: readonly string[]): NameMatch[] {
+    return this.index?.closest(texts, CLOSEST) ?? [];
   }
 
   /** The card a deck list means by this name, or undefined. Null while there are no cards yet. */

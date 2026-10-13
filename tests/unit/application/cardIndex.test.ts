@@ -92,3 +92,36 @@ describe('normalizeCardName', () => {
     expect(normalizeCardName('Fire // Ice')).toBe('fire ice');
   });
 });
+
+describe('finding cards by a name read off a camera picture', () => {
+  const read = (...texts: string[]) => index.closest(texts).map((m) => m.card.name);
+
+  it('allows for misread letters and junk around the name', () => {
+    expect(read('f Rhystic Study In')[0]).toBe('Rhystic Study');
+    expect(read('( Rhystie Study')[0]).toBe('Rhystic Study');
+    expect(read('Atraxa. Practory’ Voice .')[0]).toBe("Atraxa, Praetors' Voice");
+    expect(read('Insectile Aberation')[0]).toBe('Delver of Secrets // Insectile Aberration');
+  });
+
+  it('finds nothing in a jumble of letters', () => {
+    expect(read('—— Bl 4 nL | » >')).toEqual([]);
+  });
+
+  it('prefers the card whose whole name was read over one that merely contains it', () => {
+    expect(read('White Rhystic Study')[0]).toBe('White Rhystic Study');
+    expect(read('Sol Ring')[0]).toBe('Sol Ring');
+  });
+
+  it('prefers a card named so over a token or another card’s face of the same name', () => {
+    const tricky = new CardIndex([
+      card('Blood', { layout: 'token' }),
+      card('Flesh // Blood', { faces: [face('Flesh'), face('Blood')] }),
+      card('Swords to Plowshares'),
+      card('Emeritus of Truce // Swords to Plowshares', {
+        faces: [face('Emeritus of Truce'), face('Swords to Plowshares')],
+      }),
+    ]);
+    expect(tricky.closest(['Swords to Plowshares'])[0]!.card.name).toBe('Swords to Plowshares');
+    expect(tricky.byName('Blood')?.name).toBe('Blood');
+  });
+});

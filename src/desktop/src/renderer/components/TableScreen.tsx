@@ -1,8 +1,6 @@
 import {
-  Snapshots,
   TableSession,
   undoneIds,
-  type CropRect,
   type GameView,
   type LoggedEvent,
   type SeatView,
@@ -16,12 +14,13 @@ import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
 import { seatName, type Players } from '../names';
 import { cameraStatus, type CameraState } from '../useCamera';
+import { useCloseUps } from '../useCloseUps';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
 import { Rule0Panel } from './Rule0Panel';
-import { SnapshotView, type SnapshotState } from './SnapshotView';
+import { SnapshotView } from './SnapshotView';
 import { Spotlight } from './Spotlight';
 import { LogPanel } from './LogPanel';
 import { Menu } from './Menu';
@@ -64,22 +63,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     void session.setLocalTrack(camera.track);
   }, [session, camera.track]);
 
-  const requestSnapshot = useSnapshots(camera);
-  const [snapshot, setSnapshot] = useState<SnapshotState | null>(null);
-  const lastLook = useRef(0);
-  const look = useCallback(
-    (memberId: string, from: string, crop: CropRect, rotation: 0 | 180) => {
-      const request = { id: ++lastLook.current, from, rotation };
-      setSnapshot({ ...request, status: 'loading' });
-      // Only the newest request's answer is shown, and none once the picture is closed.
-      requestSnapshot(memberId, crop)
-        .then((image) => setSnapshot((s) => (s?.id === request.id ? { ...request, status: 'ready', image } : s)))
-        .catch((error: Error) =>
-          setSnapshot((s) => (s?.id === request.id ? { ...request, status: 'failed', message: error.message } : s)),
-        );
-    },
-    [requestSnapshot],
-  );
+  const { closeUp, look, close: closeCloseUp } = useCloseUps(camera);
 
   const status = cameraStatus(camera);
   useEffect(() => session.setCameraStatus(status), [session, status]);
@@ -211,7 +195,21 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
 
       {game && <Spotlight game={game} />}
-      {snapshot && <SnapshotView snapshot={snapshot} onClose={() => setSnapshot(null)} />}
+      {closeUp && (
+        <SnapshotView
+          snapshot={closeUp}
+          onOpenCard={(id) => {
+            closeCloseUp();
+            openCard(id);
+          }}
+          onSearch={() => {
+            closeCloseUp();
+            setCardFocus(null);
+            setCardsOpen(true);
+          }}
+          onClose={closeCloseUp}
+        />
+      )}
       {game && rule0Open && (
         <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
       )}
@@ -228,7 +226,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               showStats={showStats}
               getStats={getStats}
               onOpenCard={openCard}
-              onLook={(crop, rotation) => look(seat.player.id, seat.player.name, crop, rotation)}
+              onLook={(crop, rotation) =>
+                look(
+                  seat.player.id,
+                  seat.player.name,
+                  crop,
+                  rotation,
+                  game?.state.seats[seat.player.seat]?.deck ?? null,
+                )
+              }
             />
           ) : (
             <EmptySeat key={`empty-${index}`} index={index} />
@@ -422,45 +428,6 @@ function ConnectionBanner({ state, unconfirmed, onLeave }: ConnectionBannerProps
         </div>
       );
   }
-}
-
-/**
- * Sharp pictures of cards on other players' tables, and answering their requests for pictures of ours.
- * Lives as long as the table screen. Returns how to ask a player for a picture.
- */
-function useSnapshots(camera: CameraState): (memberId: string, crop: CropRect) => Promise<string> {
-  const cameraRef = useRef(camera);
-  const snapshotsRef = useRef<Snapshots | null>(null);
-  useEffect(() => {
-    cameraRef.current = camera;
-  }, [camera]);
-  useEffect(() => {
-    const snapshots = new Snapshots(
-      new IpcTableSignaling(),
-      { capture: (crop) => cameraRef.current.snapshot(crop) },
-      {
-        timers: {
-          setTimeout: (callback, ms) => {
-            const handle = window.setTimeout(callback, ms);
-            return () => window.clearTimeout(handle);
-          },
-          now: () => Date.now(),
-        },
-        createId: () => crypto.randomUUID(),
-      },
-    );
-    snapshots.start();
-    snapshotsRef.current = snapshots;
-    return () => {
-      snapshots.dispose();
-      snapshotsRef.current = null;
-    };
-  }, []);
-  return useCallback(
-    (memberId: string, crop: CropRect) =>
-      snapshotsRef.current?.request(memberId, crop) ?? Promise.reject(new Error('Not at a table.')),
-    [],
-  );
 }
 
 /** One session per visit to a table: the screen is mounted when you host or join, and unmounted when you leave. */

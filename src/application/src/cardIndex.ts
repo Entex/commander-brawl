@@ -1,4 +1,5 @@
 import { normalizeCardName, type Card } from '@commander-brawl/domain';
+import { similarityOfNormalized } from './cardIdentification';
 
 interface Entry {
   readonly card: Card;
@@ -23,12 +24,22 @@ export class CardIndex {
   private readonly byNormalizedName = new Map<string, Card>();
   /** Every distinct word in a card name, and the cards that have it. Typo search works on words. */
   private readonly entriesByWord = new Map<string, Entry[]>();
+  /** Every pair of neighboring letters in a card name, and the cards (by position) that have it. Made when first needed. */
+  private byPair: Map<string, number[]> | null = null;
+  /** For each card, how many pairs a text needs in common with its names to be compared with them. */
+  private pairsNeeded: number[] = [];
 
   constructor(cards: readonly Card[]) {
     this.entries = cards.map((card) => {
       const names = [...new Set([card.name, ...card.faces.map((f) => f.name)].map(normalizeCardName))];
       return { card, names, words: [...new Set(names.flatMap((n) => n.split(' ')))] };
     });
+    // A card's full name wins over another card's face of the same name ("Blood" is the token, not the
+    // back of Flesh // Blood).
+    for (const entry of this.entries) {
+      const name = entry.names[0]!;
+      if (!this.byNormalizedName.has(name)) this.byNormalizedName.set(name, entry.card);
+    }
     for (const entry of this.entries) {
       this.byId.set(entry.card.id, entry.card);
       for (const name of entry.names) if (!this.byNormalizedName.has(name)) this.byNormalizedName.set(name, entry.card);
@@ -54,6 +65,73 @@ export class CardIndex {
    */
   byName(name: string): Card | undefined {
     return this.byNormalizedName.get(normalizeCardName(name));
+  }
+
+  /**
+   * The cards whose names best match some text read off a card (see nameSimilarity): misread letters and
+   * junk around the name are fine. Best first, at most `limit`, none below `floor`.
+   */
+  closest(texts: readonly string[], limit = 10, floor = 0.5): { card: Card; similarity: number }[] {
+    const reads = [...new Set(texts.map(normalizeCardName))].filter((t) => t.length > 0);
+    if (reads.length === 0) return [];
+    const best = new Map<Entry, number>();
+    for (const read of reads) {
+      for (const entry of this.sharingLetters(read)) {
+        let similarity = best.get(entry) ?? 0;
+        entry.names.forEach((name, i) => {
+          // A card with this full name before another card with a face of this name.
+          const facePenalty = i === 0 ? 0 : 0.001;
+          similarity = Math.max(similarity, similarityOfNormalized(read, name) - facePenalty);
+        });
+        best.set(entry, similarity);
+      }
+    }
+    return (
+      [...best]
+        .filter(([, similarity]) => similarity > floor)
+        // Real cards before tokens and the like that are named the same.
+        .map(([entry, similarity]) => ({ card: entry.card, similarity: similarity - penalty(entry) / 10_000 }))
+        .sort((a, b) => b.similarity - a.similarity || a.card.name.localeCompare(b.card.name))
+        .slice(0, limit)
+    );
+  }
+
+  /**
+   * Cards whose names have a few letter pairs in common with the text: any name read well enough to match
+   * does, and comparing only those is far quicker than comparing every name.
+   */
+  private sharingLetters(read: string): Entry[] {
+    const index = (this.byPair ??= this.pairIndex());
+    const shared = new Uint16Array(this.entries.length);
+    const found: Entry[] = [];
+    for (const pair of pairs(read)) {
+      for (const i of index.get(pair) ?? []) {
+        if (++shared[i]! === this.pairsNeeded[i]!) found.push(this.entries[i]!);
+      }
+    }
+    return found;
+  }
+
+  private pairIndex(): Map<string, number[]> {
+    const index = new Map<string, number[]>();
+    this.pairsNeeded = this.entries.map((entry, i) => {
+      let fewest = Infinity;
+      const all = new Set<string>();
+      for (const name of entry.names) {
+        const own = pairs(name);
+        fewest = Math.min(fewest, own.size);
+        for (const pair of own) all.add(pair);
+      }
+      for (const pair of all) {
+        const list = index.get(pair);
+        if (list) list.push(i);
+        else index.set(pair, [i]);
+      }
+      // A quarter of the name's pairs, and at least two (unless the name is that short): a badly read name
+      // still has that many, and few other names do.
+      return Math.min(fewest, Math.max(2, Math.round(fewest / 4)));
+    });
+    return index;
   }
 
   search(query: string, limit = 20): Card[] {
@@ -106,6 +184,20 @@ export class CardIndex {
     }
     return [...(typos ?? [])].map(([entry, count]) => ({ entry, score: TYPO - count - penalty(entry) }));
   }
+}
+
+/**
+ * The pairs of neighboring characters in a normalized name or text. Pairs rather than longer runs: a name
+ * read badly ("so rg" for "sol ring") still has some, and the artwork can confirm it.
+ */
+function pairs(text: string): Set<string> {
+  const found = new Set<string>();
+  if (text.length < 2) {
+    found.add(text);
+    return found;
+  }
+  for (let i = 0; i + 2 <= text.length; i++) found.add(text.slice(i, i + 2));
+  return found;
 }
 
 function penalty(entry: Entry): number {

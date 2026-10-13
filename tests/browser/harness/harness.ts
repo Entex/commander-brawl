@@ -1,12 +1,25 @@
 // A bare player for browser tests: the real TableSession and WebRTC links, with signaling
 // bridged to the test process instead of the Electron main process.
-import { TableSession, type SignalingEvent, type TableSignaling } from '@commander-brawl/application';
 import {
+  CardIdentifier,
+  CardIndex,
+  TableSession,
+  type SignalingEvent,
+  type TableSignaling,
+} from '@commander-brawl/application';
+import type { Card } from '@commander-brawl/domain';
+import {
+  dataUrlToRgba,
   openCamera,
   PhoneReceiver,
+  TesseractReader,
   WebRtcPeerLinkFactory,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
+// The same Tesseract files the desktop app ships.
+import languageUrl from '@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url';
+import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url';
+import workerUrl from 'tesseract.js/dist/worker.min.js?url';
 import type { DesktopToPhone, PhoneCrop, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 export type HarnessOutbound =
@@ -90,6 +103,34 @@ session.subscribe((state) => {
   }
 });
 
+const testCard = (name: string): Card => ({
+  id: name,
+  name,
+  layout: 'normal',
+  manaCost: '',
+  typeLine: '',
+  oracleText: '',
+  stats: '',
+  colorIdentity: [],
+  manaValue: 0,
+  commander: 'legal',
+  gameChanger: false,
+  image: null,
+  faces: [],
+});
+const catalog = new CardIndex(
+  ['Rhystic Study', 'Rhystic Tutor', 'Sol Ring', 'Mystic Remora', 'Study Hall'].map(testCard),
+);
+const identifier = new CardIdentifier(
+  new TesseractReader({
+    workerUrl,
+    coreUrl,
+    languageFolderUrl: languageUrl.slice(0, languageUrl.lastIndexOf('/') + 1),
+  }),
+  { closest: async (texts) => catalog.closest(texts) },
+  { print: async () => null },
+);
+
 let phoneReceiver: PhoneReceiver | null = null;
 let phoneState: PhoneCameraState = 'waiting';
 
@@ -131,6 +172,15 @@ const harness = {
     } catch (error) {
       return (error as Error).message;
     }
+  },
+
+  /** Which card is in this picture (a data URL), with Tesseract really reading it. */
+  async identifyCard(picture: string): Promise<{ found: boolean; guesses: { name: string; score: number }[] }> {
+    const result = await identifier.identify(await dataUrlToRgba(picture));
+    return {
+      found: result.picture !== null,
+      guesses: result.guesses.map((guess) => ({ name: guess.card.name, score: guess.score })),
+    };
   },
 
   phoneDisconnected(): void {

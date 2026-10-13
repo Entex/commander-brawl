@@ -10,6 +10,7 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from 'electron';
+import { MAX_COMMANDERS, MAX_DECK_ENTRIES } from '@commander-brawl/domain';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Channels, type RendererConfig } from '../shared/api';
@@ -151,6 +152,8 @@ function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardSe
   handle(Channels.cardsByNames, (names) =>
     cards.byNames(Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 20) : []),
   );
+  handle(Channels.cardsByIds, (ids) => cards.byIds(stringList(ids, MAX_DECK_ENTRIES + MAX_COMMANDERS, 64)));
+  handle(Channels.cardsClosest, (texts) => cards.closest(stringList(texts, 20, 200)));
   handle(Channels.cardsDetails, (id) => cards.details(requireString(id)));
   handle(Channels.cardsRefresh, () => cards.refresh());
   handle(Channels.decksList, () => decks.list());
@@ -200,6 +203,12 @@ async function saveText(text: string): Promise<boolean> {
 function requireString(value: unknown): string {
   if (typeof value !== 'string') throw new Error('Expected text');
   return value;
+}
+
+/** At most `max` strings, each at most `maxLength` long; anything else in the list is left out. */
+function stringList(value: unknown, max: number, maxLength: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is string => typeof v === 'string' && v.length <= maxLength).slice(0, max);
 }
 
 /** The UI may use the camera and write to the clipboard. Nothing else. */

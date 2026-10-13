@@ -1,11 +1,15 @@
+export { ScryfallArtLibrary } from './artLibrary';
 export { captureFrame, capturePhoto, videoToPhoto, widen } from './capture';
 export { PhoneReceiver } from './phoneReceiver';
 export type { PhoneCameraState, PhoneReceiverEvents } from './phoneReceiver';
 export { PhoneSender } from './phoneSender';
 export type { CameraControls, PhoneSenderOptions, PhoneSenderStatus } from './phoneSender';
+export { dataUrlToRgba, imageToRgba, rgbaToDataUrl } from './pixels';
 export { cardImageUrl, symbolUrl } from './scryfallImages';
 export type { CardImageSize } from './scryfallImages';
 export { LinkStatsReader } from './stats';
+export { TesseractReader } from './textReader';
+export type { TesseractFiles } from './textReader';
 export { listCameras, openCamera } from './webcam';
 export type { CameraDevice } from './webcam';
 export { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from './webRtcPeerLink';

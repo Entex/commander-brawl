@@ -1,8 +1,9 @@
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp, readdir, readFile } from 'node:fs/promises';
+import { chromium, _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopApi } from '../../src/desktop/src/shared/api';
+import { RHYSTIC_STUDY, drawCardPicture } from '../support/cardPicture';
 import { startFakeDeckSites, type FakeDeckSites } from '../support/fakeDeckSites';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
 import { startFakeSpellbook, type FakeSpellbook } from '../support/fakeSpellbook';
@@ -22,6 +23,8 @@ interface Instance {
 }
 
 const running: Instance[] = [];
+/** Folders the tests made, removed at the end. */
+const temporary: string[] = [];
 // Card data comes from a stand-in, so the tests never download from the real Scryfall.
 let scryfall: FakeScryfall;
 let deckSites: FakeDeckSites;
@@ -37,17 +40,30 @@ test.afterAll(async () => {
   await scryfall.close();
   await deckSites.close();
   await spellbook.close();
+  await Promise.all(temporary.map((dir) => rm(dir, { recursive: true, force: true })));
 });
+
+async function temporaryDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  temporary.push(dir);
+  return dir;
+}
 
 test.afterEach(async () => {
   for (const instance of running.splice(0)) await instance.app.close().catch(() => undefined);
 });
 
-async function launch(name: string, userDataDir?: string): Promise<Instance> {
-  const saveDir = await mkdtemp(join(tmpdir(), 'cb-e2e-save-'));
-  const dataDir = userDataDir ?? (await mkdtemp(join(tmpdir(), 'cb-e2e-')));
+async function launch(name: string, options: { userDataDir?: string; camera?: string } = {}): Promise<Instance> {
+  const saveDir = await temporaryDir('cb-e2e-save-');
+  const dataDir = options.userDataDir ?? (await temporaryDir('cb-e2e-'));
   const app = await electron.launch({
-    args: [appDir, '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    args: [
+      appDir,
+      '--use-fake-device-for-media-stream',
+      '--use-fake-ui-for-media-stream',
+      // A picture for the fake camera to show, instead of its moving test pattern.
+      ...(options.camera ? [`--use-file-for-fake-video-capture=${options.camera}`] : []),
+    ],
     env: {
       ...process.env,
       CB_USER_DATA_DIR: dataDir,
@@ -335,7 +351,7 @@ test("the host's app crashing mid-game, and the table resumed with everyone in t
   await expect(friend.page.getByText('Reconnecting to the host')).toBeVisible({ timeout: 30_000 });
 
   // The host opens the app again and resumes the table.
-  const again = await launch('Host', host.userDataDir);
+  const again = await launch('Host', { userDataDir: host.userDataDir });
   await expect(again.page.getByTestId('resume')).toContainText('with Friend');
   await again.page.getByRole('button', { name: 'Resume table' }).click();
 
@@ -432,9 +448,17 @@ test('casting a card puts it in the spotlight for everyone', async () => {
   await expect(spotlight).toHaveCount(0);
 });
 
-test("clicking a card on another player's video shows a sharp picture of it", async () => {
-  const { host, friend } = await hostAndFriend();
+test("clicking a card on another player's video: a sharp picture of it, and which card it is", async () => {
+  const host = await launch('Host', { camera: await cardCamera() });
+  await host.page.getByTestId('host').click();
+  const invite = await host.page.getByTestId('invite-code').inputValue();
+  const friend = await launch('Friend');
+  await friend.page.getByTestId('invite-input').fill(invite);
+  await friend.page.getByTestId('join').click();
+  await expectVideoFrom(friend.page, 'Host');
+  await cardsReady(friend.page);
 
+  // The card is in the middle of the host's camera picture.
   await friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video').click();
 
   const snapshot = friend.page.getByTestId('snapshot');
@@ -447,14 +471,41 @@ test("clicking a card on another player's video shows a sharp picture of it", as
   }));
   // A card-sized part of the host's camera picture, portrait like a card.
   expect(size.height).toBeGreaterThan(size.width);
-  expect(size.width).toBeGreaterThan(50);
-  await friend.page.screenshot({ path: test.info().outputPath('snapshot.png') });
+  const guesses = snapshot.getByTestId('snapshot-guesses');
+  await expect(guesses).toContainText('Rhystic Study', { timeout: 30_000 });
+  await friend.page.screenshot({ path: test.info().outputPath('close-up.png') });
 
-  await snapshot.getByRole('button', { name: 'Close' }).click();
+  // Picking the card shows it, with its text.
+  await guesses
+    .getByRole('button', { name: /Rhystic Study/ })
+    .first()
+    .click();
   await expect(snapshot).toHaveCount(0);
+  await expect(friend.page.getByTestId('cards-panel')).toContainText('Whenever an opponent casts a spell');
   // Your own video isn't for looking at close up.
   await expect(host.page.locator('.seat-video-look')).toHaveCount(1);
 });
+
+/** A camera picture of a (made-up) Rhystic Study on a playmat, for the fake camera to show. */
+async function cardCamera(): Promise<string> {
+  const browser = await chromium.launch({ executablePath: process.env.CB_CHROMIUM || undefined });
+  try {
+    const page = await browser.newPage();
+    const picture = await page.evaluate(drawCardPicture, {
+      width: 1920,
+      height: 1080,
+      cardWidth: 300,
+      angle: 3,
+      ...RHYSTIC_STUDY,
+    });
+    // Chromium's fake camera plays an MJPEG file: one JPEG is a one-frame video.
+    const file = join(await temporaryDir('cb-e2e-camera-'), 'card.mjpeg');
+    await writeFile(file, Buffer.from(picture.split(',')[1]!, 'base64'));
+    return file;
+  } finally {
+    await browser.close();
+  }
+}
 
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();

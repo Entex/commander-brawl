@@ -50,6 +50,8 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Close-ups.** Click a card on another player's video to get a sharp picture of it. Their computer takes the picture straight from their camera, without the blur of video compression; a phone takes a full-resolution photo (often 12 megapixels instead of 2). If you've flipped their video, the picture is flipped too.
 
+The app also works out which card it is and lists the likeliest few; click one to see it in _Cards_. It finds the card's outline in the picture and straightens it, reads the name on your computer (with [Tesseract](https://github.com/tesseract-ocr/tesseract), offline), and, if the player is playing a deck, compares the artwork with that deck's cards. Artwork works even when the name is too small to read, and tells which way up a tapped or upside-down card is. It goes by the artwork of each card's usual printing, so a different printing relies on the name.
+
 _Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development
@@ -75,17 +77,19 @@ src/
   domain/          Game rules: seats, players, game events and the state they add up to. No dependencies.
   application/     Use cases and the interfaces they need: TableHost (who sits where),
                    HostGameLog and GameSync (one shared, ordered game log),
-                   TableSession (a direct video link to every other player), invite codes.
+                   TableSession (a direct video link to every other player), invite codes,
+                   card search, and working out which card is in a camera picture.
   infrastructure/
     protocol/      Messages between host and players, and between phone and computer.
     node/          Host server, connection to the host, phone page server, TLS certificate, UPnP.
-    browser/       WebRTC video links, phone camera sender and receiver, webcams.
+    browser/       WebRTC video links, phone camera sender and receiver, webcams, reading text (Tesseract).
   desktop/         The Electron app: main process, preload bridge, React UI.
   phone/           The camera page that phones open.
 tests/
   unit/            Domain and application logic, protocol parsing, architecture rules.
   integration/     Host and players over real TLS connections, including dropped connections.
-  browser/         Real WebRTC in headless Chromium: four-player mesh, phone → computer → others.
+  browser/         Real WebRTC in headless Chromium: four-player mesh, phone → computer → others;
+                   reading a card's name with Tesseract.
   e2e/             The packaged app, driven like a player would.
 ```
 

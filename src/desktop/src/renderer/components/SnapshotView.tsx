@@ -1,3 +1,6 @@
+import type { CardGuess } from '@commander-brawl/application';
+import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
+
 interface SnapshotRequest {
   /** Tells a newer request's picture from an older one's. */
   readonly id: number;
@@ -6,13 +9,25 @@ interface SnapshotRequest {
   readonly rotation: 0 | 180;
 }
 
+export type Identification =
+  { readonly status: 'working' } | { readonly status: 'done'; readonly guesses: readonly CardGuess[] };
+
 export type SnapshotState =
   | (SnapshotRequest & { readonly status: 'loading' })
-  | (SnapshotRequest & { readonly status: 'ready'; readonly image: string })
+  | (SnapshotRequest & { readonly status: 'ready'; readonly image: string; readonly identification: Identification })
   | (SnapshotRequest & { readonly status: 'failed'; readonly message: string });
 
-/** A sharp picture of a card on another player's table. */
-export function SnapshotView({ snapshot, onClose }: { readonly snapshot: SnapshotState; onClose(): void }) {
+interface SnapshotViewProps {
+  readonly snapshot: SnapshotState;
+  /** Shows a card in the Cards panel. */
+  onOpenCard(cardId: string): void;
+  /** Opens the Cards panel to search. */
+  onSearch(): void;
+  onClose(): void;
+}
+
+/** A sharp picture of a card on another player's table, and which card it probably is. */
+export function SnapshotView({ snapshot, onOpenCard, onSearch, onClose }: SnapshotViewProps) {
   return (
     <div className="overlay" role="dialog" aria-label={`From ${snapshot.from}'s camera`} onClick={onClose}>
       <div className="panel snapshot-panel" data-testid="snapshot" onClick={(event) => event.stopPropagation()}>
@@ -23,14 +38,64 @@ export function SnapshotView({ snapshot, onClose }: { readonly snapshot: Snapsho
         {snapshot.status === 'loading' && <p className="hint">Asking their camera for a sharp picture…</p>}
         {snapshot.status === 'failed' && <p className="status status-reconnecting">{snapshot.message}</p>}
         {snapshot.status === 'ready' && (
-          <img
-            className="snapshot-image"
-            src={snapshot.image}
-            alt="Close-up"
-            style={snapshot.rotation ? { transform: `rotate(${snapshot.rotation}deg)` } : undefined}
-          />
+          <div className="snapshot-body">
+            <img
+              className="snapshot-image"
+              src={snapshot.image}
+              alt="Close-up"
+              style={snapshot.rotation ? { transform: `rotate(${snapshot.rotation}deg)` } : undefined}
+            />
+            <Guesses identification={snapshot.identification} onOpenCard={onOpenCard} onSearch={onSearch} />
+          </div>
         )}
       </div>
     </div>
   );
+}
+
+function Guesses({
+  identification,
+  onOpenCard,
+  onSearch,
+}: {
+  readonly identification: Identification;
+  onOpenCard(cardId: string): void;
+  onSearch(): void;
+}) {
+  if (identification.status === 'working') {
+    return <p className="hint snapshot-guesses">Working out which card this is…</p>;
+  }
+  const { guesses } = identification;
+  return (
+    <section className="snapshot-guesses" data-testid="snapshot-guesses" aria-label="Which card it is">
+      {guesses.length === 0 ? (
+        <p className="hint">Couldn't tell which card this is.</p>
+      ) : (
+        <>
+          <h3>{guesses[0]!.score >= LIKELY ? 'It looks like' : 'Maybe one of these'}</h3>
+          <ul className="guess-list">
+            {guesses.map((guess) => (
+              <li key={guess.card.id}>
+                <button className="guess" onClick={() => onOpenCard(guess.card.id)} title={describe(guess)}>
+                  {guess.card.image && (
+                    <img className="guess-image" src={cardImageUrl(guess.card.image, 'small')} alt="" loading="lazy" />
+                  )}
+                  <span className="guess-name">{guess.card.name}</span>
+                  <span className="hint">{describe(guess)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <button onClick={onSearch}>{guesses.length === 0 ? 'Search for it' : 'None of these: search'}</button>
+    </section>
+  );
+}
+
+/** A guess this good is very likely right. */
+const LIKELY = 0.6;
+
+function describe(guess: CardGuess): string {
+  return guess.score >= LIKELY ? 'Likely' : guess.score >= 0.3 ? 'Possibly' : 'Unsure';
 }

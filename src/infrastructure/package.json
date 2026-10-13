@@ -13,6 +13,7 @@
     "@commander-brawl/application": "0.1.0",
     "@commander-brawl/domain": "0.1.0",
     "selfsigned": "^5.5.0",
+    "tesseract.js": "^7.0.0",
     "ws": "^8.22.0"
   },
   "devDependencies": {
