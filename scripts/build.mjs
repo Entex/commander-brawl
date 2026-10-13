@@ -1,6 +1,6 @@
 // Builds the desktop app into build/app: the Electron main process, the UI, and the phone camera page.
 import { build as esbuild } from 'esbuild';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build as viteBuild } from 'vite';
 
@@ -13,6 +13,7 @@ export async function buildApp() {
   await viteBuild({ configFile: resolve(desktop, 'vite.config.ts'), logLevel: 'warn' });
   await buildPhone();
   await buildMain();
+  await copyFile(resolve(root, 'assets/icon.png'), resolve(out, 'icon.png'));
   return { out, version: await writeAppPackageJson() };
 }
 

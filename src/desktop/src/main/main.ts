@@ -75,6 +75,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     title: 'Commander Brawl',
     backgroundColor: '#101217',
+    icon: join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),

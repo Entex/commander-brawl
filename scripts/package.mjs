@@ -44,6 +44,8 @@ for (const target of targets) {
     overwrite: true,
     quiet: true,
     darwinDarkModeSupport: true,
+    // The packager adds .ico or .icns for the platform.
+    icon: resolve(root, 'assets/icon'),
     win32metadata: {
       CompanyName: 'Commander Brawl',
       ProductName: 'Commander Brawl',
@@ -67,6 +69,8 @@ for (const target of targets) {
     await rename(packaged, content);
   }
   await writeFile(join(content, 'app-version'), `${version}\n`);
+  // For the Linux app menu entry that install.sh writes.
+  if (platform === 'linux') await copyFile(resolve(root, 'assets/icon.png'), join(content, 'icon.png'));
 
   const name = `commander-brawl-${target}.${platform === 'win32' ? 'zip' : 'tar.gz'}`;
   const archive = join(release, name);

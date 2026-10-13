@@ -137,6 +137,7 @@ Type=Application
 Name=Commander Brawl
 Comment=Play Magic: The Gathering Commander over webcams
 Exec="$app/commander-brawl" %U
+Icon=$app/icon.png
 Categories=Game;CardGame;
 Terminal=false
 EOF
