@@ -1,5 +1,5 @@
 import type { GameView } from '@commander-brawl/application';
-import type { GameEvent } from '@commander-brawl/domain';
+import type { GameAction } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { api } from './api';
 
@@ -23,6 +23,6 @@ export function useGame(): GameView | null {
   return view;
 }
 
-export function submitGameEvent(event: GameEvent): void {
+export function submitGameEvent(event: GameAction): void {
   api.game.submit(event);
 }

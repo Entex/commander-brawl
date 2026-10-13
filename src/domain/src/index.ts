@@ -1,3 +1,5 @@
+export { isIntent, resolveAction, toGameAction } from './actions';
+export type { GameAction, GameIntent } from './actions';
 export {
   COUNTER_COLORS,
   CUSTOM_COUNTER_RANGE,
@@ -24,6 +26,7 @@ export {
   applyEvents,
   commanderTax,
   isOut,
+  isSeatList,
   lossReason,
   newGame,
   toGameEvent,

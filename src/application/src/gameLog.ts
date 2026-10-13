@@ -1,8 +1,11 @@
 import {
   applyEvent,
   applyEvents,
+  isIntent,
   newGame,
-  toGameEvent,
+  resolveAction,
+  toGameAction,
+  type GameAction,
   type GameEvent,
   type GameState,
   type Player,
@@ -40,17 +43,20 @@ export class HostGameLog {
   constructor(
     readonly logId: string,
     private readonly now: () => number,
+    /** Returns a number in [0, 1). The host rolls the dice for everyone. */
+    private readonly random: () => number = Math.random,
   ) {}
 
   get length(): number {
     return this.entries.length;
   }
 
-  /** Adds a player's event. Returns null for a duplicate or invalid event. */
+  /** Adds a player's action. Returns null for a duplicate or invalid one. */
   append(author: Player, id: string, raw: unknown): LoggedEvent | null {
     if (this.seen.has(id) || this.entries.length >= MAX_LOG_LENGTH) return null;
-    const event = toGameEvent(raw);
-    if (!event) return null;
+    const action = toGameAction(raw);
+    if (!action) return null;
+    const event = resolveAction(action, this.random);
     const entry: LoggedEvent = { seq: this.entries.length, id, at: this.now(), by: { ...author }, event };
     this.entries.push(entry);
     this.seen.add(id);
@@ -65,7 +71,7 @@ export class HostGameLog {
 }
 
 export type GameSyncMessage =
-  | { readonly kind: 'event'; readonly id: string; readonly event: GameEvent }
+  | { readonly kind: 'event'; readonly id: string; readonly event: GameAction }
   | { readonly kind: 'sync'; readonly logId: string | null; readonly from: number };
 
 export interface GameSyncTransport {
@@ -93,7 +99,7 @@ export class GameSync {
   private logId: string | null = null;
   private readonly log: LoggedEvent[] = [];
   private confirmed: GameState = newGame();
-  private pending: { readonly id: string; readonly event: GameEvent }[] = [];
+  private pending: { readonly id: string; readonly event: GameAction }[] = [];
   private readonly listeners = new Set<(view: GameView) => void>();
   private view: GameView;
 
@@ -113,7 +119,7 @@ export class GameSync {
     return () => this.listeners.delete(listener);
   }
 
-  submit(event: GameEvent): void {
+  submit(event: GameAction): void {
     const entry = { id: this.createId(), event };
     this.pending.push(entry);
     this.transport.send({ kind: 'event', ...entry });
@@ -171,7 +177,8 @@ export class GameSync {
     return {
       state: applyEvents(
         this.confirmed,
-        this.pending.map((p) => p.event),
+        // Actions that need the host (like a shuffle) only show up once the host has decided them.
+        this.pending.map((p) => p.event).filter((e): e is GameEvent => !isIntent(e)),
       ),
       recent: this.log.slice(-RECENT_LIMIT),
       logLength: this.log.length,

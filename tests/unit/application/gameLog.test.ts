@@ -35,6 +35,16 @@ describe('HostGameLog', () => {
     expect(log.length).toBe(1);
   });
 
+  it('rolls the dice itself for actions that need chance', () => {
+    const shuffled = new HostGameLog(
+      'log-2',
+      () => 0,
+      () => 0.999,
+    );
+    const entry = shuffled.append(alice, 'e1', { type: 'randomize-turn-order', seats: [0, 1] });
+    expect(entry?.event.type).toBe('turn-order-set');
+  });
+
   it('refuses invalid events', () => {
     expect(log.append(alice, 'e1', { type: 'life-changed', seat: 9, amount: 1 })).toBeNull();
     expect(log.length).toBe(0);
@@ -128,6 +138,18 @@ describe('GameSync', () => {
     expect(h.host.length).toBe(1);
     expect(h.life(1)).toBe(36);
     expect(h.sync.getView().unconfirmed).toBe(0);
+  });
+
+  it('shows a shuffle only once the host has decided it', () => {
+    const h = new Harness();
+    h.online = false;
+    h.sync.submit({ type: 'randomize-turn-order', seats: [0, 1] });
+    expect(h.sync.getView().state.turnOrder).toBeNull();
+    expect(h.sync.getView().unconfirmed).toBe(1);
+
+    h.online = true;
+    h.sync.connected();
+    expect(h.sync.getView().state.turnOrder).toHaveLength(2);
   });
 
   it('applies everyone’s changes in the host’s order', () => {

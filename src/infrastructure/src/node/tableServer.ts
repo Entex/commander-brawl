@@ -10,7 +10,7 @@ import {
   type TableServerMessage,
 } from '../protocol';
 import type { TlsIdentity } from './certificate';
-import { closeServer, listenWithFallback, nodeTimers, randomId } from './runtime';
+import { closeServer, listenWithFallback, nodeTimers, randomId, secureRandom } from './runtime';
 
 export interface TableServerOptions {
   readonly identity: TlsIdentity;
@@ -56,7 +56,7 @@ export class TableServer {
       timers: nodeTimers,
       createId: randomId,
     });
-    const game = new HostGameLog(randomId(), Date.now);
+    const game = new HostGameLog(randomId(), Date.now, secureRandom);
     const port = await listenWithFallback(server, options.preferredPort);
     const heartbeat = setInterval(() => table.checkHeartbeat(), options.heartbeatMs ?? 10_000);
     const table = new TableServer(server, sockets, host, game, port, heartbeat, options.helloTimeoutMs ?? 10_000);

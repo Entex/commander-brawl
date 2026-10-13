@@ -26,6 +26,8 @@ interface SeatTileProps {
   readonly players: Players;
   /** Null until the game state has arrived. */
   readonly game: GameState | null;
+  /** It's this player's turn. */
+  readonly active: boolean;
   readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
 }
@@ -37,7 +39,7 @@ const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
   failed: 'Connection lost, retrying…',
 };
 
-export function SeatTile({ seat, players, game, showStats, getStats }: SeatTileProps) {
+export function SeatTile({ seat, players, game, active, showStats, getStats }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const stats = useLinkStats(seat, showStats, getStats);
@@ -46,7 +48,12 @@ export function SeatTile({ seat, players, game, showStats, getStats }: SeatTileP
   const state = game?.seats[index];
 
   return (
-    <div className="seat" data-testid={`seat-${seat.player.seat}`} data-link={seat.link}>
+    <div
+      className={`seat${active ? ' seat-active' : ''}`}
+      data-testid={`seat-${seat.player.seat}`}
+      data-link={seat.link}
+      data-active={active}
+    >
       {seat.track ? (
         <VideoView track={seat.track} rotation={rotation} className="seat-video" testId="seat-video" />
       ) : (
@@ -54,6 +61,7 @@ export function SeatTile({ seat, players, game, showStats, getStats }: SeatTileP
       )}
       <div className="seat-label">
         <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
+        {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
         {status && <span className="badge badge-warn">{status}</span>}
       </div>
       {game && state && <SeatChips seat={seat} game={game} players={players} />}

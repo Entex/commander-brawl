@@ -53,6 +53,13 @@ export interface GameState {
   readonly customCounters: readonly CustomCounter[];
   /** Values of the table-wide custom counters, by counter id. */
   readonly tableCounters: Readonly<Record<string, number>>;
+  /** Seats in the order they take turns, or null before it's decided. */
+  readonly turnOrder: readonly SeatIndex[] | null;
+  readonly activeSeat: SeatIndex | null;
+  /** Turns taken so far this game, counting the current one. 0 before the first turn. */
+  readonly turn: number;
+  /** Times around the table, counting the current one. */
+  readonly round: number;
 }
 
 /**
@@ -93,6 +100,10 @@ export type GameEvent =
       readonly seat: SeatIndex | null;
       readonly amount: number;
     }
+  /** Sets the turn order and starts the first turn. */
+  | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[] }
+  /** Only counts if `from` still has the turn, so a double click can't skip a player. */
+  | { readonly type: 'turn-passed'; readonly from: SeatIndex }
   | { readonly type: 'new-game'; readonly startingLife: number };
 
 export type LossReason =
@@ -116,6 +127,10 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
+    turnOrder: null,
+    activeSeat: null,
+    turn: 0,
+    round: 0,
   };
 }
 
@@ -182,9 +197,29 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
         ? { ...state, tableCounters: change(state.tableCounters) }
         : updateSeat(state, event.seat, (seat) => ({ ...seat, custom: change(seat.custom) }));
     }
+    case 'turn-order-set': {
+      const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
+      return { ...state, turnOrder: event.order, activeSeat: first, turn: 1, round: 1 };
+    }
+    case 'turn-passed':
+      return passTurn(state, event.from);
     case 'new-game':
       return newGame(event.startingLife, state.number + 1, state);
   }
+}
+
+/** Hands the turn to the next player in the order who isn't out. */
+function passTurn(state: GameState, from: SeatIndex): GameState {
+  const order = state.turnOrder;
+  if (!order || state.activeSeat !== from) return state;
+  const index = order.indexOf(from);
+  for (let step = 1; step <= order.length; step++) {
+    const next = order[(index + step) % order.length]!;
+    if (isOut(state, next) && next !== from) continue;
+    const wrapped = index + step >= order.length;
+    return { ...state, activeSeat: next, turn: state.turn + 1, round: wrapped ? state.round + 1 : state.round };
+  }
+  return state;
 }
 
 export function applyEvents(state: GameState, events: Iterable<GameEvent>): GameState {
@@ -267,6 +302,10 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isCounterId(value.id) && (value.seat === null || isSeat(value.seat)) && isChange(value.amount)
         ? { type: 'custom-counter-changed', id: value.id, seat: value.seat, amount: value.amount }
         : null;
+    case 'turn-order-set':
+      return isSeatList(value.order) ? { type: 'turn-order-set', order: value.order } : null;
+    case 'turn-passed':
+      return isSeat(value.from) ? { type: 'turn-passed', from: value.from } : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
@@ -282,6 +321,17 @@ function counterMaximum(counter: PlayerCounter): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/** One to four different seats. */
+export function isSeatList(value: unknown): value is SeatIndex[] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 1 &&
+    value.length <= MAX_SEATS &&
+    value.every(isSeat) &&
+    new Set(value).size === value.length
+  );
 }
 
 function isCounterId(value: unknown): value is string {

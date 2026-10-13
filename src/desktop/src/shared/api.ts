@@ -1,5 +1,5 @@
 import type { GameView, SignalingEvent } from '@commander-brawl/application';
-import type { GameEvent } from '@commander-brawl/domain';
+import type { GameAction } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 /** How friends outside your home can reach the table you host. */
@@ -50,7 +50,7 @@ export interface DesktopApi {
   game: {
     /** The current game, or null when you're not at a table. */
     view(): Promise<GameView | null>;
-    submit(event: GameEvent): void;
+    submit(event: GameAction): void;
     onView(listener: (view: GameView) => void): () => void;
   };
   phone: {

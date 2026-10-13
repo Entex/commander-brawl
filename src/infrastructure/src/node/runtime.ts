@@ -1,5 +1,5 @@
 import type { Timers } from '@commander-brawl/application';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import type { AddressInfo, Server } from 'node:net';
 
 export const nodeTimers: Timers = {
@@ -13,6 +13,11 @@ export const nodeTimers: Timers = {
 /** 128 random bits, URL-safe. */
 export function randomId(): string {
   return randomBytes(16).toString('base64url');
+}
+
+/** A number in [0, 1) from the operating system's secure random source, for shuffles and dice. */
+export function secureRandom(): number {
+  return randomInt(2 ** 32) / 2 ** 32;
 }
 
 export function safeEquals(a: string, b: string): boolean {

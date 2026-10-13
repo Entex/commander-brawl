@@ -6,7 +6,7 @@ import {
   type Invite,
   type SignalingEvent,
 } from '@commander-brawl/application';
-import { normalizePlayerName, toGameEvent } from '@commander-brawl/domain';
+import { normalizePlayerName, toGameAction } from '@commander-brawl/domain';
 import {
   globalIpv6Addresses,
   lanAddresses,
@@ -104,8 +104,8 @@ export class TableService {
 
   /** A change from the UI. It comes from the renderer, so check it like anything else from outside. */
   submitGameEvent(raw: unknown): void {
-    const event = toGameEvent(raw);
-    if (event) this.game?.submit(event);
+    const action = toGameAction(raw);
+    if (action) this.game?.submit(action);
   }
 
   private connect(invite: Invite, name: string): void {

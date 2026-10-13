@@ -227,3 +227,21 @@ test('custom counters: made by one player, used by everyone', async () => {
   await expect(host.page.getByTestId('out-0')).toContainText('Bounty reached 3');
   await expect(host.page.getByTestId('chips-0')).toContainText('Bounty 3');
 });
+
+test('a shuffled turn order, passed around the table', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await friend.page.getByRole('button', { name: 'Random turn order' }).click();
+  await expect(host.page.getByTestId('turn')).toContainText('Turn 1 · Round 1');
+
+  // Whoever got the first turn passes it.
+  const [first, second] = (await host.page.getByTestId('turn').innerText()).includes('Your turn')
+    ? [host, friend]
+    : [friend, host];
+  await expect(second.page.getByTestId('turn')).not.toContainText('Your turn');
+  await first.page.getByRole('button', { name: 'Pass turn' }).click();
+
+  await expect(second.page.getByTestId('turn')).toContainText('Turn 2 · Round 1 · Your turn');
+  await expect(first.page.getByRole('button', { name: 'Pass turn' })).toHaveCount(0);
+  await expect(first.page.locator('.seat[data-active="true"]')).toHaveCount(1);
+});
