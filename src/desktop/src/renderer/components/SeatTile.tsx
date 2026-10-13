@@ -3,6 +3,7 @@ import {
   COMMANDER_DAMAGE_LIMIT,
   PLAYER_COUNTERS,
   POISON_LIMIT,
+  bracketConcerns,
   commanderTax,
   counterValue,
   hasReachedLoss,
@@ -12,6 +13,7 @@ import {
   type CommanderIndex,
   type CounterColor,
   type GameState,
+  type SeatGameState,
   type SeatIndex,
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
@@ -76,6 +78,7 @@ export function SeatTile({ seat, players, game, active, showStats, getStats, onO
         <div className="seat-label">
           <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
           {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
+          {state?.bracket && <BracketBadge state={state} />}
           {status && <span className="badge badge-warn">{status}</span>}
         </div>
         {game && state && <CommanderBadges seat={index} game={game} onOpenCard={onOpenCard} />}
@@ -184,6 +187,19 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
         </span>
       ))}
     </div>
+  );
+}
+
+function BracketBadge({ state }: { readonly state: SeatGameState }) {
+  const concerns = state.bracket && state.deckAnalysis ? bracketConcerns(state.bracket, state.deckAnalysis) : [];
+  return (
+    <span
+      className={`badge${concerns.length > 0 ? ' badge-warn' : ''}`}
+      title={concerns.length > 0 ? concerns.join('\n') : `Bracket ${state.bracket}`}
+    >
+      Bracket {state.bracket}
+      {concerns.length > 0 ? ' ⚠' : ''}
+    </span>
   );
 }
 

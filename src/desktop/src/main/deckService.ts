@@ -1,6 +1,13 @@
 import { parseDeckText, resolveDeck, type ImportedDeck } from '@commander-brawl/application';
-import { toDeckList, type DeckList } from '@commander-brawl/domain';
-import { fetchDeck, isDeckLink, randomId, type DeckSitesOptions } from '@commander-brawl/infrastructure/node';
+import { toDeckList, type DeckAnalysis, type DeckList } from '@commander-brawl/domain';
+import {
+  analyzeDeck,
+  fetchDeck,
+  isDeckLink,
+  randomId,
+  type DeckSitesOptions,
+  type SpellbookOptions,
+} from '@commander-brawl/infrastructure/node';
 import { readFile, rename, writeFile } from 'node:fs/promises';
 import type { SavedDeck } from '../shared/api';
 import type { CardService } from './cardService';
@@ -10,6 +17,7 @@ export interface DeckServiceOptions {
   readonly file: string;
   readonly cards: CardService;
   readonly sites: DeckSitesOptions;
+  readonly spellbook: SpellbookOptions;
 }
 
 /** Decks the player imported, kept on this computer. */
@@ -43,6 +51,25 @@ export class DeckService {
     this.decks = [saved, ...decks.filter((d) => d.id !== saved.id)];
     await this.write();
     return saved;
+  }
+
+  /**
+   * What matters for brackets in the deck, from Commander Spellbook. If it can't be reached, at least
+   * the Game Changers are known from the card data; the analysis says it's incomplete.
+   */
+  async analyze(raw: unknown): Promise<DeckAnalysis> {
+    const deck = toDeckList(raw);
+    if (!deck) throw new Error('That deck has something wrong with it.');
+    try {
+      return await analyzeDeck(deck, this.options.spellbook);
+    } catch (error) {
+      console.warn('[decks] Commander Spellbook check failed', error);
+      const lookup = this.options.cards.lookup();
+      const gameChangers = [...deck.commanders, ...deck.cards]
+        .filter((c) => lookup?.(c.name)?.gameChanger)
+        .map((c) => c.name);
+      return { gameChangers, massLandDenial: [], extraTurns: [], twoCardCombos: [], complete: false };
+    }
   }
 
   async remove(id: string): Promise<void> {

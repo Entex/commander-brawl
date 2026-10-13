@@ -18,6 +18,7 @@ import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
+import { Rule0Panel } from './Rule0Panel';
 import { Spotlight } from './Spotlight';
 import { LogPanel } from './LogPanel';
 import { Menu } from './Menu';
@@ -50,6 +51,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     setCardsOpen(true);
   }, []);
   const [decksOpen, setDecksOpen] = useState(false);
+  const [rule0Open, setRule0Open] = useState(false);
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
@@ -149,6 +151,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {/* Its own row, so the turn and Pass turn are never squeezed out by the toolbar on a narrow window. */}
       {game && (
         <div className="status-bar">
+          <button onClick={() => setRule0Open(true)}>Rule 0</button>
           <TurnControls game={game.state} players={state.seats} />
           <LastChange game={game} state={state} />
         </div>
@@ -188,6 +191,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
 
       {game && <Spotlight game={game} />}
+      {game && rule0Open && (
+        <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
+      )}
 
       <main className="seats">
         {seats.map((seat, index) =>
@@ -334,7 +340,8 @@ function LastChange({
   readonly game: GameView | null;
   readonly state: TableSessionState<MediaStreamTrack>;
 }) {
-  const last = game?.recent.at(-1);
+  // Things the app does by itself (like checking a deck) stay in the log, but aren't news here.
+  const last = game?.recent.findLast((entry) => entry.event.type !== 'deck-analyzed');
   if (!game || !last) return null;
   return (
     <span className="last-change" data-testid="last-change">

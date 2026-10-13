@@ -70,6 +70,13 @@ export function describeEvent(
       const who = target === by.name ? by.name : `${by.name}: ${target}`;
       return event.deck ? `${who} is playing ${event.deck.name}` : `${who} has no deck chosen`;
     }
+    case 'deck-analyzed':
+      return `${seatName(players, event.seat)}'s deck was checked for the bracket`;
+    case 'bracket-declared': {
+      const target = seatName(players, event.seat);
+      const who = target === by.name ? by.name : `${by.name}: ${target}`;
+      return event.bracket ? `${who} plays bracket ${event.bracket}` : `${who} has no bracket`;
+    }
     case 'card-shown':
       return event.reason === 'cast' ? `${by.name} cast ${event.card.name}` : `${by.name} showed ${event.card.name}`;
     case 'turn-order-set':

@@ -39,6 +39,7 @@ const api: DesktopApi = {
     list: () => ipcRenderer.invoke(Channels.decksList),
     import: (source) => ipcRenderer.invoke(Channels.decksImport, source),
     save: (deck, id) => ipcRenderer.invoke(Channels.decksSave, deck, id),
+    analyze: (deck) => ipcRenderer.invoke(Channels.decksAnalyze, deck),
     remove: (id) => ipcRenderer.invoke(Channels.decksRemove, id),
   },
   phone: {

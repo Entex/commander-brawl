@@ -53,7 +53,12 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
   const play = (deck: DeckList) => {
     if (seat === null) return;
     const { name, commanders, cards } = deck;
-    submitGameEvent({ type: 'deck-chosen', seat, deck: { name, commanders, cards } });
+    const chosen = { name, commanders, cards };
+    submitGameEvent({ type: 'deck-chosen', seat, deck: chosen });
+    // The bracket check needs Commander Spellbook, so it follows when it's done instead of holding this up.
+    void api.decks
+      .analyze(chosen)
+      .then((analysis) => submitGameEvent({ type: 'deck-analyzed', seat, deckName: name, analysis }));
   };
 
   return (

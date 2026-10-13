@@ -6,6 +6,8 @@ export { syncGame } from './gameConnection';
 export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses } from './network';
 export { PhoneLinkServer } from './phoneLinkServer';
 export { ScryfallCards, toCard } from './scryfall';
+export { analyzeDeck } from './spellbook';
+export type { SpellbookOptions } from './spellbook';
 export type { SavedCards, ScryfallOptions } from './scryfall';
 export type { PhoneLinkEvents, PhoneLinkServerOptions } from './phoneLinkServer';
 export { openRouterPort } from './portMapping';

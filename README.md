@@ -46,6 +46,8 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield or Archidekt link, or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
 
+**Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, two-card combos, mass land denial and extra turns, and points out what doesn't usually fit the bracket. A seat shows its bracket, with ⚠ if something doesn't fit.
+
 _Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development
@@ -113,4 +115,5 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 | `CB_RENDERER_URL`                     | Load the UI from a dev server.                                                         |
 | `CB_SCRYFALL_API`                     | A stand-in for Scryfall's API (tests use a local fake).                                |
 | `CB_MOXFIELD_API`, `CB_ARCHIDEKT_API` | Stand-ins for the deck sites (tests use local fakes).                                  |
+| `CB_SPELLBOOK_API`                    | A stand-in for Commander Spellbook (tests use a local fake).                           |
 | `CB_SAVE_DIR`                         | Save files (like the game log) here without asking.                                    |

@@ -6,6 +6,7 @@ import {
   toCustomCounter,
   type CustomCounter,
 } from './customCounters';
+import { isBracket, toDeckAnalysis, type Bracket, type DeckAnalysis } from './brackets';
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { MAX_SEATS, type SeatIndex } from './table';
 
@@ -43,6 +44,10 @@ export interface SeatGameState {
   readonly custom: Readonly<Record<string, number>>;
   /** The deck this player is playing, if they chose one. */
   readonly deck: DeckList | null;
+  /** What's in that deck that matters for brackets, once it's been checked. */
+  readonly deckAnalysis: DeckAnalysis | null;
+  /** How strong the player says their deck is. */
+  readonly bracket: Bracket | null;
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -112,6 +117,14 @@ export type GameEvent =
       readonly card: { readonly id: string; readonly name: string };
       readonly reason: 'cast' | 'show';
     }
+  /** The checks on a deck are in. Only counts while that deck is still the one being played. */
+  | {
+      readonly type: 'deck-analyzed';
+      readonly seat: SeatIndex;
+      readonly deckName: string;
+      readonly analysis: DeckAnalysis;
+    }
+  | { readonly type: 'bracket-declared'; readonly seat: SeatIndex; readonly bracket: Bracket | null }
   /** Sets the turn order and starts the first turn. */
   | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[] }
   /** Only counts if `from` still has the turn, so a double click can't skip a player. */
@@ -141,8 +154,10 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       counters: { poison: 0, energy: 0, experience: 0, rad: 0, speed: 0 },
       commanderCasts: Array.from({ length: MAX_COMMANDERS }, () => 0),
       custom: {},
-      // Like the commanders, the deck usually stays for the next game.
+      // Like the commanders, the deck (and what the player says about it) usually stays for the next game.
       deck: previous?.seats[index]?.deck ?? null,
+      deckAnalysis: previous?.seats[index]?.deckAnalysis ?? null,
+      bracket: previous?.seats[index]?.bracket ?? null,
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
@@ -220,9 +235,16 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
       return updateSeat(state, event.seat, (seat) => ({
         ...seat,
         deck: event.deck,
+        deckAnalysis: null,
         commanders:
           event.deck && event.deck.commanders.length > 0 ? event.deck.commanders.map((c) => c.name) : seat.commanders,
       }));
+    case 'deck-analyzed':
+      return updateSeat(state, event.seat, (seat) =>
+        seat.deck?.name === event.deckName ? { ...seat, deckAnalysis: event.analysis } : seat,
+      );
+    case 'bracket-declared':
+      return updateSeat(state, event.seat, (seat) => ({ ...seat, bracket: event.bracket }));
     case 'card-shown':
       return state;
     case 'turn-order-set': {
@@ -338,6 +360,16 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       const deck = toDeckList(value.deck);
       return deck ? { type: 'deck-chosen', seat: value.seat, deck } : null;
     }
+    case 'deck-analyzed': {
+      const analysis = toDeckAnalysis(value.analysis);
+      return isSeat(value.seat) && typeof value.deckName === 'string' && value.deckName.length <= 60 && analysis
+        ? { type: 'deck-analyzed', seat: value.seat, deckName: value.deckName, analysis }
+        : null;
+    }
+    case 'bracket-declared':
+      return isSeat(value.seat) && (value.bracket === null || isBracket(value.bracket))
+        ? { type: 'bracket-declared', seat: value.seat, bracket: value.bracket }
+        : null;
     case 'card-shown': {
       const card = value.card as { id?: unknown; name?: unknown } | null;
       const valid =

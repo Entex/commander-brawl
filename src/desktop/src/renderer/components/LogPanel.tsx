@@ -116,6 +116,8 @@ function seatsIn(event: GameEvent): SeatIndex[] {
       return [...event.order];
     case 'life-changed':
     case 'deck-chosen':
+    case 'deck-analyzed':
+    case 'bracket-declared':
     case 'commanders-named':
     case 'out-set':
     case 'counter-changed':

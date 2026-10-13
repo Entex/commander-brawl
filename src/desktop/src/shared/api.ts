@@ -1,5 +1,5 @@
 import type { GameView, ImportedDeck, LoggedEvent, SignalingEvent } from '@commander-brawl/application';
-import type { Card, DeckList, GameAction, Ruling } from '@commander-brawl/domain';
+import type { Card, DeckAnalysis, DeckList, GameAction, Ruling } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 /** How friends outside your home can reach the table you host. */
@@ -102,6 +102,8 @@ export interface DesktopApi {
     /** A Moxfield or Archidekt link, or a pasted deck list. */
     import(source: string): Promise<ImportedDeck>;
     save(deck: DeckList, id: string | null): Promise<SavedDeck>;
+    /** Checks the deck for bracket concerns: Game Changers, combos, land denial, extra turns. */
+    analyze(deck: DeckList): Promise<DeckAnalysis>;
     remove(id: string): Promise<void>;
   };
   phone: {
@@ -136,6 +138,7 @@ export const Channels = {
   decksList: 'decks:list',
   decksImport: 'decks:import',
   decksSave: 'decks:save',
+  decksAnalyze: 'decks:analyze',
   decksRemove: 'decks:remove',
   phoneInfo: 'phone:info',
   phoneSend: 'phone:send',

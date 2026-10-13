@@ -32,6 +32,7 @@ const env = {
   scryfallApi: process.env.CB_SCRYFALL_API,
   /** Stand-ins for the deck sites, for tests. */
   moxfieldApi: process.env.CB_MOXFIELD_API,
+  spellbookApi: process.env.CB_SPELLBOOK_API,
   archidektApi: process.env.CB_ARCHIDEKT_API,
 };
 
@@ -81,6 +82,11 @@ async function start(): Promise<void> {
       fetch: (url, init) => net.fetch(url, init),
       ...(env.moxfieldApi ? { moxfieldApi: env.moxfieldApi } : {}),
       ...(env.archidektApi ? { archidektApi: env.archidektApi } : {}),
+    },
+    spellbook: {
+      appVersion: app.getVersion(),
+      fetch: (url, init) => net.fetch(url, init),
+      ...(env.spellbookApi ? { apiUrl: env.spellbookApi } : {}),
     },
   });
   cleanup = async () => {
@@ -151,6 +157,7 @@ function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardSe
   handle(Channels.decksImport, (source) => decks.import(requireString(source)));
   handle(Channels.decksSave, (deck, id) => decks.save(deck, typeof id === 'string' ? id : null));
   handle(Channels.decksRemove, (id) => decks.remove(requireString(id)));
+  handle(Channels.decksAnalyze, (deck) => decks.analyze(deck));
   handle(Channels.phoneInfo, () => phone.info());
   on(Channels.tableSend, (to, data) => {
     if (typeof to === 'string') table.send(to, data);

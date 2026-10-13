@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import type { DesktopApi } from '../../src/desktop/src/shared/api';
 import { startFakeDeckSites, type FakeDeckSites } from '../support/fakeDeckSites';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
+import { startFakeSpellbook, type FakeSpellbook } from '../support/fakeSpellbook';
 
 // The whole app, two copies on one computer: main process, IPC, UI and video.
 // Needs a display. On a Linux machine without one, run it with `xvfb-run -a npm run test:e2e`.
@@ -24,15 +25,18 @@ const running: Instance[] = [];
 // Card data comes from a stand-in, so the tests never download from the real Scryfall.
 let scryfall: FakeScryfall;
 let deckSites: FakeDeckSites;
+let spellbook: FakeSpellbook;
 
 test.beforeAll(async () => {
   scryfall = await startFakeScryfall();
   deckSites = await startFakeDeckSites();
+  spellbook = await startFakeSpellbook();
 });
 
 test.afterAll(async () => {
   await scryfall.close();
   await deckSites.close();
+  await spellbook.close();
 });
 
 test.afterEach(async () => {
@@ -55,6 +59,7 @@ async function launch(name: string, userDataDir?: string): Promise<Instance> {
       CB_SCRYFALL_API: scryfall.apiUrl,
       CB_MOXFIELD_API: deckSites.moxfieldApi,
       CB_ARCHIDEKT_API: deckSites.archidektApi,
+      CB_SPELLBOOK_API: spellbook.apiUrl,
     },
   });
   const page = await app.firstWindow();
@@ -425,4 +430,30 @@ test('casting a card puts it in the spotlight for everyone', async () => {
 
   await spotlight.getByRole('button', { name: 'Close' }).click();
   await expect(spotlight).toHaveCount(0);
+});
+
+test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(host.page);
+
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Decks' }).click();
+  const decks = host.page.getByTestId('decks-panel');
+  await decks.getByLabel('Deck link or list').fill('https://moxfield.com/decks/Y8dZ7');
+  await decks.getByRole('button', { name: 'Import' }).click();
+  await decks.getByRole('button', { name: 'Save deck' }).click();
+  await decks.getByTestId('deck-Atraxa Counters').getByRole('button', { name: 'Play this deck' }).click();
+  await decks.getByRole('button', { name: 'Done' }).click();
+
+  await host.page.getByRole('button', { name: 'Rule 0' }).click();
+  const rule0 = host.page.getByTestId('rule0-panel');
+  await expect(rule0.getByTestId('rule0-0')).toContainText('Game Changers (1): Rhystic Study');
+  await expect(rule0.getByTestId('rule0-0')).toContainText('No two-card combos');
+  await rule0.getByLabel('Your bracket').selectOption('2');
+  await expect(rule0.getByTestId('rule0-0')).toContainText('1 Game Changer (brackets 1–2 have none): Rhystic Study');
+  await rule0.getByRole('button', { name: 'Done' }).click();
+
+  await expect(friend.page.getByTestId('seat-0')).toContainText('Bracket 2 ⚠');
+  await friend.page.getByRole('button', { name: 'Rule 0' }).click();
+  await expect(friend.page.getByTestId('rule0-0')).toContainText('1 Game Changer (brackets 1–2 have none)');
 });
