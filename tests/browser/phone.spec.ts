@@ -1,6 +1,6 @@
 import { PhoneLinkServer, createIdentity } from '@commander-brawl/infrastructure/node';
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'vite';
@@ -19,6 +19,10 @@ test.beforeAll(async () => {
     build: { outDir: staticDir, emptyOutDir: true },
     logLevel: 'warn',
   });
+});
+
+test.afterAll(async () => {
+  await rm(staticDir, { recursive: true, force: true });
 });
 
 /**

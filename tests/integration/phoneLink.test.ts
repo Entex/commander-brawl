@@ -1,12 +1,14 @@
 import { PhoneLinkServer, createIdentity, type PhoneLinkEvents } from '@commander-brawl/infrastructure/node';
 import { PHONE_REPLACED_CLOSE_CODE, type PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { get } from 'node:https';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { waitFor } from '../support/wait';
+import { temporaryDirs } from '../support/temporaryDirs';
+
+const temporaryDir = temporaryDirs();
 
 const TOKEN = 'phone-link-token-for-tests';
 
@@ -17,7 +19,7 @@ describe('phone link server', () => {
   const sockets: WebSocket[] = [];
 
   beforeEach(async () => {
-    const staticDir = await mkdtemp(join(tmpdir(), 'cb-phone-'));
+    const staticDir = await temporaryDir('cb-phone-');
     await writeFile(join(staticDir, 'index.html'), '<!doctype html><title>camera</title>');
     events = [];
     messages = [];

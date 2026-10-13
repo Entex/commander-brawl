@@ -1,9 +1,9 @@
 import { ScryfallCards } from '@commander-brawl/infrastructure/node';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
+import { temporaryDirs } from '../support/temporaryDirs';
+
+const temporaryDir = temporaryDirs();
 
 describe('card data from Scryfall', () => {
   let fake: FakeScryfall;
@@ -14,7 +14,7 @@ describe('card data from Scryfall', () => {
 
   async function scryfall(options: { gzip?: boolean } = {}) {
     fake = await startFakeScryfall(options);
-    const dir = await mkdtemp(join(tmpdir(), 'cb-cards-'));
+    const dir = await temporaryDir('cb-cards-');
     return { dir, cards: new ScryfallCards({ dir, appVersion: '0.1.0', apiUrl: fake.apiUrl }) };
   }
 

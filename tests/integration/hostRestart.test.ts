@@ -9,11 +9,13 @@ import {
   syncGame,
   type TlsIdentity,
 } from '@commander-brawl/infrastructure/node';
-import { appendFile, mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { waitFor } from '../support/wait';
+import { temporaryDirs } from '../support/temporaryDirs';
+
+const temporaryDir = temporaryDirs();
 
 interface Player {
   readonly client: TableClient;
@@ -59,7 +61,7 @@ describe("the host's app restarting", () => {
     });
 
   it('brings everyone back to their own seats with the game as it was', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'cb-table-'));
+    const dir = await temporaryDir('cb-table-');
     const secret = randomId();
     const store = new FileTableStore(dir);
     const first = await TableServer.start({ identity, secret, preferredPort: 0, store });
@@ -108,7 +110,7 @@ describe("the host's app restarting", () => {
   });
 
   it('lets players go who do not come back in time', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'cb-table-'));
+    const dir = await temporaryDir('cb-table-');
     const secret = randomId();
     const store = new FileTableStore(dir);
     const first = await TableServer.start({ identity, secret, preferredPort: 0, store });
@@ -136,7 +138,7 @@ describe("the host's app restarting", () => {
 
 describe('the saved table', () => {
   it('survives a crash in the middle of writing an event', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'cb-table-'));
+    const dir = await temporaryDir('cb-table-');
     const store = new FileTableStore(dir);
     store.begin({ secret: 's', port: 1, playerName: 'Alice', ownResumeToken: null });
     const by = { id: 'a', name: 'Alice', seat: 0 as const };
@@ -148,14 +150,14 @@ describe('the saved table', () => {
   });
 
   it('is forgotten after a day', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'cb-table-'));
+    const dir = await temporaryDir('cb-table-');
     new FileTableStore(dir).begin({ secret: 's', port: 1, playerName: 'Alice', ownResumeToken: null });
     expect(await FileTableStore.load(dir)).not.toBeNull();
     expect(await FileTableStore.load(dir, Date.now() + 25 * 60 * 60 * 1000)).toBeNull();
   });
 
   it('is gone once the table is closed on purpose', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'cb-table-'));
+    const dir = await temporaryDir('cb-table-');
     const store = new FileTableStore(dir);
     store.begin({ secret: 's', port: 1, playerName: 'Alice', ownResumeToken: null });
     store.clear();
