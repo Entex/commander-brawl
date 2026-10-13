@@ -5,10 +5,25 @@ import {
   type CameraDevice,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
+import type { CameraStatus } from '@commander-brawl/application';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from './api';
 
 export type CameraSource = 'phone' | 'webcam';
+
+/** What to tell the other players about your camera. */
+export function cameraStatus(camera: CameraState): CameraStatus {
+  if (camera.source === 'webcam') return camera.track ? 'live' : 'off';
+  switch (camera.phone.state) {
+    case 'live':
+      return 'live';
+    case 'connecting':
+    case 'reconnecting':
+      return 'reconnecting';
+    case 'waiting':
+      return 'off';
+  }
+}
 
 export interface CameraState {
   readonly source: CameraSource;

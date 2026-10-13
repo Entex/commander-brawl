@@ -11,12 +11,17 @@ import type {
   Unsubscribe,
 } from './ports';
 
+/** What a player's camera is doing, as that player's own computer sees it. */
+export type CameraStatus = 'live' | 'reconnecting' | 'off';
+
 export interface SeatView<TTrack> {
   readonly player: Player;
   readonly isSelf: boolean;
   /** Your own camera for your seat, the other player's camera for theirs. */
   readonly track: TTrack | null;
   readonly link: LinkState | 'self';
+  /** Null until that player has told us. */
+  readonly camera: CameraStatus | null;
 }
 
 export interface TableSessionState<TTrack> {
@@ -33,6 +38,11 @@ export interface TableSessionOptions {
    * This is the safety net on top of the link's own reconnect logic.
    */
   readonly linkResetMs: number;
+}
+
+/** Sent to every other player when your camera status changes, and to players who join later. */
+interface StatusMessage {
+  readonly status: { readonly camera: CameraStatus };
 }
 
 /** Every signal is wrapped with the link generation, so messages meant for a replaced link are ignored. */
@@ -62,6 +72,8 @@ export class TableSession<TTrack> {
   private connectionReason: string | null = null;
   private selfId: string | null = null;
   private localTrack: TTrack | null = null;
+  private cameraStatus: CameraStatus = 'off';
+  private readonly cameraStatuses = new Map<string, CameraStatus>();
   private state: TableSessionState<TTrack>;
   private unsubscribeSignaling: Unsubscribe | null = null;
   private disposed = false;
@@ -93,6 +105,14 @@ export class TableSession<TTrack> {
     await Promise.all([...this.links.values()].map((entry) => entry.link.setLocalTrack(track)));
   }
 
+  /** Tells everyone at the table what your camera is doing, e.g. that it's reconnecting. */
+  setCameraStatus(status: CameraStatus): void {
+    if (status === this.cameraStatus) return;
+    this.cameraStatus = status;
+    for (const memberId of this.members.keys()) this.sendStatus(memberId);
+    this.publish();
+  }
+
   async getStats(memberId: string): Promise<LinkStats | null> {
     const entry = this.links.get(memberId);
     return entry ? entry.link.getStats() : null;
@@ -119,14 +139,23 @@ export class TableSession<TTrack> {
         for (const memberId of [...this.links.keys()]) {
           if (!this.members.has(memberId)) this.closeLink(memberId);
         }
-        for (const member of event.members) this.ensureLink(member.id);
+        for (const memberId of [...this.cameraStatuses.keys()]) {
+          if (!this.members.has(memberId)) this.cameraStatuses.delete(memberId);
+        }
+        // Tell everyone what our camera is doing: after a reconnect, they may have missed a change.
+        for (const member of event.members) {
+          this.ensureLink(member.id);
+          this.sendStatus(member.id);
+        }
         break;
       case 'member-joined':
         this.members.set(event.member.id, event.member);
         this.ensureLink(event.member.id);
+        this.sendStatus(event.member.id);
         break;
       case 'member-left':
         this.members.delete(event.memberId);
+        this.cameraStatuses.delete(event.memberId);
         this.closeLink(event.memberId);
         break;
       case 'signal':
@@ -141,9 +170,12 @@ export class TableSession<TTrack> {
   }
 
   private handleSignal(from: string, data: unknown): void {
-    if (!this.members.has(from) || !isEnvelope(data)) {
+    if (!this.members.has(from)) return;
+    if (isStatusMessage(data)) {
+      this.cameraStatuses.set(from, data.status.camera);
       return;
     }
+    if (!isEnvelope(data)) return;
     let entry = this.links.get(from);
     if (entry && data.gen < entry.generation) {
       return;
@@ -152,6 +184,12 @@ export class TableSession<TTrack> {
       entry = this.createLink(from, data.gen);
     }
     void entry.link.handleSignal(data.body);
+  }
+
+  private sendStatus(memberId: string): void {
+    if (memberId !== this.selfId && this.selfId !== null) {
+      this.signaling.send(memberId, { status: { camera: this.cameraStatus } } satisfies StatusMessage);
+    }
   }
 
   private ensureLink(memberId: string): void {
@@ -237,10 +275,16 @@ export class TableSession<TTrack> {
       .sort((a, b) => a.seat - b.seat)
       .map((player): SeatView<TTrack> => {
         if (player.id === this.selfId) {
-          return { player, isSelf: true, track: this.localTrack, link: 'self' };
+          return { player, isSelf: true, track: this.localTrack, link: 'self', camera: this.cameraStatus };
         }
         const entry = this.links.get(player.id);
-        return { player, isSelf: false, track: entry?.track ?? null, link: entry?.state ?? 'new' };
+        return {
+          player,
+          isSelf: false,
+          track: entry?.track ?? null,
+          link: entry?.state ?? 'new',
+          camera: this.cameraStatuses.get(player.id) ?? null,
+        };
       });
     return { connection: this.connection, connectionReason: this.connectionReason, selfId: this.selfId, seats };
   }
@@ -253,6 +297,12 @@ function placeholderLink<TTrack>(): PeerLink<TTrack> {
     getStats: async () => ({ route: 'unknown', roundTripMs: null, inbound: null, outbound: null }),
     close: () => undefined,
   };
+}
+
+function isStatusMessage(data: unknown): data is StatusMessage {
+  if (typeof data !== 'object' || data === null || !('status' in data)) return false;
+  const status = data.status as { camera?: unknown } | null;
+  return status !== null && (status.camera === 'live' || status.camera === 'reconnecting' || status.camera === 'off');
 }
 
 function isEnvelope(data: unknown): data is Envelope {

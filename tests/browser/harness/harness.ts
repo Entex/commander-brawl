@@ -64,6 +64,15 @@ const session = new TableSession(
 session.start();
 
 const videos = new Map<string, HTMLVideoElement>();
+/** Every camera status each other player has reported, in order. */
+const cameraHistory = new Map<string, string[]>();
+session.subscribe((state) => {
+  for (const seat of state.seats) {
+    if (seat.isSelf || seat.camera === null) continue;
+    const history = cameraHistory.get(seat.player.id) ?? [];
+    if (history.at(-1) !== seat.camera) cameraHistory.set(seat.player.id, [...history, seat.camera]);
+  }
+});
 session.subscribe((state) => {
   for (const seat of state.seats) {
     if (seat.isSelf) continue;
@@ -98,7 +107,11 @@ const harness = {
     phoneReceiver = new PhoneReceiver({
       send: (message) => void window.toNode({ kind: 'phone', message }),
       track: (track) => void session.setLocalTrack(track),
-      state: (state) => (phoneState = state),
+      state: (state) => {
+        phoneState = state;
+        // What the desktop app tells the other players (see cameraStatus in the desktop app).
+        session.setCameraStatus(state === 'live' ? 'live' : state === 'waiting' ? 'off' : 'reconnecting');
+      },
     });
   },
 
@@ -112,6 +125,10 @@ const harness = {
 
   phoneState(): PhoneCameraState {
     return phoneState;
+  },
+
+  cameraHistory(memberId: string): string[] {
+    return cameraHistory.get(memberId) ?? [];
   },
 
   videoReport(): VideoReport[] {

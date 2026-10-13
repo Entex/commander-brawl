@@ -59,6 +59,16 @@ export function SeatTile({ seat, players, game, active, showStats, getStats }: S
       ) : (
         <div className="seat-empty">{seat.isSelf ? 'Set up your camera' : 'No camera yet'}</div>
       )}
+      {seat.camera === 'reconnecting' && (
+        <div className="seat-camera-note" data-testid={`camera-note-${index}`}>
+          Camera reconnecting…
+        </div>
+      )}
+      {seat.camera === 'off' && seat.track && (
+        <div className="seat-camera-note" data-testid={`camera-note-${index}`}>
+          Camera off
+        </div>
+      )}
       <div className="seat-label">
         <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
         {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}

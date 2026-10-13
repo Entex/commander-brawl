@@ -81,11 +81,17 @@ test('the phone recovers from a Wi-Fi drop and the others get its video back', a
   await expect(phone.locator('#status')).toHaveText('Live', { timeout: 20_000 });
   await table.expectLiveVideo('p2', ['p1']);
 
+  const history = () => table.page('p2').evaluate(() => window.harness.cameraHistory('p1'));
+  await expect.poll(history).toEqual(expect.arrayContaining(['live']));
+  const before = (await history()).length;
+
   wifi.cut();
 
   await expect(phone.locator('#status')).not.toHaveText('Live', { timeout: 10_000 });
   await expect(phone.locator('#status')).toHaveText('Live', { timeout: 20_000 });
   await table.expectLiveVideo('p2', ['p1']);
+  // p2 was told p1's camera was reconnecting, and then that it was back.
+  await expect.poll(async () => (await history()).slice(before - 1)).toEqual(['live', 'reconnecting', 'live']);
   await tearDown();
 });
 

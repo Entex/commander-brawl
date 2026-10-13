@@ -26,6 +26,15 @@ class FakeSignaling implements TableSignaling {
     this.sent.push({ to, data });
   }
 
+  /** Messages for setting up video links, leaving out camera status updates. */
+  get linkSignals() {
+    return this.sent.filter((m) => typeof m.data === 'object' && m.data !== null && 'gen' in m.data);
+  }
+
+  statusesSentTo(to: string) {
+    return this.sent.filter((m) => m.to === to && typeof m.data === 'object' && m.data !== null && 'status' in m.data);
+  }
+
   emit(event: SignalingEvent): void {
     this.listener?.(event);
   }
@@ -116,7 +125,7 @@ describe('TableSession', () => {
     link.options.events.signal({ hello: 1 });
     signaling.emit({ type: 'signal', from: 'b', data: { gen: 0, body: { hi: 2 } } });
 
-    expect(signaling.sent).toEqual([{ to: 'b', data: { gen: 0, body: { hello: 1 } } }]);
+    expect(signaling.linkSignals).toEqual([{ to: 'b', data: { gen: 0, body: { hello: 1 } } }]);
     expect(link.received).toEqual([{ hi: 2 }]);
   });
 
@@ -158,7 +167,7 @@ describe('TableSession', () => {
     expect(first.closed).toBe(true);
     const second = factory.current('b');
     second.options.events.signal({ offer: true });
-    expect(signaling.sent.at(-1)).toEqual({ to: 'b', data: { gen: 1, body: { offer: true } } });
+    expect(signaling.linkSignals.at(-1)).toEqual({ to: 'b', data: { gen: 1, body: { offer: true } } });
   });
 
   it('does not reset a link that connected', () => {
@@ -194,7 +203,7 @@ describe('TableSession', () => {
     first.options.events.signal('old');
     first.options.events.state('connected');
 
-    expect(signaling.sent).toEqual([]);
+    expect(signaling.linkSignals).toEqual([]);
     expect(session.getState().seats[1]!.link).toBe('new');
   });
 
@@ -214,6 +223,40 @@ describe('TableSession', () => {
       connection: 'reconnecting',
       connectionReason: 'Lost the connection to the host.',
     });
+  });
+
+  it('tells everyone what its camera is doing, including players who join later', () => {
+    welcome('a', [player('a', 0), player('b', 1)]);
+    session.setCameraStatus('live');
+    signaling.emit({ type: 'member-joined', member: player('c', 2) });
+    session.setCameraStatus('reconnecting');
+
+    expect(signaling.statusesSentTo('b').map((m) => m.data)).toEqual([
+      { status: { camera: 'off' } },
+      { status: { camera: 'live' } },
+      { status: { camera: 'reconnecting' } },
+    ]);
+    expect(signaling.statusesSentTo('c').map((m) => m.data)).toEqual([
+      { status: { camera: 'live' } },
+      { status: { camera: 'reconnecting' } },
+    ]);
+    expect(session.getState().seats[0]!.camera).toBe('reconnecting');
+  });
+
+  it('shows what other players say about their camera', () => {
+    welcome('a', [player('a', 0), player('b', 1)]);
+    expect(session.getState().seats[1]!.camera).toBeNull();
+
+    signaling.emit({ type: 'signal', from: 'b', data: { status: { camera: 'reconnecting' } } });
+
+    expect(session.getState().seats[1]!.camera).toBe('reconnecting');
+    expect(factory.current('b').received).toEqual([]);
+  });
+
+  it('ignores camera statuses it does not understand', () => {
+    welcome('a', [player('a', 0), player('b', 1)]);
+    signaling.emit({ type: 'signal', from: 'b', data: { status: { camera: 'exploded' } } });
+    expect(session.getState().seats[1]!.camera).toBeNull();
   });
 
   it('closes everything on dispose', () => {

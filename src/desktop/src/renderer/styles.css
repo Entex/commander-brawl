@@ -757,6 +757,19 @@ button.swatch.selected {
   font-weight: 600;
 }
 
+.seat-camera-note {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgb(0 0 0 / 0.75);
+  color: var(--warn);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 /* Camera panel */
 
 .overlay {

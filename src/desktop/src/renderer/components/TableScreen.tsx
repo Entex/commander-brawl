@@ -13,7 +13,7 @@ import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
 import { seatName, type Players } from '../names';
-import type { CameraState } from '../useCamera';
+import { cameraStatus, type CameraState } from '../useCamera';
 import { submitGameEvent, useGame } from '../useGame';
 import { CountersPanel } from './CountersPanel';
 import { LogPanel } from './LogPanel';
@@ -45,6 +45,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   useEffect(() => {
     void session.setLocalTrack(camera.track);
   }, [session, camera.track]);
+
+  const status = cameraStatus(camera);
+  useEffect(() => session.setCameraStatus(status), [session, status]);
 
   const getStats = useCallback((memberId: string) => session.getStats(memberId), [session]);
 

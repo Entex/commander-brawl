@@ -5,7 +5,7 @@ export type { Invite } from './invite';
 export { TableHost } from './tableHost';
 export type { JoinRejection, JoinRequest, JoinResult, TableHostListener, TableHostOptions } from './tableHost';
 export { TableSession } from './tableSession';
-export type { SeatView, TableSessionOptions, TableSessionState } from './tableSession';
+export type { CameraStatus, SeatView, TableSessionOptions, TableSessionState } from './tableSession';
 export type {
   LinkState,
   LinkStats,
