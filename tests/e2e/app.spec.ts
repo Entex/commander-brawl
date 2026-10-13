@@ -13,6 +13,8 @@ interface Instance {
   readonly page: Page;
   /** Where the app saves files, instead of asking. */
   readonly saveDir: string;
+  /** The app's settings folder. Launching again with it is like reopening the app. */
+  readonly userDataDir: string;
 }
 
 const running: Instance[] = [];
@@ -21,13 +23,14 @@ test.afterEach(async () => {
   for (const instance of running.splice(0)) await instance.app.close().catch(() => undefined);
 });
 
-async function launch(name: string): Promise<Instance> {
+async function launch(name: string, userDataDir?: string): Promise<Instance> {
   const saveDir = await mkdtemp(join(tmpdir(), 'cb-e2e-save-'));
+  const dataDir = userDataDir ?? (await mkdtemp(join(tmpdir(), 'cb-e2e-')));
   const app = await electron.launch({
     args: [appDir, '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     env: {
       ...process.env,
-      CB_USER_DATA_DIR: await mkdtemp(join(tmpdir(), 'cb-e2e-')),
+      CB_USER_DATA_DIR: dataDir,
       CB_UPNP: 'off',
       CB_LOCAL_ONLY: '1',
       CB_TABLE_PORT: '0',
@@ -36,7 +39,7 @@ async function launch(name: string): Promise<Instance> {
     },
   });
   const page = await app.firstWindow();
-  const instance = { app, page, saveDir };
+  const instance = { app, page, saveDir, userDataDir: dataDir };
   running.push(instance);
   await page.getByTestId('name').fill(name);
   await useWebcam(page);
@@ -280,4 +283,36 @@ test('undo, the game log, and saving it', async () => {
   const text = await readFile(join(friend.saveDir, file!), 'utf8');
   expect(text).toContain('Friend: Host −3 life  (undone)');
   expect(text).toContain('Players: Host, Friend');
+});
+
+test("the host's app crashing mid-game, and the table resumed with everyone in their seats", async () => {
+  const { host, friend } = await hostAndFriend();
+  await friend.page.getByTestId('life-0').getByRole('button', { name: 'Lose 5 life' }).click();
+  await host.page.getByTestId('life-1').getByRole('button', { name: 'Lose 1 life' }).click();
+  await expect(friend.page.getByTestId('life-total-1')).toHaveText('39');
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('35');
+  await expect(host.page.getByTestId('life-total-0')).toHaveText('35');
+
+  // The host's app dies without a goodbye.
+  running.splice(running.indexOf(host), 1);
+  host.app.process().kill('SIGKILL');
+  await expect(friend.page.getByText('Reconnecting to the host')).toBeVisible({ timeout: 30_000 });
+
+  // The host opens the app again and resumes the table.
+  const again = await launch('Host', host.userDataDir);
+  await expect(again.page.getByTestId('resume')).toContainText('with Friend');
+  await again.page.getByRole('button', { name: 'Resume table' }).click();
+
+  // The friend's app comes back by itself, to the same seats and the same game.
+  await expect(friend.page.getByText('Reconnecting to the host')).toHaveCount(0, { timeout: 30_000 });
+  await expect(again.page.getByTestId('life-total-0')).toHaveText('35');
+  await expect(again.page.getByTestId('life-total-1')).toHaveText('39');
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('35');
+  await expect(again.page.getByTestId('seat-0')).toContainText('Host (you)');
+  await expectVideoFrom(again.page, 'Friend');
+  await expectVideoFrom(friend.page, 'Host');
+
+  // And the game goes on.
+  await friend.page.getByTestId('life-0').getByRole('button', { name: 'Gain 1 life' }).click();
+  await expect(again.page.getByTestId('life-total-0')).toHaveText('36');
 });

@@ -10,6 +10,16 @@ export type Reachability =
 export interface HostInfo {
   readonly invite: string;
   readonly reachability: Reachability;
+  /** A resumed table couldn't get its old port back, so friends need the new invite. */
+  readonly portChanged: boolean;
+}
+
+/** A table this app was hosting when it closed, which can be resumed. */
+export interface SavedTableSummary {
+  readonly savedAt: number;
+  readonly playerName: string;
+  /** The other players at the table. */
+  readonly players: readonly string[];
 }
 
 export interface IceServerConfig {
@@ -40,6 +50,9 @@ export interface DesktopApi {
   config(): Promise<RendererConfig>;
   table: {
     host(name: string): Promise<HostInfo>;
+    savedTable(): Promise<SavedTableSummary | null>;
+    resume(): Promise<HostInfo>;
+    discardSavedTable(): Promise<void>;
     join(invite: string, name: string): Promise<void>;
     leave(): Promise<void>;
     send(to: string, data: unknown): void;
@@ -67,6 +80,9 @@ export interface DesktopApi {
 export const Channels = {
   config: 'config',
   tableHost: 'table:host',
+  tableSaved: 'table:saved',
+  tableResume: 'table:resume',
+  tableDiscardSaved: 'table:discard-saved',
   tableJoin: 'table:join',
   tableLeave: 'table:leave',
   tableSend: 'table:send',

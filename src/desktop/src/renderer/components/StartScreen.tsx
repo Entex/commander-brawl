@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { HostInfo } from '../../shared/api';
+import { useEffect, useState } from 'react';
+import type { HostInfo, SavedTableSummary } from '../../shared/api';
 import { api, errorMessage } from '../api';
 import type { CameraState } from '../useCamera';
 import { VideoView } from './VideoView';
@@ -17,15 +17,18 @@ const NAME_KEY = 'cb.name';
 export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined }: StartScreenProps) {
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
   const [invite, setInvite] = useState('');
-  const [busy, setBusy] = useState<'host' | 'join' | null>(null);
+  const [busy, setBusy] = useState<'host' | 'join' | 'resume' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const saved = useSavedTable();
 
-  const run = async (kind: 'host' | 'join') => {
+  const run = async (kind: 'host' | 'join' | 'resume') => {
     setBusy(kind);
     setError(null);
-    localStorage.setItem(NAME_KEY, name);
+    if (kind !== 'resume') localStorage.setItem(NAME_KEY, name);
     try {
-      if (kind === 'host') {
+      if (kind === 'resume') {
+        onHosted(await api.table.resume());
+      } else if (kind === 'host') {
         onHosted(await api.table.host(name));
       } else {
         await api.table.join(invite, name);
@@ -42,6 +45,25 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
     <div className="start-screen">
       <div className="panel start-panel">
         <h1>Commander Brawl</h1>
+
+        {saved.table && (
+          <section className="resume" data-testid="resume">
+            <h2>Resume your table?</h2>
+            <p className="hint">
+              You were hosting{saved.table.players.length > 0 ? ` ${listNames(saved.table.players)}` : ' a table'} when
+              the app closed (last change at {formatSavedAt(saved.table.savedAt)}). Their apps keep trying to reconnect,
+              so they'll come straight back.
+            </p>
+            <div className="row">
+              <button className="primary" disabled={busy !== null} onClick={() => void run('resume')}>
+                {busy === 'resume' ? 'Opening the table…' : 'Resume table'}
+              </button>
+              <button disabled={busy !== null} onClick={() => void saved.discard()}>
+                Discard
+              </button>
+            </div>
+          </section>
+        )}
 
         <label className="field">
           <span>Your name</span>
@@ -101,4 +123,37 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
       </div>
     </div>
   );
+}
+
+function useSavedTable(): { table: SavedTableSummary | null; discard(): Promise<void> } {
+  const [table, setTable] = useState<SavedTableSummary | null>(null);
+  useEffect(() => {
+    let active = true;
+    void api.table.savedTable().then((found) => {
+      if (active) setTable(found);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return {
+    table,
+    discard: async () => {
+      await api.table.discardSavedTable();
+      setTable(null);
+    },
+  };
+}
+
+function listNames(names: readonly string[]): string {
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  return `with ${list}`;
+}
+
+function formatSavedAt(at: number): string {
+  const date = new Date(at);
+  const today = new Date().toDateString() === date.toDateString();
+  return today
+    ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }

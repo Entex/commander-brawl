@@ -127,6 +127,11 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
       <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
+      {host?.portChanged && (
+        <p className="banner">
+          The table couldn't get its old port back, so your friends need the new invite. Copy it and send it to them.
+        </p>
+      )}
       {game && <TableCounters game={game.state} />}
       {game && countersOpen && <CountersPanel game={game.state} onClose={() => setCountersOpen(false)} />}
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}

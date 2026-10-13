@@ -9,6 +9,7 @@ import {
 } from '@commander-brawl/application';
 import { normalizePlayerName, toGameAction } from '@commander-brawl/domain';
 import {
+  FileTableStore,
   globalIpv6Addresses,
   lanAddresses,
   openRouterPort,
@@ -17,17 +18,28 @@ import {
   TableClient,
   TableServer,
   type PortMappingResult,
+  type SavedTable,
   type TlsIdentity,
 } from '@commander-brawl/infrastructure/node';
-import type { HostInfo, Reachability } from '../shared/api';
+import type { HostInfo, Reachability, SavedTableSummary } from '../shared/api';
 
 export interface TableServiceOptions {
   readonly identity: TlsIdentity;
   readonly preferredPort: number;
   /** Set to false to skip asking the router to open a port (tests, or when it's forwarded manually). */
   readonly useUpnp: boolean;
+  /** Folder for the table you host, so it can be resumed if the app restarts. */
+  readonly tableDir: string;
   readonly emit: (event: SignalingEvent) => void;
   readonly emitGame: (view: GameView) => void;
+}
+
+interface HostingPlan {
+  readonly secret: string;
+  readonly preferredPort: number;
+  readonly playerName: string;
+  /** Only when resuming: the table as it was saved. */
+  readonly saved?: SavedTable;
 }
 
 /** Hosting or joining a table. The host is a player too: it connects to its own table like everyone else. */
@@ -35,6 +47,7 @@ export class TableService {
   private server: TableServer | null = null;
   private client: TableClient | null = null;
   private game: GameSync | null = null;
+  private store: FileTableStore | null = null;
   private releasePort: (() => Promise<void>) | null = null;
 
   constructor(private readonly options: TableServiceOptions) {}
@@ -42,35 +55,35 @@ export class TableService {
   async host(name: string): Promise<HostInfo> {
     const playerName = normalizePlayerName(name);
     await this.leave();
-    const secret = randomId();
-    const server = await TableServer.start({
-      identity: this.options.identity,
-      secret,
-      preferredPort: this.options.preferredPort,
-    });
-    this.server = server;
+    return this.startHosting({ secret: randomId(), preferredPort: this.options.preferredPort, playerName });
+  }
 
-    const lan = lanAddresses();
-    const mapping: PortMappingResult =
-      this.options.useUpnp && lan[0]
-        ? await openRouterPort(server.port, lan[0])
-        : { ok: false, reason: this.options.useUpnp ? 'Not connected to a network.' : 'Router port opening is off.' };
-    if (mapping.ok) this.releasePort = () => mapping.release();
+  /** The table this app was hosting before it closed, if there is one. */
+  async savedTable(): Promise<SavedTableSummary | null> {
+    const saved = await FileTableStore.load(this.options.tableDir);
+    if (!saved) return null;
+    return {
+      savedAt: saved.savedAt,
+      playerName: saved.playerName,
+      players: saved.members.map((m) => m.player.name).filter((n) => n !== saved.playerName),
+    };
+  }
 
-    const hosts = [
-      ...(mapping.ok && mapping.reachable ? [mapping.externalIp] : []),
-      ...globalIpv6Addresses().slice(0, 2),
-      ...lan.slice(0, 3),
-    ];
-    const fingerprint = this.options.identity.fingerprint;
-    const invite = encodeInvite({
-      hosts: hosts.length > 0 ? hosts : ['127.0.0.1'],
-      port: server.port,
-      secret,
-      fingerprint,
+  /** Opens the saved table again. Friends' apps are still trying to reconnect, so they come straight back. */
+  async resume(): Promise<HostInfo> {
+    const saved = await FileTableStore.load(this.options.tableDir);
+    if (!saved) throw new Error('There is no table to resume.');
+    await this.stop({ notify: true, forget: false });
+    return this.startHosting({
+      secret: saved.secret,
+      preferredPort: saved.port,
+      playerName: saved.playerName,
+      saved,
     });
-    this.connect({ hosts: ['127.0.0.1'], port: server.port, secret, fingerprint }, playerName);
-    return { invite, reachability: describeReachability(mapping, server.port) };
+  }
+
+  async discardSavedTable(): Promise<void> {
+    new FileTableStore(this.options.tableDir).clear();
   }
 
   async join(inviteCode: string, name: string): Promise<void> {
@@ -80,15 +93,17 @@ export class TableService {
     this.connect(invite, playerName);
   }
 
+  /** Leaving on purpose. If you were hosting, the table is over for everyone. */
   async leave(): Promise<void> {
-    this.client?.close();
-    this.client = null;
-    this.game = null;
-    const releasePort = this.releasePort;
-    this.releasePort = null;
-    const server = this.server;
-    this.server = null;
-    await Promise.all([releasePort?.().catch(() => undefined), server?.close()]);
+    await this.stop({ notify: true, forget: true });
+  }
+
+  /**
+   * The app is quitting. A table you host isn't closed: friends keep trying to reconnect,
+   * and you can resume it when you open the app again.
+   */
+  async shutdown(): Promise<void> {
+    await this.stop({ notify: false, forget: false });
   }
 
   send(to: string, data: unknown): void {
@@ -113,13 +128,84 @@ export class TableService {
     if (action) this.game?.submit(action);
   }
 
-  private connect(invite: Invite, name: string): void {
-    const client = new TableClient({ invite, name });
+  private async startHosting(plan: HostingPlan): Promise<HostInfo> {
+    const store = new FileTableStore(this.options.tableDir);
+    const server = await TableServer.start({
+      identity: this.options.identity,
+      secret: plan.secret,
+      preferredPort: plan.preferredPort,
+      store,
+      ...(plan.saved ? { restore: { members: plan.saved.members, entries: plan.saved.entries } } : {}),
+    });
+    this.server = server;
+    this.store = store;
+    const meta = {
+      secret: plan.secret,
+      port: server.port,
+      playerName: plan.playerName,
+      ownResumeToken: plan.saved?.ownResumeToken ?? null,
+    };
+    if (plan.saved) store.continue(plan.saved, meta);
+    else store.begin(meta);
+
+    const lan = lanAddresses();
+    const mapping: PortMappingResult =
+      this.options.useUpnp && lan[0]
+        ? await openRouterPort(server.port, lan[0])
+        : { ok: false, reason: this.options.useUpnp ? 'Not connected to a network.' : 'Router port opening is off.' };
+    if (mapping.ok) this.releasePort = () => mapping.release();
+
+    const hosts = [
+      ...(mapping.ok && mapping.reachable ? [mapping.externalIp] : []),
+      ...globalIpv6Addresses().slice(0, 2),
+      ...lan.slice(0, 3),
+    ];
+    const fingerprint = this.options.identity.fingerprint;
+    const invite = encodeInvite({
+      hosts: hosts.length > 0 ? hosts : ['127.0.0.1'],
+      port: server.port,
+      secret: plan.secret,
+      fingerprint,
+    });
+    this.connect(
+      { hosts: ['127.0.0.1'], port: server.port, secret: plan.secret, fingerprint },
+      plan.playerName,
+      meta.ownResumeToken ?? undefined,
+    );
+    return {
+      invite,
+      reachability: describeReachability(mapping, server.port),
+      portChanged: plan.saved !== undefined && server.port !== plan.saved.port,
+    };
+  }
+
+  private async stop({ notify, forget }: { notify: boolean; forget: boolean }): Promise<void> {
+    // Quitting the app isn't leaving: keep the seat, so resuming the table puts everyone back.
+    if (notify) this.client?.close();
+    else this.client?.disconnect();
+    this.client = null;
+    this.game = null;
+    const releasePort = this.releasePort;
+    this.releasePort = null;
+    const server = this.server;
+    this.server = null;
+    const store = this.store;
+    this.store = null;
+    await Promise.all([releasePort?.().catch(() => undefined), server?.close({ notify })]);
+    if (forget) store?.clear();
+  }
+
+  private connect(invite: Invite, name: string, resumeToken?: string): void {
+    const client = new TableClient({ invite, name, resumeToken });
     const game = syncGame(client);
+    const store = this.store;
     this.client = client;
     this.game = game;
     client.subscribe((event) => {
-      if (this.client === client) this.options.emit(event);
+      if (this.client !== client) return;
+      // Remember the host's own seat, so resuming the table puts them back in it.
+      if (event.type === 'welcome' && store) store.updateMeta({ ownResumeToken: client.currentResumeToken ?? null });
+      this.options.emit(event);
     });
     game.subscribe((view) => {
       if (this.game === game) this.options.emitGame(view);

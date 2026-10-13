@@ -25,6 +25,14 @@ describe('Table', () => {
     expect(() => table.seat('extra', 'Extra')).toThrow(TableFullError);
   });
 
+  it('can put a known player back in their own seat', () => {
+    const table = new Table();
+    table.seatAt({ id: 'b', name: 'Bob', seat: 2 });
+    expect(table.seat('a', 'Alice').seat).toBe(0);
+    expect(table.get('b')?.seat).toBe(2);
+    expect(() => table.seatAt({ id: 'c', name: 'Cleo', seat: 2 })).toThrow('already taken');
+  });
+
   it('lists players in seat order', () => {
     const table = new Table();
     table.seat('a', 'Alice');

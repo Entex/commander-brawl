@@ -74,6 +74,20 @@ describe('HostGameLog', () => {
     expect(log.append(bob, 'x4', { type: 'undo', target: 'e2' })).toEqual(refused);
   });
 
+  it('continues a saved log under a new id, still knowing what it already has', () => {
+    added(log.append(alice, 'e1', hit(1, -3)));
+    added(log.append(alice, 'u1', { type: 'undo', target: 'e1' }));
+    const restored = HostGameLog.restore('log-2', log.all(), () => 0);
+
+    expect(restored.logId).toBe('log-2');
+    expect(restored.length).toBe(2);
+    expect(restored.append(alice, 'e1', hit(1, -3))).toEqual({ ok: false, reason: 'duplicate' });
+    expect(restored.append(alice, 'u2', { type: 'undo', target: 'e1' })).toEqual(refused);
+    expect(added(restored.append(bob, 'e2', hit(0, -1))).seq).toBe(2);
+    // Players with the old log id get the whole log, and start over from the host's copy.
+    expect(restored.batchFor('log-1', 2)).toMatchObject({ logId: 'log-2', from: 0 });
+  });
+
   it('refuses invalid events', () => {
     expect(log.append(alice, 'e1', { type: 'life-changed', seat: 9, amount: 1 })).toEqual(refused);
     expect(log.length).toBe(0);

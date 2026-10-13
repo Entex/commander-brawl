@@ -10,4 +10,6 @@ export { nodeTimers, randomId, safeEquals, secureRandom } from './runtime';
 export { TableClient } from './tableClient';
 export type { GameUpdate, TableClientOptions } from './tableClient';
 export { TableServer } from './tableServer';
+export { FileTableStore } from './tableStore';
+export type { SavedTable, TableMeta, TableStore } from './tableStore';
 export type { TableServerOptions } from './tableServer';

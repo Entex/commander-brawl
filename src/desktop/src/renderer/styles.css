@@ -199,6 +199,23 @@ textarea {
   align-items: flex-start;
 }
 
+.resume {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.resume p {
+  margin: 0;
+}
+
+.resume .row {
+  justify-content: flex-start;
+}
+
 /* Table */
 
 .table-screen {

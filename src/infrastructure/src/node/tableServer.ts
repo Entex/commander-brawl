@@ -1,4 +1,4 @@
-import { HostGameLog, TableHost } from '@commander-brawl/application';
+import { HostGameLog, TableHost, type LoggedEvent, type SavedMember } from '@commander-brawl/application';
 import type { Player } from '@commander-brawl/domain';
 import { createServer, type Server } from 'node:https';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -10,6 +10,7 @@ import {
   type TableServerMessage,
 } from '../protocol';
 import type { TlsIdentity } from './certificate';
+import type { TableStore } from './tableStore';
 import { closeServer, listenWithFallback, nodeTimers, randomId, secureRandom } from './runtime';
 
 export interface TableServerOptions {
@@ -19,6 +20,12 @@ export interface TableServerOptions {
   readonly reconnectGraceMs?: number;
   readonly heartbeatMs?: number;
   readonly helloTimeoutMs?: number;
+  /** Saves the table as it changes, so it can be restored if the host's app restarts. */
+  readonly store?: TableStore;
+  /** A table saved before the host's app restarted, to continue. */
+  readonly restore?: { readonly members: readonly SavedMember[]; readonly entries: readonly LoggedEvent[] };
+  /** How long restored players have to reconnect before their seats are given up. */
+  readonly restoreGraceMs?: number;
 }
 
 /**
@@ -37,10 +44,17 @@ export class TableServer {
     readonly port: number,
     private readonly heartbeat: NodeJS.Timeout,
     private readonly helloTimeoutMs: number,
+    private readonly store: TableStore | undefined,
   ) {
     host.addListener({
-      memberJoined: (member) => this.broadcast({ t: 'member-joined', member }, member.id),
-      memberLeft: (member) => this.broadcast({ t: 'member-left', memberId: member.id }, member.id),
+      memberJoined: (member) => {
+        this.save(() => store?.membersChanged(host.savedMembers()));
+        this.broadcast({ t: 'member-joined', member }, member.id);
+      },
+      memberLeft: (member) => {
+        this.save(() => store?.membersChanged(host.savedMembers()));
+        this.broadcast({ t: 'member-left', memberId: member.id }, member.id);
+      },
     });
     sockets.on('connection', (ws) => this.accept(ws));
   }
@@ -56,10 +70,22 @@ export class TableServer {
       timers: nodeTimers,
       createId: randomId,
     });
-    const game = new HostGameLog(randomId(), Date.now, secureRandom);
+    const game = options.restore
+      ? HostGameLog.restore(randomId(), options.restore.entries, Date.now, secureRandom)
+      : new HostGameLog(randomId(), Date.now, secureRandom);
+    if (options.restore) host.restore(options.restore.members, options.restoreGraceMs ?? 5 * 60_000);
     const port = await listenWithFallback(server, options.preferredPort);
     const heartbeat = setInterval(() => table.checkHeartbeat(), options.heartbeatMs ?? 10_000);
-    const table = new TableServer(server, sockets, host, game, port, heartbeat, options.helloTimeoutMs ?? 10_000);
+    const table = new TableServer(
+      server,
+      sockets,
+      host,
+      game,
+      port,
+      heartbeat,
+      options.helloTimeoutMs ?? 10_000,
+      options.store,
+    );
     return table;
   }
 
@@ -67,11 +93,17 @@ export class TableServer {
     return this.host.members;
   }
 
-  async close(): Promise<void> {
+  /**
+   * Stops the table. With notify (the host closed the table on purpose) players are told it's over;
+   * without (the app is quitting), they keep trying to reconnect, so the host can resume the table.
+   */
+  async close({ notify = true }: { notify?: boolean } = {}): Promise<void> {
     clearInterval(this.heartbeat);
-    for (const client of this.sockets.clients) client.close(TableCloseCode.tableClosed, 'The host closed the table');
-    // Give the goodbyes a moment to go out before cutting the connections.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    if (notify) {
+      for (const client of this.sockets.clients) client.close(TableCloseCode.tableClosed, 'The host closed the table');
+      // Give the goodbyes a moment to go out before cutting the connections.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
     for (const client of this.sockets.clients) client.terminate();
     this.sockets.close();
     this.server.closeAllConnections();
@@ -120,8 +152,9 @@ export class TableServer {
           if (!author) break;
           const result = this.game.append(author, message.id, message.event);
           if (result.ok) {
-            // Everyone gets it, the author too: that's their confirmation.
             const { entry } = result;
+            this.save(() => this.store?.eventAdded(entry));
+            // Everyone gets it, the author too: that's their confirmation.
             this.broadcastAll({ t: 'events', logId: this.game.logId, from: entry.seq, events: [entry] });
           } else if (result.reason === 'refused') {
             send(ws, { t: 'refused', id: message.id });
@@ -159,6 +192,15 @@ export class TableServer {
   private broadcast(message: TableServerMessage, exceptMemberId: string): void {
     for (const [memberId, ws] of this.connections) {
       if (memberId !== exceptMemberId) send(ws, message);
+    }
+  }
+
+  /** Saving must never stop the game; if the disk is full, keep playing without it. */
+  private save(write: () => void): void {
+    try {
+      write();
+    } catch (error) {
+      console.error('[table] could not save the table', error);
     }
   }
 

@@ -79,6 +79,31 @@ export class HostGameLog {
   }
 
   /**
+   * Continues a saved log, e.g. after the host's app restarted. It gets a new log id, so every player
+   * replaces their copy with the host's: the saved log is the truth, even if it lost the last few changes.
+   */
+  static restore(
+    logId: string,
+    entries: readonly LoggedEvent[],
+    now: () => number,
+    random: () => number = Math.random,
+  ): HostGameLog {
+    const log = new HostGameLog(logId, now, random);
+    for (const entry of entries) {
+      if (entry.seq !== log.entries.length) break;
+      log.entries.push(entry);
+      log.byId.set(entry.id, entry);
+      if (entry.event.type === 'undo') log.undone.add(entry.event.target);
+    }
+    return log;
+  }
+
+  /** Every entry, oldest first. */
+  all(): readonly LoggedEvent[] {
+    return [...this.entries];
+  }
+
+  /**
    * Adds a player's action. A duplicate is one already in the log (a resend after a dropped connection);
    * a refused one isn't valid or isn't allowed, and the player who sent it should drop it.
    */

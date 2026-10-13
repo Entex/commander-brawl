@@ -62,6 +62,16 @@ export class Table {
     return player;
   }
 
+  /** Puts a known player back in their own seat, e.g. after the host's app restarted. */
+  seatAt(player: Player): Player {
+    const taken = [...this.players.values()].some((p) => p.seat === player.seat && p.id !== player.id);
+    if (taken) throw new Error(`Seat ${player.seat + 1} is already taken.`);
+    if (!this.players.has(player.id) && this.isFull) throw new TableFullError();
+    const seated: Player = { id: player.id, name: normalizePlayerName(player.name), seat: player.seat };
+    this.players.set(player.id, seated);
+    return seated;
+  }
+
   unseat(id: string): Player | undefined {
     const player = this.players.get(id);
     this.players.delete(id);

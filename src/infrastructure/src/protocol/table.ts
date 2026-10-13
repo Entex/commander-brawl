@@ -121,7 +121,8 @@ function parseObject(raw: string): Record<string, unknown> | null {
   }
 }
 
-function toLoggedEvent(value: unknown): LoggedEvent | null {
+/** Reads untrusted data as a game log entry. */
+export function toLoggedEvent(value: unknown): LoggedEvent | null {
   if (typeof value !== 'object' || value === null) return null;
   const { seq, id, at, by, event } = value as Record<string, unknown>;
   const gameEvent = toGameEvent(event);
@@ -138,7 +139,7 @@ function isShortString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 256;
 }
 
-function isPlayer(value: unknown): value is Player {
+export function isPlayer(value: unknown): value is Player {
   if (typeof value !== 'object' || value === null) return false;
   const { id, name, seat } = value as Record<string, unknown>;
   return isShortString(id) && isShortString(name) && isSeat(seat);

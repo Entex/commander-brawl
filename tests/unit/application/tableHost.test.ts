@@ -70,6 +70,24 @@ describe('TableHost', () => {
     expect(again.member.id).not.toBe(alice.member.id);
   });
 
+  it('brings players back to their own seats after the host restarts, if they come back in time', () => {
+    const alice = accepted(join('Alice'));
+    const bob = accepted(join('Bob'));
+    const saved = host.savedMembers();
+
+    const restarted = new TableHost({ secret: SECRET, reconnectGraceMs: GRACE_MS, timers, createId: () => 'new' });
+    const gone: string[] = [];
+    restarted.addListener({ memberJoined: () => undefined, memberLeft: (m) => gone.push(m.name) });
+    restarted.restore(saved, 60_000);
+
+    const back = restarted.join({ secret: SECRET, name: 'Bob', resumeToken: bob.resumeToken });
+    expect(back).toMatchObject({ ok: true, resumed: true, member: bob.member });
+    timers.advance(60_000);
+    expect(gone).toEqual(['Alice']);
+    expect(restarted.members.map((m) => m.seat)).toEqual([bob.member.seat]);
+    expect(alice.member.seat).toBe(0);
+  });
+
   it('frees the seat at once when a player leaves on purpose', () => {
     const alice = accepted(join('Alice'));
     host.leave(alice.member.id);

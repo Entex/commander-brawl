@@ -24,6 +24,8 @@ import { normalizeFingerprint } from './certificate';
 export interface TableClientOptions {
   readonly invite: Invite;
   readonly name: string;
+  /** Reclaims a seat from before, e.g. the host's own seat after its app restarted. */
+  readonly resumeToken?: string | undefined;
   /** Give up on one address after this long and rely on the others. */
   readonly connectTimeoutMs?: number;
   /** Treat the connection as dead if the host has been silent this long. */
@@ -60,7 +62,14 @@ export class TableClient implements TableSignaling {
   private silenceTimer: NodeJS.Timeout | null = null;
   private stopped = false;
 
-  constructor(private readonly options: TableClientOptions) {}
+  constructor(private readonly options: TableClientOptions) {
+    this.resumeToken = options.resumeToken;
+  }
+
+  /** Lets the host give this player the same seat back after a dropped connection. */
+  get currentResumeToken(): string | undefined {
+    return this.resumeToken;
+  }
 
   start(): void {
     void this.connect();
@@ -98,9 +107,16 @@ export class TableClient implements TableSignaling {
       : this.write({ t: 'sync', logId: message.logId, from: message.from });
   }
 
+  /** Leaves the table on purpose: the seat is given up at once. */
   close(): void {
     if (this.stopped) return;
     this.write({ t: 'bye' });
+    this.stop('closed', undefined);
+  }
+
+  /** Drops the connection without leaving, e.g. when the app quits. The seat is kept for a while. */
+  disconnect(): void {
+    if (this.stopped) return;
     this.stop('closed', undefined);
   }
 

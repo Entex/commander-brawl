@@ -21,6 +21,12 @@ export interface JoinRequest {
   readonly resumeToken?: string | undefined;
 }
 
+/** A seated player as the host saves them, so they can reclaim their seat after the host's app restarts. */
+export interface SavedMember {
+  readonly player: Player;
+  readonly resumeToken: string;
+}
+
 export type JoinRejection = 'bad-secret' | 'table-full' | 'bad-name';
 
 export type JoinResult =
@@ -46,6 +52,23 @@ export class TableHost {
 
   get members(): readonly Player[] {
     return this.table.all;
+  }
+
+  savedMembers(): SavedMember[] {
+    return this.table.all.map((player) => ({ player, resumeToken: this.tokenByMember.get(player.id)! }));
+  }
+
+  /**
+   * Brings back the players from before the host's app restarted. Their apps reconnect with their
+   * resume tokens and get their own seats back; anyone who doesn't come back within graceMs is let go.
+   */
+  restore(members: readonly SavedMember[], graceMs: number): void {
+    for (const member of members) {
+      const player = this.table.seatAt(member.player);
+      this.memberByToken.set(member.resumeToken, player.id);
+      this.tokenByMember.set(player.id, member.resumeToken);
+      this.scheduleRemoval(player.id, graceMs);
+    }
   }
 
   addListener(listener: TableHostListener): () => void {
@@ -84,10 +107,14 @@ export class TableHost {
     if (!this.table.get(memberId) || this.pendingRemovals.has(memberId)) {
       return;
     }
+    this.scheduleRemoval(memberId, this.options.reconnectGraceMs);
+  }
+
+  private scheduleRemoval(memberId: string, ms: number): void {
     const cancel = this.options.timers.setTimeout(() => {
       this.pendingRemovals.delete(memberId);
       this.remove(memberId);
-    }, this.options.reconnectGraceMs);
+    }, ms);
     this.pendingRemovals.set(memberId, cancel);
   }
 

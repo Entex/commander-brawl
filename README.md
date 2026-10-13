@@ -33,6 +33,7 @@ The app recovers from these problems by itself:
 - **The phone drops off Wi-Fi or its screen locks.** Only your camera pauses. The phone reconnects when it's back.
 - **The connection to the host drops.** Video between players keeps running, and your seat is held for 30 seconds.
 - **A video link fails.** It restarts, first gently and then from scratch.
+- **The host's app crashes or is closed by accident.** The host opens it again and clicks _Resume table_. Friends' apps are still trying to reconnect, so they come back by themselves, to the same seats and the same game. (_Close table_ in the menu ends the table for everyone.)
 
 **Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". _New game_ (click twice) resets everything.
 

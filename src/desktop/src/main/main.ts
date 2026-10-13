@@ -54,11 +54,12 @@ async function start(): Promise<void> {
     identity,
     preferredPort: env.tablePort,
     useUpnp: env.useUpnp,
+    tableDir: join(dataDir, 'hosted-table'),
     emit: (event) => mainWindow?.webContents.send(Channels.tableEvent, event),
     emitGame: (view) => mainWindow?.webContents.send(Channels.gameUpdate, view),
   });
   cleanup = async () => {
-    await Promise.all([table.leave(), phone.close()]);
+    await Promise.all([table.shutdown(), phone.close()]);
   };
 
   registerIpc(table, phone);
@@ -102,6 +103,9 @@ function registerIpc(table: TableService, phone: PhoneLinkService): void {
   const config: RendererConfig = { version: app.getVersion(), iceServers: env.localOnly ? [] : null };
   handle(Channels.config, () => config);
   handle(Channels.tableHost, (name) => table.host(requireString(name)));
+  handle(Channels.tableSaved, () => table.savedTable());
+  handle(Channels.tableResume, () => table.resume());
+  handle(Channels.tableDiscardSaved, () => table.discardSavedTable());
   handle(Channels.tableJoin, (invite, name) => table.join(requireString(invite), requireString(name)));
   handle(Channels.tableLeave, () => table.leave());
   handle(Channels.tableSnapshot, () => table.snapshot());
