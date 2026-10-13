@@ -108,3 +108,26 @@ test('a player who joined can quit right away', async () => {
   await friend.app.close();
   expect(Date.now() - started).toBeLessThan(5_000);
 });
+
+test('life totals are shared, and everyone sees who changed what', async () => {
+  const host = await launch('Host');
+  await host.page.getByTestId('host').click();
+  const invite = await host.page.getByTestId('invite-code').inputValue();
+  const friend = await launch('Friend');
+  await friend.page.getByTestId('invite-input').fill(invite);
+  await friend.page.getByTestId('join').click();
+  await expectVideoFrom(friend.page, 'Host');
+
+  // The friend takes 3 life from the host. Quick clicks are grouped into one change.
+  const hostLifeOnFriend = friend.page.getByTestId('life-0');
+  for (let i = 0; i < 3; i++) await hostLifeOnFriend.getByRole('button', { name: 'Lose 1 life' }).click();
+
+  await expect(host.page.getByTestId('life-total-0')).toHaveText('37');
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('37');
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend: Host −3 life');
+
+  await host.page.getByRole('button', { name: 'New game' }).click();
+  await host.page.getByRole('button', { name: 'Start a new game?' }).click();
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('40');
+  await expect(friend.page.getByText('Game 2')).toBeVisible();
+});

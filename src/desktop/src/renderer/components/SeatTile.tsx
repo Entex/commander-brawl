@@ -1,10 +1,14 @@
 import type { LinkStats, SeatView } from '@commander-brawl/application';
 import { useEffect, useState } from 'react';
+import { LifeCounter } from './LifeCounter';
 import { VideoView } from './VideoView';
 
 interface SeatTileProps {
   readonly seat: SeatView<MediaStreamTrack>;
   readonly showStats: boolean;
+  /** Null until the game state has arrived. */
+  readonly life: number | null;
+  onLifeChange(amount: number): void;
   getStats(memberId: string): Promise<LinkStats | null>;
 }
 
@@ -15,7 +19,7 @@ const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
   failed: 'Connection lost, retrying…',
 };
 
-export function SeatTile({ seat, showStats, getStats }: SeatTileProps) {
+export function SeatTile({ seat, showStats, life, onLifeChange, getStats }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const stats = useLinkStats(seat, showStats, getStats);
   const status = LINK_TEXT[seat.link];
@@ -36,6 +40,7 @@ export function SeatTile({ seat, showStats, getStats }: SeatTileProps) {
           Flip
         </button>
       </div>
+      {life !== null && <LifeCounter seat={seat.player.seat} life={life} onChange={onLifeChange} />}
       {showStats && stats && <StatsLine stats={stats} />}
     </div>
   );

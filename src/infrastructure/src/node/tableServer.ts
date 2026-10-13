@@ -1,4 +1,4 @@
-import { TableHost } from '@commander-brawl/application';
+import { HostGameLog, TableHost } from '@commander-brawl/application';
 import type { Player } from '@commander-brawl/domain';
 import { createServer, type Server } from 'node:https';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -33,6 +33,7 @@ export class TableServer {
     private readonly server: Server,
     private readonly sockets: WebSocketServer,
     private readonly host: TableHost,
+    private readonly game: HostGameLog,
     readonly port: number,
     private readonly heartbeat: NodeJS.Timeout,
     private readonly helloTimeoutMs: number,
@@ -55,9 +56,10 @@ export class TableServer {
       timers: nodeTimers,
       createId: randomId,
     });
+    const game = new HostGameLog(randomId(), Date.now);
     const port = await listenWithFallback(server, options.preferredPort);
     const heartbeat = setInterval(() => table.checkHeartbeat(), options.heartbeatMs ?? 10_000);
-    const table = new TableServer(server, sockets, host, port, heartbeat, options.helloTimeoutMs ?? 10_000);
+    const table = new TableServer(server, sockets, host, game, port, heartbeat, options.helloTimeoutMs ?? 10_000);
     return table;
   }
 
@@ -113,6 +115,18 @@ export class TableServer {
           if (target) send(target, { t: 'signal', from: memberId, data: message.data });
           break;
         }
+        case 'event': {
+          const author = this.host.members.find((m) => m.id === memberId);
+          const entry = author ? this.game.append(author, message.id, message.event) : null;
+          // Everyone gets it, the author too: that's their confirmation.
+          if (entry) this.broadcastAll({ t: 'events', logId: this.game.logId, from: entry.seq, events: [entry] });
+          break;
+        }
+        case 'sync': {
+          const batch = this.game.batchFor(message.logId, message.from);
+          send(ws, { t: 'events', ...batch });
+          break;
+        }
         case 'bye':
           this.connections.delete(memberId);
           this.host.leave(memberId);
@@ -139,6 +153,13 @@ export class TableServer {
   private broadcast(message: TableServerMessage, exceptMemberId: string): void {
     for (const [memberId, ws] of this.connections) {
       if (memberId !== exceptMemberId) send(ws, message);
+    }
+  }
+
+  private broadcastAll(message: TableServerMessage): void {
+    const data = JSON.stringify(message);
+    for (const ws of this.connections.values()) {
+      if (ws.readyState === ws.OPEN) ws.send(data);
     }
   }
 

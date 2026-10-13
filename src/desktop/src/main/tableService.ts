@@ -1,10 +1,18 @@
-import { decodeInvite, encodeInvite, type Invite, type SignalingEvent } from '@commander-brawl/application';
-import { normalizePlayerName } from '@commander-brawl/domain';
+import {
+  decodeInvite,
+  encodeInvite,
+  type GameSync,
+  type GameView,
+  type Invite,
+  type SignalingEvent,
+} from '@commander-brawl/application';
+import { normalizePlayerName, toGameEvent } from '@commander-brawl/domain';
 import {
   globalIpv6Addresses,
   lanAddresses,
   openRouterPort,
   randomId,
+  syncGame,
   TableClient,
   TableServer,
   type PortMappingResult,
@@ -18,12 +26,14 @@ export interface TableServiceOptions {
   /** Set to false to skip asking the router to open a port (tests, or when it's forwarded manually). */
   readonly useUpnp: boolean;
   readonly emit: (event: SignalingEvent) => void;
+  readonly emitGame: (view: GameView) => void;
 }
 
 /** Hosting or joining a table. The host is a player too: it connects to its own table like everyone else. */
 export class TableService {
   private server: TableServer | null = null;
   private client: TableClient | null = null;
+  private game: GameSync | null = null;
   private releasePort: (() => Promise<void>) | null = null;
 
   constructor(private readonly options: TableServiceOptions) {}
@@ -67,6 +77,7 @@ export class TableService {
   async leave(): Promise<void> {
     this.client?.close();
     this.client = null;
+    this.game = null;
     const releasePort = this.releasePort;
     this.releasePort = null;
     const server = this.server;
@@ -82,11 +93,26 @@ export class TableService {
     return this.client?.snapshot() ?? [];
   }
 
+  gameView(): GameView | null {
+    return this.game?.getView() ?? null;
+  }
+
+  /** A change from the UI. It comes from the renderer, so check it like anything else from outside. */
+  submitGameEvent(raw: unknown): void {
+    const event = toGameEvent(raw);
+    if (event) this.game?.submit(event);
+  }
+
   private connect(invite: Invite, name: string): void {
     const client = new TableClient({ invite, name });
+    const game = syncGame(client);
     this.client = client;
+    this.game = game;
     client.subscribe((event) => {
       if (this.client === client) this.options.emit(event);
+    });
+    game.subscribe((view) => {
+      if (this.game === game) this.options.emitGame(view);
     });
     client.start();
   }

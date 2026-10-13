@@ -1,4 +1,5 @@
-import type { SignalingEvent } from '@commander-brawl/application';
+import type { GameView, SignalingEvent } from '@commander-brawl/application';
+import type { GameEvent } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 /** How friends outside your home can reach the table you host. */
@@ -46,6 +47,12 @@ export interface DesktopApi {
     snapshot(): Promise<SignalingEvent[]>;
     onEvent(listener: (event: SignalingEvent) => void): () => void;
   };
+  game: {
+    /** The current game, or null when you're not at a table. */
+    view(): Promise<GameView | null>;
+    submit(event: GameEvent): void;
+    onView(listener: (view: GameView) => void): () => void;
+  };
   phone: {
     info(): Promise<PhoneLinkInfo>;
     send(message: DesktopToPhone): void;
@@ -61,6 +68,9 @@ export const Channels = {
   tableSend: 'table:send',
   tableSnapshot: 'table:snapshot',
   tableEvent: 'table:event',
+  gameView: 'game:view',
+  gameSubmit: 'game:submit',
+  gameUpdate: 'game:update',
   phoneInfo: 'phone:info',
   phoneSend: 'phone:send',
   phoneEvent: 'phone:event',

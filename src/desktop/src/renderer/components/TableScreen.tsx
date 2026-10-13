@@ -1,10 +1,12 @@
-import { TableSession, type TableSessionState } from '@commander-brawl/application';
+import { TableSession, type GameView, type TableSessionState } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
-import { MAX_SEATS } from '@commander-brawl/domain';
+import { MAX_SEATS, STARTING_LIFE } from '@commander-brawl/domain';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
+import { describeEvent } from '../describeEvent';
 import type { CameraState } from '../useCamera';
+import { submitGameEvent, useGame } from '../useGame';
 import { EmptySeat, SeatTile } from './SeatTile';
 
 interface TableScreenProps {
@@ -21,6 +23,7 @@ const MAX_BITRATE_BPS = 3_000_000;
 export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: TableScreenProps) {
   const session = useTableSession(config);
   const state = useSessionState(session);
+  const game = useGame();
   const [showStats, setShowStats] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -44,6 +47,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       <header className="toolbar">
         <div className="toolbar-group">
           <strong>Commander Brawl</strong>
+          {game && <span className="hint">Game {game.state.number}</span>}
           {host && (
             <>
               <button onClick={() => void copyInvite()} data-testid="copy-invite">
@@ -53,7 +57,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             </>
           )}
         </div>
+        <LastChange game={game} state={state} />
         <div className="toolbar-group">
+          <NewGameButton onConfirm={() => submitGameEvent({ type: 'new-game', startingLife: STARTING_LIFE })} />
           <button onClick={onOpenCamera}>Camera</button>
           <button onClick={() => setShowStats((v) => !v)} aria-pressed={showStats}>
             Stats
@@ -64,14 +70,21 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         </div>
       </header>
 
-      <ConnectionBanner state={state} onLeave={onLeave} />
+      <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
 
       <main className="seats">
         {seats.map((seat, index) =>
           seat ? (
-            <SeatTile key={seat.player.id} seat={seat} showStats={showStats} getStats={getStats} />
+            <SeatTile
+              key={seat.player.id}
+              seat={seat}
+              showStats={showStats}
+              life={game?.state.seats[seat.player.seat]?.life ?? null}
+              onLifeChange={(amount) => submitGameEvent({ type: 'life-changed', seat: seat.player.seat, amount })}
+              getStats={getStats}
+            />
           ) : (
             <EmptySeat key={`empty-${index}`} index={index} />
           ),
@@ -100,14 +113,54 @@ function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
   );
 }
 
-function ConnectionBanner({ state, onLeave }: { readonly state: TableSessionState<MediaStreamTrack>; onLeave(): void }) {
+function LastChange({ game, state }: { readonly game: GameView | null; readonly state: TableSessionState<MediaStreamTrack> }) {
+  const last = game?.recent.at(-1);
+  if (!last) return null;
+  return (
+    <span className="last-change" data-testid="last-change">
+      {describeEvent(last, state.seats)}
+    </span>
+  );
+}
+
+/** Asks for a second click, so a stray click doesn't wipe the game. */
+function NewGameButton({ onConfirm }: { onConfirm(): void }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 3_000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  return (
+    <button
+      className={armed ? 'danger armed' : undefined}
+      onClick={() => {
+        setArmed(!armed);
+        if (armed) onConfirm();
+      }}
+    >
+      {armed ? 'Start a new game?' : 'New game'}
+    </button>
+  );
+}
+
+interface ConnectionBannerProps {
+  readonly state: TableSessionState<MediaStreamTrack>;
+  /** Changes made while the connection was down, still waiting to reach the host. */
+  readonly unconfirmed: number;
+  onLeave(): void;
+}
+
+function ConnectionBanner({ state, unconfirmed, onLeave }: ConnectionBannerProps) {
+  const waiting =
+    unconfirmed > 0 ? ` ${unconfirmed === 1 ? '1 change' : `${unconfirmed} changes`} will be sent when it's back.` : '';
   switch (state.connection) {
     case 'connected':
       return null;
     case 'connecting':
       return <div className="banner">Connecting to the table…{state.connectionReason ? ` (${state.connectionReason})` : ''}</div>;
     case 'reconnecting':
-      return <div className="banner">Reconnecting to the host… Video between players keeps running.</div>;
+      return <div className="banner">Reconnecting to the host… Video between players keeps running.{waiting}</div>;
     case 'closed':
       return (
         <div className="banner banner-error">

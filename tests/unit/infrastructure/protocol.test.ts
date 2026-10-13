@@ -40,6 +40,40 @@ describe('table protocol', () => {
   });
 });
 
+describe('game messages', () => {
+  const entry = {
+    seq: 0,
+    id: 'e1',
+    at: 1_700_000_000_000,
+    by: { id: 'a', name: 'Alice', seat: 0 },
+    event: { type: 'life-changed', seat: 1, amount: -3 },
+  };
+
+  it('reads game events and sync requests from players', () => {
+    expect(parseClientMessage(JSON.stringify({ t: 'event', id: 'e1', event: { anything: true } }))).toEqual({
+      t: 'event',
+      id: 'e1',
+      event: { anything: true },
+    });
+    expect(parseClientMessage('{"t":"sync","logId":null,"from":0}')).toEqual({ t: 'sync', logId: null, from: 0 });
+    expect(parseClientMessage('{"t":"sync","logId":"x","from":-1}')).toBeNull();
+  });
+
+  it('reads log entries from the host', () => {
+    expect(parseServerMessage(JSON.stringify({ t: 'events', logId: 'l', from: 0, events: [entry] }))).toEqual({
+      t: 'events',
+      logId: 'l',
+      from: 0,
+      events: [entry],
+    });
+  });
+
+  it('rejects a batch with an invalid entry', () => {
+    const broken = { ...entry, event: { type: 'life-changed', seat: 1, amount: 0 } };
+    expect(parseServerMessage(JSON.stringify({ t: 'events', logId: 'l', from: 0, events: [entry, broken] }))).toBeNull();
+  });
+});
+
 describe('phone protocol', () => {
   it('accepts offers and candidates', () => {
     expect(parsePhoneToDesktop('{"t":"offer","session":2,"sdp":"v=0"}')).toEqual({ t: 'offer', session: 2, sdp: 'v=0' });

@@ -33,6 +33,12 @@ The app recovers from these problems by itself:
 - **The connection to the host drops.** Video between players keeps running, and your seat is held for 30 seconds.
 - **A video link fails.** It restarts, first gently and then from scratch.
 
+**Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". *New game* (click twice) resets everything.
+
+Every change goes into a game log kept by the host, and each player's app has a full copy of it.
+- If your connection drops, your changes wait and are sent when it's back.
+- A player who reconnects, or joins late, catches up on everything they missed.
+
 Click *Stats* to see resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development
@@ -55,8 +61,9 @@ The code follows clean architecture. Inner layers never depend on outer ones, an
 
 ```
 src/
-  domain/          Game rules: seats, players. No dependencies.
+  domain/          Game rules: seats, players, game events and the state they add up to. No dependencies.
   application/     Use cases and the interfaces they need: TableHost (who sits where),
+                   HostGameLog and GameSync (one shared, ordered game log),
                    TableSession (a direct video link to every other player), invite codes.
   infrastructure/
     protocol/      Messages between host and players, and between phone and computer.
@@ -79,7 +86,14 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 
 - **The phone talks only to its own player's computer**, over the local network. It never connects to other players or decodes their video.
 - **Your computer sends the phone's video to each of the other players**, re-encoded separately for each one so every connection gets the quality it can handle.
-- **The host only introduces players to each other.** Video does not pass through the host.
+- **The host only introduces players to each other and keeps the game log in order.** Video does not pass through the host.
+
+### How the game stays in sync
+
+- **Every change is an event** ("Alex −3 life"). The game state is what you get by applying the events in order (`src/domain/src/game.ts`).
+- **Changes are relative, not absolute,** so two players changing the same total at the same moment both count.
+- **The host gives each event its place in the log** and sends it to everyone, including the player who made it; that's their confirmation.
+- **Your own changes show at once** and stay queued until the host confirms them. Each change has an id, so resending after a dropped connection never applies it twice.
 
 ### Settings for development and tests
 

@@ -2,7 +2,7 @@ import { createServer, connect, type AddressInfo, type Server, type Socket } fro
 
 /**
  * A TCP proxy in front of a server, standing in for the internet between a player and the host.
- * cut() drops every connection like a Wi-Fi hiccup; block() also refuses new ones like an outage.
+ * cut() drops every connection like a Wi-Fi hiccup; block() also refuses new ones like an outage, until unblock().
  */
 export class FlakyNetwork {
   private readonly sockets = new Set<Socket>();
@@ -28,6 +28,10 @@ export class FlakyNetwork {
   block(): void {
     this.blocked = true;
     this.cut();
+  }
+
+  unblock(): void {
+    this.blocked = false;
   }
 
   close(): Promise<void> {

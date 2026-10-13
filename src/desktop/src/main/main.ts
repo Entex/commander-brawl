@@ -43,6 +43,7 @@ async function start(): Promise<void> {
     preferredPort: env.tablePort,
     useUpnp: env.useUpnp,
     emit: (event) => mainWindow?.webContents.send(Channels.tableEvent, event),
+    emitGame: (view) => mainWindow?.webContents.send(Channels.gameUpdate, view),
   });
   cleanup = async () => {
     await Promise.all([table.leave(), phone.close()]);
@@ -92,10 +93,12 @@ function registerIpc(table: TableService, phone: PhoneLinkService): void {
   handle(Channels.tableJoin, (invite, name) => table.join(requireString(invite), requireString(name)));
   handle(Channels.tableLeave, () => table.leave());
   handle(Channels.tableSnapshot, () => table.snapshot());
+  handle(Channels.gameView, () => table.gameView());
   handle(Channels.phoneInfo, () => phone.info());
   on(Channels.tableSend, (to, data) => {
     if (typeof to === 'string') table.send(to, data);
   });
+  on(Channels.gameSubmit, (event) => table.submitGameEvent(event));
   on(Channels.phoneSend, (message) => phone.send(message as never));
 }
 

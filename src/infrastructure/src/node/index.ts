@@ -1,5 +1,6 @@
 export { createIdentity, fingerprintOf, loadOrCreateIdentity, normalizeFingerprint } from './certificate';
 export type { TlsIdentity } from './certificate';
+export { syncGame } from './gameConnection';
 export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses } from './network';
 export { PhoneLinkServer } from './phoneLinkServer';
 export type { PhoneLinkEvents, PhoneLinkServerOptions } from './phoneLinkServer';

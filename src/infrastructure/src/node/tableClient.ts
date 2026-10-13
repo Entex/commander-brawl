@@ -1,5 +1,7 @@
 import type {
+  GameSyncMessage,
   Invite,
+  LogBatch,
   SignalingConnectionState,
   SignalingEvent,
   TableSignaling,
@@ -43,6 +45,7 @@ const REJECTION_MESSAGES: Record<TableRejection, string> = {
  */
 export class TableClient implements TableSignaling {
   private readonly listeners = new Set<(event: SignalingEvent) => void>();
+  private readonly gameListeners = new Set<(batch: LogBatch) => void>();
   private readonly members = new Map<string, Player>();
   private socket: WebSocket | null = null;
   private selfId: string | null = null;
@@ -76,6 +79,20 @@ export class TableClient implements TableSignaling {
 
   send(to: string, data: unknown): void {
     this.write({ t: 'signal', to, data });
+  }
+
+  /** Game log entries from the host. */
+  subscribeGame(listener: (batch: LogBatch) => void): Unsubscribe {
+    this.gameListeners.add(listener);
+    return () => this.gameListeners.delete(listener);
+  }
+
+  /** Sends a game message to the host. Returns false until we're seated, or while reconnecting. */
+  sendGame(message: GameSyncMessage): boolean {
+    if (this.connection !== 'connected') return false;
+    return message.kind === 'event'
+      ? this.write({ t: 'event', id: message.id, event: message.event })
+      : this.write({ t: 'sync', logId: message.logId, from: message.from });
   }
 
   close(): void {
@@ -193,6 +210,9 @@ export class TableClient implements TableSignaling {
       case 'signal':
         this.emit({ type: 'signal', from: message.from, data: message.data });
         break;
+      case 'events':
+        for (const listener of this.gameListeners) listener({ logId: message.logId, from: message.from, events: message.events });
+        break;
       case 'rejected':
         this.stop('closed', REJECTION_MESSAGES[message.reason]);
         break;
@@ -245,8 +265,10 @@ export class TableClient implements TableSignaling {
     this.setConnection(state, reason);
   }
 
-  private write(message: TableClientMessage): void {
-    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(message));
+  private write(message: TableClientMessage): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.socket.send(JSON.stringify(message));
+    return true;
   }
 
   private setConnection(state: SignalingConnectionState, reason: string | undefined): void {

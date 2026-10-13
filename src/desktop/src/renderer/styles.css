@@ -316,6 +316,68 @@ textarea {
   font-family: ui-monospace, monospace;
 }
 
+button.armed {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.last-change {
+  flex: 1;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 1rem;
+}
+
+.life {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgb(0 0 0 / 0.7);
+  padding: 0.25rem 0.4rem;
+  border-radius: 8px;
+}
+
+.life button {
+  background: transparent;
+  border-color: transparent;
+  padding: 0.2rem 0.45rem;
+  font-weight: 600;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.seat:hover .life button {
+  opacity: 1;
+}
+
+.life-total {
+  font-size: 2rem;
+  font-weight: 700;
+  min-width: 2.6ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.life-draft {
+  position: absolute;
+  top: -1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-raised);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
 /* Camera panel */
 
 .overlay {
