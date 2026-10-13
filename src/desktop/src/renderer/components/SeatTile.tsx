@@ -4,11 +4,15 @@ import {
   PLAYER_COUNTERS,
   POISON_LIMIT,
   commanderTax,
+  counterValue,
+  hasReachedLoss,
   isOut,
   lossReason,
+  startValue,
   type CommanderIndex,
+  type CounterColor,
   type GameState,
-  type SeatGameState,
+  type SeatIndex,
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
@@ -53,10 +57,10 @@ export function SeatTile({ seat, players, game, showStats, getStats }: SeatTileP
         {status && <span className="badge badge-warn">{status}</span>}
       </div>
       {game && state && <SeatChips seat={seat} game={game} players={players} />}
-      {game && state && isOut(state) && (
+      {game && state && isOut(game, index) && (
         <div className="seat-out" data-testid={`out-${index}`}>
           <strong>Out</strong>
-          <span>{outReason(state, game, players)}</span>
+          <span>{outReason(game, index, players)}</span>
         </div>
       )}
       <div className="seat-actions">
@@ -94,7 +98,8 @@ interface SeatChipsProps {
 function SeatChips({ seat, game, players }: SeatChipsProps) {
   const state = game.seats[seat.player.seat];
   if (!state) return null;
-  const chips: { key: string; label: string; value: string; danger?: boolean; title: string }[] = [];
+  const chips: { key: string; label: string; value: string; danger?: boolean; color?: CounterColor; title: string }[] =
+    [];
 
   for (const counter of PLAYER_COUNTERS) {
     const value = state.counters[counter];
@@ -105,6 +110,20 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
         value: String(value),
         danger: counter === 'poison' && value >= POISON_LIMIT,
         title: COUNTER_NAMES[counter],
+      });
+    }
+  }
+  for (const counter of game.customCounters) {
+    if (counter.scope !== 'player') continue;
+    const value = counterValue(counter, state.custom);
+    if (value !== startValue(counter)) {
+      chips.push({
+        key: `custom-${counter.id}`,
+        label: counter.name,
+        value: String(value),
+        danger: hasReachedLoss(counter, value),
+        color: counter.color,
+        title: counter.name,
       });
     }
   }
@@ -136,6 +155,7 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
     <div className="seat-chips" data-testid={`chips-${seat.player.seat}`}>
       {chips.map((chip) => (
         <span key={chip.key} className={`chip${chip.danger ? ' chip-danger' : ''}`} title={chip.title}>
+          {chip.color && <span className={`swatch color-${chip.color}`} />}
           {chip.label} <b>{chip.value}</b>
         </span>
       ))}
@@ -143,9 +163,9 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
   );
 }
 
-function outReason(state: SeatGameState, game: GameState, players: Players): string {
-  const reason = lossReason(state);
-  return reason && state.outOverride === null ? describeLoss(reason, game, players) : 'Marked as out';
+function outReason(game: GameState, seat: SeatIndex, players: Players): string {
+  const reason = lossReason(game, seat);
+  return reason && game.seats[seat]?.outOverride === null ? describeLoss(reason, game, players) : 'Marked as out';
 }
 
 export function EmptySeat({ index }: { readonly index: number }) {

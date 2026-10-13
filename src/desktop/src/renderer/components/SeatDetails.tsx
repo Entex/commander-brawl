@@ -4,9 +4,11 @@ import {
   MAX_SPEED,
   PLAYER_COUNTERS,
   commanderTax,
+  counterValue,
   isOut,
   lossReason,
   type CommanderIndex,
+  type CounterColor,
   type GameState,
   type SeatIndex,
 } from '@commander-brawl/domain';
@@ -75,10 +77,24 @@ export function SeatDetails({ seat, game, players, onClose }: SeatDetailsProps) 
             label={COUNTER_NAMES[counter]}
             unit={COUNTER_NAMES[counter].toLowerCase()}
             value={state.counters[counter]}
-            max={counter === 'speed' ? MAX_SPEED : undefined}
+            max={counter === 'speed' ? MAX_SPEED : null}
             onChange={(amount) => submitGameEvent({ type: 'counter-changed', seat, counter, amount })}
           />
         ))}
+        {game.customCounters
+          .filter((counter) => counter.scope === 'player')
+          .map((counter) => (
+            <Stepper
+              key={counter.id}
+              label={counter.name}
+              unit={counter.name}
+              color={counter.color}
+              value={counterValue(counter, state.custom)}
+              min={counter.min}
+              max={counter.max}
+              onChange={(amount) => submitGameEvent({ type: 'custom-counter-changed', id: counter.id, seat, amount })}
+            />
+          ))}
       </section>
 
       <section>
@@ -157,23 +173,29 @@ interface StepperProps {
   /** Finishes the button labels: "Add 1 poison", "Remove 1 damage from Atraxa". */
   readonly unit: string;
   readonly value: number;
-  readonly max?: number | undefined;
+  /** Null means no limit. */
+  readonly min?: number | null;
+  readonly max?: number | null;
+  readonly color?: CounterColor;
   /** Offer +5 as well, for things that come in big chunks. */
   readonly big?: boolean;
   onChange(amount: number): void;
 }
 
-function Stepper({ label, unit, value, max, big = false, onChange }: StepperProps) {
+export function Stepper({ label, unit, value, min = 0, max = null, color, big = false, onChange }: StepperProps) {
   const { draft, add } = useGroupedChange(onChange);
   const shown = value + draft;
   return (
     <div className="stepper-row">
-      <span className="stepper-label">{label}</span>
-      <button aria-label={`Remove 1 ${unit}`} disabled={shown <= 0} onClick={() => add(-1)}>
+      <span className="stepper-label">
+        {color && <span className={`swatch color-${color}`} />}
+        {label}
+      </span>
+      <button aria-label={`Remove 1 ${unit}`} disabled={min !== null && shown <= min} onClick={() => add(-1)}>
         −1
       </button>
       <span className="stepper-value">{shown}</span>
-      <button aria-label={`Add 1 ${unit}`} disabled={max !== undefined && shown >= max} onClick={() => add(1)}>
+      <button aria-label={`Add 1 ${unit}`} disabled={max !== null && shown >= max} onClick={() => add(1)}>
         +1
       </button>
       {big && (
@@ -197,7 +219,7 @@ function OutStatus({
 }) {
   const state = game.seats[seat];
   if (!state) return null;
-  const reason = lossReason(state);
+  const reason = lossReason(game, seat);
   const set = (value: boolean | null) => submitGameEvent({ type: 'out-set', seat, out: value });
 
   if (state.outOverride === false && reason) {
@@ -208,7 +230,7 @@ function OutStatus({
       </div>
     );
   }
-  if (isOut(state)) {
+  if (isOut(game, seat)) {
     return (
       <div className="status-row">
         <span>

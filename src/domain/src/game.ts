@@ -1,3 +1,11 @@
+import {
+  MAX_CUSTOM_COUNTERS,
+  clampToCounter,
+  counterValue,
+  hasReachedLoss,
+  toCustomCounter,
+  type CustomCounter,
+} from './customCounters';
 import { MAX_SEATS, type SeatIndex } from './table';
 
 export const STARTING_LIFE = 40;
@@ -32,6 +40,8 @@ export interface SeatGameState {
   readonly counters: Readonly<Record<PlayerCounter, number>>;
   /** How many times each commander has been cast this game. */
   readonly commanderCasts: readonly number[];
+  /** Values of the table's per-player custom counters, by counter id. Missing means the counter's start value. */
+  readonly custom: Readonly<Record<string, number>>;
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -39,6 +49,10 @@ export interface GameState {
   /** Counts the games played at this table, starting at 1. */
   readonly number: number;
   readonly seats: readonly SeatGameState[];
+  /** Counters the players made up. They stay for the next game; their values start over. */
+  readonly customCounters: readonly CustomCounter[];
+  /** Values of the table-wide custom counters, by counter id. */
+  readonly tableCounters: Readonly<Record<string, number>>;
 }
 
 /**
@@ -69,12 +83,23 @@ export type GameEvent =
       readonly commander: CommanderIndex;
       readonly amount: number;
     }
+  /** Adds a custom counter, or replaces the one with the same id. */
+  | { readonly type: 'custom-counter-saved'; readonly counter: CustomCounter }
+  | { readonly type: 'custom-counter-removed'; readonly id: string }
+  /** Changes a custom counter, for one player or (seat null) the whole table. */
+  | {
+      readonly type: 'custom-counter-changed';
+      readonly id: string;
+      readonly seat: SeatIndex | null;
+      readonly amount: number;
+    }
   | { readonly type: 'new-game'; readonly startingLife: number };
 
 export type LossReason =
   | { readonly kind: 'life' }
   | { readonly kind: 'poison' }
-  | { readonly kind: 'commander-damage'; readonly from: SeatIndex; readonly commander: CommanderIndex };
+  | { readonly kind: 'commander-damage'; readonly from: SeatIndex; readonly commander: CommanderIndex }
+  | { readonly kind: 'custom-counter'; readonly counter: CustomCounter };
 
 export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: GameState): GameState {
   return {
@@ -87,7 +112,10 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       outOverride: null,
       counters: { poison: 0, energy: 0, experience: 0, rad: 0, speed: 0 },
       commanderCasts: Array.from({ length: MAX_COMMANDERS }, () => 0),
+      custom: {},
     })),
+    customCounters: previous?.customCounters ?? [],
+    tableCounters: {},
   };
 }
 
@@ -123,6 +151,37 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
           c === event.commander ? Math.max(0, casts + event.amount) : casts,
         ),
       }));
+    case 'custom-counter-saved': {
+      const exists = state.customCounters.some((c) => c.id === event.counter.id);
+      if (!exists && state.customCounters.length >= MAX_CUSTOM_COUNTERS) return state;
+      const customCounters = exists
+        ? state.customCounters.map((c) => (c.id === event.counter.id ? event.counter : c))
+        : [...state.customCounters, event.counter];
+      // New limits apply to values that are already there.
+      const fit = (values: Readonly<Record<string, number>>) =>
+        event.counter.id in values
+          ? { ...values, [event.counter.id]: clampToCounter(event.counter, values[event.counter.id]!) }
+          : values;
+      return {
+        ...state,
+        customCounters,
+        tableCounters: fit(state.tableCounters),
+        seats: state.seats.map((seat) => ({ ...seat, custom: fit(seat.custom) })),
+      };
+    }
+    case 'custom-counter-removed':
+      return { ...state, customCounters: state.customCounters.filter((c) => c.id !== event.id) };
+    case 'custom-counter-changed': {
+      const counter = state.customCounters.find((c) => c.id === event.id);
+      if (!counter || (counter.scope === 'table') !== (event.seat === null)) return state;
+      const change = (values: Readonly<Record<string, number>>) => ({
+        ...values,
+        [counter.id]: clampToCounter(counter, counterValue(counter, values) + event.amount),
+      });
+      return event.seat === null
+        ? { ...state, tableCounters: change(state.tableCounters) }
+        : updateSeat(state, event.seat, (seat) => ({ ...seat, custom: change(seat.custom) }));
+    }
     case 'new-game':
       return newGame(event.startingLife, state.number + 1, state);
   }
@@ -135,7 +194,9 @@ export function applyEvents(state: GameState, events: Iterable<GameEvent>): Game
 }
 
 /** Why the rules say this player has lost, or null if they haven't. */
-export function lossReason(seat: SeatGameState): LossReason | null {
+export function lossReason(game: GameState, seatIndex: SeatIndex): LossReason | null {
+  const seat = game.seats[seatIndex];
+  if (!seat) return null;
   if (seat.life <= 0) return { kind: 'life' };
   if (seat.counters.poison >= POISON_LIMIT) return { kind: 'poison' };
   for (let from = 0; from < seat.commanderDamage.length; from++) {
@@ -146,6 +207,9 @@ export function lossReason(seat: SeatGameState): LossReason | null {
       }
     }
   }
+  for (const counter of game.customCounters) {
+    if (hasReachedLoss(counter, counterValue(counter, seat.custom))) return { kind: 'custom-counter', counter };
+  }
   return null;
 }
 
@@ -155,8 +219,8 @@ export function commanderTax(seat: SeatGameState, commander: CommanderIndex): nu
 }
 
 /** Out by the rules, unless a player said otherwise (e.g. a card that stops them from losing). */
-export function isOut(seat: SeatGameState): boolean {
-  return seat.outOverride ?? lossReason(seat) !== null;
+export function isOut(game: GameState, seat: SeatIndex): boolean {
+  return game.seats[seat]?.outOverride ?? lossReason(game, seat) !== null;
 }
 
 /** Reads untrusted data (from the network) as a game event. Returns null if it isn't a valid one. */
@@ -193,6 +257,16 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isSeat(value.seat) && isCommander(value.commander) && (value.amount === 1 || value.amount === -1)
         ? { type: 'commander-cast', seat: value.seat, commander: value.commander, amount: value.amount }
         : null;
+    case 'custom-counter-saved': {
+      const counter = toCustomCounter(value.counter);
+      return counter ? { type: 'custom-counter-saved', counter } : null;
+    }
+    case 'custom-counter-removed':
+      return isCounterId(value.id) ? { type: 'custom-counter-removed', id: value.id } : null;
+    case 'custom-counter-changed':
+      return isCounterId(value.id) && (value.seat === null || isSeat(value.seat)) && isChange(value.amount)
+        ? { type: 'custom-counter-changed', id: value.id, seat: value.seat, amount: value.amount }
+        : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
@@ -208,6 +282,10 @@ function counterMaximum(counter: PlayerCounter): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function isCounterId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(value);
 }
 
 function isPlayerCounter(value: unknown): value is PlayerCounter {

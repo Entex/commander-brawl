@@ -37,5 +37,7 @@ export function describeLoss(reason: LossReason, game: GameState, players: Playe
       return `${POISON_LIMIT} poison counters`;
     case 'commander-damage':
       return `21 commander damage from ${commanderName(game, players, reason.from, reason.commander)}`;
+    case 'custom-counter':
+      return `${reason.counter.name} reached ${reason.counter.loseAt}`;
   }
 }

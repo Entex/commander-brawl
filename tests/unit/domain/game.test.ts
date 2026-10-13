@@ -77,31 +77,33 @@ describe('commander damage', () => {
   it('knocks a player out at 21 from a single commander, but not from two added together', () => {
     const split = applyEvents(newGame(), [damage(20), damage(20, 1)]);
     expect(split.seats[0]!.life).toBe(0);
-    expect(lossReason({ ...split.seats[0]!, life: 40 })).toBeNull();
+    expect(
+      lossReason({ ...split, seats: split.seats.map((s, i) => (i === 0 ? { ...s, life: 40 } : s)) }, 0),
+    ).toBeNull();
 
     const lethal = applyEvent(newGame(), damage(COMMANDER_DAMAGE_LIMIT));
-    expect(lossReason(lethal.seats[0]!)).toEqual({ kind: 'commander-damage', from: 1, commander: 0 });
-    expect(isOut(lethal.seats[0]!)).toBe(true);
+    expect(lossReason(lethal, 0)).toEqual({ kind: 'commander-damage', from: 1, commander: 0 });
+    expect(isOut(lethal, 0)).toBe(true);
   });
 });
 
 describe('being out', () => {
   it('follows the rules: 0 life or less is out', () => {
     const state = applyEvent(newGame(), { type: 'life-changed', seat: 2, amount: -40 });
-    expect(lossReason(state.seats[2]!)).toEqual({ kind: 'life' });
-    expect(isOut(state.seats[2]!)).toBe(true);
+    expect(lossReason(state, 2)).toEqual({ kind: 'life' });
+    expect(isOut(state, 2)).toBe(true);
   });
 
   it('can be set by hand either way, and handed back to the rules', () => {
     let state = applyEvent(newGame(), { type: 'life-changed', seat: 0, amount: -40 });
     state = applyEvent(state, { type: 'out-set', seat: 0, out: false });
-    expect(isOut(state.seats[0]!)).toBe(false);
+    expect(isOut(state, 0)).toBe(false);
     state = applyEvent(state, { type: 'out-set', seat: 0, out: null });
-    expect(isOut(state.seats[0]!)).toBe(true);
+    expect(isOut(state, 0)).toBe(true);
 
     const conceded = applyEvent(newGame(), { type: 'out-set', seat: 1, out: true });
-    expect(isOut(conceded.seats[1]!)).toBe(true);
-    expect(lossReason(conceded.seats[1]!)).toBeNull();
+    expect(isOut(conceded, 1)).toBe(true);
+    expect(lossReason(conceded, 1)).toBeNull();
   });
 });
 
@@ -143,9 +145,9 @@ describe('player counters', () => {
 
   it(`knock a player out at ${POISON_LIMIT} poison`, () => {
     const almost = applyEvent(newGame(), counter('poison', POISON_LIMIT - 1));
-    expect(isOut(almost.seats[1]!)).toBe(false);
+    expect(isOut(almost, 1)).toBe(false);
     const dead = applyEvent(almost, counter('poison', 1));
-    expect(lossReason(dead.seats[1]!)).toEqual({ kind: 'poison' });
+    expect(lossReason(dead, 1)).toEqual({ kind: 'poison' });
   });
 
   it('reset for a new game', () => {

@@ -196,3 +196,34 @@ test('poison, other counters and commander tax show on the seat for everyone', a
   for (let i = 0; i < 10; i++) await details.getByRole('button', { name: 'Add 1 poison' }).click();
   await expect(host.page.getByTestId('out-0')).toContainText('10 poison counters');
 });
+
+test('custom counters: made by one player, used by everyone', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  // The host makes a per-player counter you lose at 3.
+  await host.page.getByRole('button', { name: 'Counters' }).click();
+  await host.page.getByRole('button', { name: 'New counter' }).click();
+  const form = host.page.getByRole('form', { name: 'Counter' });
+  await form.getByLabel('Name').fill('Bounty');
+  await form.getByRole('radio', { name: 'red' }).click();
+  await form.getByLabel('Lose at').fill('3');
+  await form.getByRole('button', { name: 'Save' }).click();
+
+  // And one for the whole table.
+  await host.page.getByRole('button', { name: 'New counter' }).click();
+  await form.getByLabel('Name').fill('Storm');
+  await form.getByLabel('The whole table').check();
+  await form.getByRole('button', { name: 'Save' }).click();
+  await host.page.getByRole('button', { name: 'Done' }).click();
+
+  // The friend uses both.
+  await friend.page.getByTestId('table-counters').getByRole('button', { name: 'Add 1 Storm' }).click();
+  await expect(host.page.getByTestId('table-counters').locator('.stepper-value')).toHaveText('1');
+
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  for (let i = 0; i < 3; i++) {
+    await friend.page.getByTestId('seat-details-0').getByRole('button', { name: 'Add 1 Bounty' }).click();
+  }
+  await expect(host.page.getByTestId('out-0')).toContainText('Bounty reached 3');
+  await expect(host.page.getByTestId('chips-0')).toContainText('Bounty 3');
+});

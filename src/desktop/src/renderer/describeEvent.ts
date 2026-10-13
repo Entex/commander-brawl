@@ -44,6 +44,19 @@ export function describeEvent(entry: LoggedEvent, players: Players, game: GameSt
       const who = target === by.name ? by.name : `${by.name}: ${target}`;
       return event.amount > 0 ? `${who} cast ${commander}` : `${who} took back a cast of ${commander}`;
     }
+    case 'custom-counter-saved':
+      return `${by.name} saved the counter ${event.counter.name}`;
+    case 'custom-counter-removed': {
+      const counter = game.customCounters.find((c) => c.id === event.id);
+      return `${by.name} removed the counter ${counter?.name ?? ''}`.trimEnd();
+    }
+    case 'custom-counter-changed': {
+      const name = game.customCounters.find((c) => c.id === event.id)?.name ?? 'a removed counter';
+      if (event.seat === null) return `${by.name}: ${name} ${formatChange(event.amount)}`;
+      const target = seatName(players, event.seat);
+      const change = `${formatChange(event.amount)} ${name}`;
+      return target === by.name ? `${by.name} ${change}` : `${by.name}: ${target} ${change}`;
+    }
     case 'new-game':
       return `${by.name} started a new game`;
   }

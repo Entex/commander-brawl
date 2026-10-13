@@ -1,4 +1,15 @@
 export {
+  COUNTER_COLORS,
+  CUSTOM_COUNTER_RANGE,
+  MAX_CUSTOM_COUNTERS,
+  MAX_CUSTOM_COUNTER_NAME_LENGTH,
+  counterValue,
+  hasReachedLoss,
+  startValue,
+  toCustomCounter,
+} from './customCounters';
+export type { CounterColor, CounterScope, CustomCounter } from './customCounters';
+export {
   COMMANDER_DAMAGE_LIMIT,
   COMMANDER_TAX_PER_CAST,
   MAX_CHANGE,

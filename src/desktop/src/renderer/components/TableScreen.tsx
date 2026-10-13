@@ -7,7 +7,9 @@ import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
 import type { CameraState } from '../useCamera';
 import { submitGameEvent, useGame } from '../useGame';
+import { CountersPanel } from './CountersPanel';
 import { EmptySeat, SeatTile } from './SeatTile';
+import { TableCounters } from './TableCounters';
 
 interface TableScreenProps {
   readonly config: RendererConfig;
@@ -25,6 +27,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const state = useSessionState(session);
   const game = useGame();
   const [showStats, setShowStats] = useState(false);
+  const [countersOpen, setCountersOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -60,6 +63,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <LastChange game={game} state={state} />
         <div className="toolbar-group">
           <NewGameButton onConfirm={() => submitGameEvent({ type: 'new-game', startingLife: STARTING_LIFE })} />
+          <button onClick={() => setCountersOpen(true)} disabled={!game}>
+            Counters
+          </button>
           <button onClick={onOpenCamera}>Camera</button>
           <button onClick={() => setShowStats((v) => !v)} aria-pressed={showStats}>
             Stats
@@ -72,6 +78,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
       <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
+      {game && <TableCounters game={game.state} />}
+      {game && countersOpen && <CountersPanel game={game.state} onClose={() => setCountersOpen(false)} />}
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
 
       <main className="seats">

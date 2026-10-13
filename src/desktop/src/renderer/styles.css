@@ -512,6 +512,128 @@ button.armed {
   flex: 1;
 }
 
+.swatch {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  margin-right: 0.35rem;
+  vertical-align: -0.05rem;
+  border: none;
+  padding: 0;
+}
+
+button.swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+  outline-offset: 2px;
+}
+
+button.swatch.selected {
+  outline: 2px solid var(--text);
+}
+
+.color-red {
+  background: #f0616d;
+}
+.color-orange {
+  background: #f29a4b;
+}
+.color-yellow {
+  background: #f2d04b;
+}
+.color-green {
+  background: #4cc38a;
+}
+.color-teal {
+  background: #3fc1c9;
+}
+.color-blue {
+  background: #7c9cff;
+}
+.color-purple {
+  background: #b07cff;
+}
+.color-pink {
+  background: #f27cc4;
+}
+.color-gray {
+  background: #9aa1b2;
+}
+
+.swatches {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.table-counters {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.3rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  overflow-x: auto;
+}
+
+.table-counters .stepper-row {
+  padding: 0;
+}
+
+.counters-panel {
+  width: min(640px, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.counter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+}
+
+.counter-name {
+  font-weight: 600;
+}
+
+.counter-row .hint {
+  flex: 1;
+}
+
+.counter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.choices {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.counter-form .choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.counter-form input[type='radio'] {
+  width: auto;
+}
+
+.limits {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+
 /* Camera panel */
 
 .overlay {
