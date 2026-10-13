@@ -17,6 +17,7 @@ import {
 import { useEffect, useState } from 'react';
 import { COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
 import { submitGameEvent } from '../useGame';
+import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
 import { SeatDetails } from './SeatDetails';
 import { VideoView } from './VideoView';
@@ -30,6 +31,8 @@ interface SeatTileProps {
   readonly active: boolean;
   readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
+  /** Shows a card in the Cards panel. */
+  onOpenCard(cardId: string): void;
 }
 
 const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
@@ -39,7 +42,7 @@ const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
   failed: 'Connection lost, retrying…',
 };
 
-export function SeatTile({ seat, players, game, active, showStats, getStats }: SeatTileProps) {
+export function SeatTile({ seat, players, game, active, showStats, getStats, onOpenCard }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const stats = useLinkStats(seat, showStats, getStats);
@@ -69,12 +72,15 @@ export function SeatTile({ seat, players, game, active, showStats, getStats }: S
           Camera off
         </div>
       )}
-      <div className="seat-label">
-        <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
-        {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
-        {status && <span className="badge badge-warn">{status}</span>}
+      <div className="seat-info">
+        <div className="seat-label">
+          <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
+          {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
+          {status && <span className="badge badge-warn">{status}</span>}
+        </div>
+        {game && state && <CommanderBadges seat={index} game={game} onOpenCard={onOpenCard} />}
+        {game && state && <SeatChips seat={seat} game={game} players={players} />}
       </div>
-      {game && state && <SeatChips seat={seat} game={game} players={players} />}
       {game && state && isOut(game, index) && (
         <div className="seat-out" data-testid={`out-${index}`}>
           <strong>Out</strong>
@@ -145,9 +151,9 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
       });
     }
   }
-  state.commanders.forEach((_, index) => {
+  state.commanders.forEach((name, index) => {
     const tax = commanderTax(state, index as CommanderIndex);
-    if (tax > 0) {
+    if (tax > 0 && !name) {
       const name = commanderName(game, players, seat.player.seat, index as CommanderIndex);
       chips.push({ key: `tax-${index}`, label: `${name} tax`, value: `+${tax}`, title: 'Commander tax' });
     }

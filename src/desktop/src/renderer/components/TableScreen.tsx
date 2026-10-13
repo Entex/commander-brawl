@@ -42,6 +42,12 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [countersOpen, setCountersOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(false);
+  /** A card to show when the Cards panel opens, e.g. a commander clicked on a seat. */
+  const [cardFocus, setCardFocus] = useState<{ readonly id: string; readonly at: number } | null>(null);
+  const openCard = useCallback((id: string) => {
+    setCardFocus({ id, at: Date.now() });
+    setCardsOpen(true);
+  }, []);
   const [decksOpen, setDecksOpen] = useState(false);
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
@@ -158,7 +164,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
 
       {game && logOpen && <LogPanel game={game} players={state.seats} onClose={() => setLogOpen(false)} />}
-      {cardsOpen && <CardsPanel onClose={() => setCardsOpen(false)} />}
+      {cardsOpen && (
+        <CardsPanel
+          key={cardFocus?.at ?? 'search'}
+          initialCardId={cardFocus?.id ?? null}
+          onClose={() => {
+            setCardsOpen(false);
+            setCardFocus(null);
+          }}
+        />
+      )}
       {decksOpen && (
         <DecksPanel
           seat={selfSeat}
@@ -178,6 +193,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               active={seat.player.seat === activeSeat}
               showStats={showStats}
               getStats={getStats}
+              onOpenCard={openCard}
             />
           ) : (
             <EmptySeat key={`empty-${index}`} index={index} />

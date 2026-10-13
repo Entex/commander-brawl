@@ -5,12 +5,18 @@ import type { CardDataStatus, CardDetails } from '../../shared/api';
 import { api } from '../api';
 import { CardText, Symbols } from './CardText';
 
+interface CardsPanelProps {
+  /** Show this card straight away, e.g. a commander someone clicked. */
+  readonly initialCardId?: string | null;
+  onClose(): void;
+}
+
 /** Look up any card: what it does, what it looks like, and its official rulings. */
-export function CardsPanel({ onClose }: { onClose(): void }) {
+export function CardsPanel({ initialCardId = null, onClose }: CardsPanelProps) {
   const status = useCardStatus();
   const [query, setQuery] = useState('');
   const results = useSearch(query, status);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialCardId);
   const [highlighted, setHighlighted] = useState(0);
   const selected = picked ?? results[0]?.id ?? null;
   const details = useDetails(selected);

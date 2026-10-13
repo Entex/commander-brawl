@@ -344,13 +344,66 @@ textarea {
   color: var(--muted);
 }
 
-.seat-label {
+.seat-info {
   position: absolute;
   top: 6px;
   left: 6px;
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100% - 140px);
+}
+
+.seat-label {
+  display: flex;
   gap: 0.4rem;
   align-items: center;
+}
+
+.seat-commanders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.commander-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 8px 2px 2px;
+  background: rgb(0 0 0 / 0.7);
+  border-color: transparent;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+.commander-badge:disabled {
+  opacity: 1;
+  padding-left: 8px;
+}
+
+.commander-art {
+  width: 40px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.commander-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commander-colors {
+  flex-shrink: 0;
+}
+
+.commander-tax {
+  color: var(--warn);
+  font-weight: 600;
 }
 
 .seat-name {
@@ -466,9 +519,6 @@ button.armed {
 }
 
 .seat-chips {
-  position: absolute;
-  top: 38px;
-  left: 6px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

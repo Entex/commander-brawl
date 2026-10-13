@@ -399,4 +399,11 @@ test('importing decks and playing one', async () => {
   await expect(friend.page.getByTestId('last-change')).toHaveText('Host is playing Atraxa Counters');
   await friend.page.getByRole('button', { name: "Host's details" }).click();
   await expect(friend.page.getByTestId('seat-details-0')).toContainText('Atraxa Counters · 3 cards');
+  await friend.page.getByTestId('seat-details-0').getByRole('button', { name: 'Close' }).click();
+
+  // The commander shows on the host's seat; clicking it shows the card.
+  const badge = friend.page.getByTestId('commanders-0').getByRole('button', { name: "Atraxa, Praetors' Voice" });
+  await expect(badge).toBeEnabled();
+  await badge.click();
+  await expect(friend.page.getByTestId('card-view')).toContainText('proliferate');
 });

@@ -142,6 +142,9 @@ function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardSe
   handle(Channels.gameSaveLog, (text) => saveText(requireString(text)));
   handle(Channels.cardsStatus, () => cards.status());
   handle(Channels.cardsSearch, (query) => cards.search(requireString(query)));
+  handle(Channels.cardsByNames, (names) =>
+    cards.byNames(Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 20) : []),
+  );
   handle(Channels.cardsDetails, (id) => cards.details(requireString(id)));
   handle(Channels.cardsRefresh, () => cards.refresh());
   handle(Channels.decksList, () => decks.list());

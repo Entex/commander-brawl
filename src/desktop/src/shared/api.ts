@@ -92,6 +92,8 @@ export interface DesktopApi {
     status(): Promise<CardDataStatus>;
     onStatus(listener: (status: CardDataStatus) => void): () => void;
     search(query: string): Promise<readonly Card[]>;
+    /** The cards with these names, null where there's no such card. */
+    byNames(names: readonly string[]): Promise<readonly (Card | null)[]>;
     details(id: string): Promise<CardDetails | null>;
     refresh(): Promise<void>;
   };
@@ -128,6 +130,7 @@ export const Channels = {
   cardsStatus: 'cards:status',
   cardsStatusUpdate: 'cards:status-update',
   cardsSearch: 'cards:search',
+  cardsByNames: 'cards:by-names',
   cardsDetails: 'cards:details',
   cardsRefresh: 'cards:refresh',
   decksList: 'decks:list',

@@ -52,6 +52,11 @@ export class CardService {
     return this.index?.search(query, RESULTS) ?? [];
   }
 
+  /** The cards with these names (as written in a deck list), null where there's no such card. */
+  byNames(names: readonly string[]): (Card | null)[] {
+    return names.map((name) => this.index?.byName(name) ?? null);
+  }
+
   /** The card a deck list means by this name, or undefined. Null while there are no cards yet. */
   lookup(): ((name: string) => Card | undefined) | null {
     const index = this.index;
