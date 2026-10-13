@@ -804,6 +804,49 @@ test('counters on cards and groups of tokens, untapped when their turn starts', 
   await expect(chips).not.toContainText('tapped');
 });
 
+test('straightening a camera that looks at the table at an angle', async () => {
+  const { host, friend } = await hostAndFriend();
+  const shapeOf = (video: ReturnType<Page['locator']>) =>
+    video.evaluate((v: HTMLVideoElement) => v.videoWidth / v.videoHeight);
+
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Camera' }).click();
+  await host.page.getByRole('button', { name: 'Straighten the view' }).click();
+  // The playmat's corners, as the camera sees it from an angle, clicked in no particular order.
+  const frame = host.page.getByTestId('corner-frame');
+  const box = (await frame.boundingBox())!;
+  for (const [x, y] of [
+    [0.85, 0.9],
+    [0.2, 0.2],
+    [0.1, 0.85],
+    [0.75, 0.15],
+  ] as const) {
+    await frame.click({ position: { x: x * box.width, y: y * box.height } });
+  }
+  await host.page.getByRole('button', { name: 'Straighten', exact: true }).click();
+  await expect(host.page.getByText('Straightened to your playmat.')).toBeVisible();
+  await host.page.getByRole('button', { name: 'Done' }).click();
+
+  // The others get the straight picture: a playmat's shape (24 by 14).
+  const hostVideo = friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video');
+  await expect.poll(() => shapeOf(hostVideo), { timeout: 15_000 }).toBeCloseTo(24 / 14, 1);
+  await expectVideoFrom(friend.page, 'Host');
+  await friend.page.screenshot({ path: test.info().outputPath('straightened.png') });
+
+  // A close-up of the straight picture comes from the camera, straightened the same way.
+  await hostVideo.click();
+  await expect(friend.page.getByTestId('snapshot').getByRole('img', { name: 'Close-up' })).toBeVisible({
+    timeout: 20_000,
+  });
+  await friend.page.getByTestId('snapshot').getByRole('button', { name: 'Close' }).click();
+
+  // Not straightening any more: back to the camera's own shape.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Camera' }).click();
+  await host.page.getByRole('button', { name: "Don't straighten" }).click();
+  await expect.poll(() => shapeOf(hostVideo), { timeout: 15_000 }).not.toBeCloseTo(24 / 14, 1);
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

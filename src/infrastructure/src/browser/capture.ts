@@ -31,10 +31,10 @@ export async function captureFrame(track: MediaStreamTrack, crop: CropRect): Pro
 /**
  * A full-resolution photo, where the browser can take one (often 12 MP on a phone, versus about 2 MP
  * for video). The photo usually covers more than the video (4:3 versus 16:9), with the video being its
- * middle band; the crop is mapped onto the photo that way, with some margin in case a phone does it
- * differently. Falls back to a video frame.
+ * middle band; the crop is mapped onto the photo that way, with some margin (a share of the crop on each side)
+ * in case a phone does it differently. Falls back to a video frame, which is exactly the crop.
  */
-export async function capturePhoto(track: MediaStreamTrack, crop: CropRect): Promise<string> {
+export async function capturePhoto(track: MediaStreamTrack, crop: CropRect, margin = 0.2): Promise<string> {
   const capture = imageCapture(track);
   if (!capture) return captureFrame(track, crop);
   let photo: ImageBitmap;
@@ -45,7 +45,7 @@ export async function capturePhoto(track: MediaStreamTrack, crop: CropRect): Pro
   }
   const settings = track.getSettings();
   const videoAspect = settings.width && settings.height ? settings.width / settings.height : 16 / 9;
-  return cropToJpeg(photo, widen(videoToPhoto(crop, photo.width / photo.height, videoAspect), 0.2));
+  return cropToJpeg(photo, widen(videoToPhoto(crop, photo.width / photo.height, videoAspect), margin));
 }
 
 /** Where a part of the video picture is in a photo of a different shape, assuming the video is centered in it. */

@@ -1,12 +1,23 @@
 import {
   captureFrame,
+  dataUrlToRgba,
   listCameras,
   openCamera,
   PhoneReceiver,
+  rgbaToDataUrl,
+  Straightener,
   type CameraDevice,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
-import type { CameraStatus, CropRect } from '@commander-brawl/application';
+import {
+  cropInCamera,
+  squareToQuad,
+  straightenedSize,
+  warpCrop,
+  type CameraStatus,
+  type CropRect,
+  type Quad,
+} from '@commander-brawl/application';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorMessage } from './api';
 
@@ -28,8 +39,18 @@ export function cameraStatus(camera: CameraState): CameraStatus {
 
 export interface CameraState {
   readonly source: CameraSource;
-  /** The camera other players see. */
+  /** The camera other players see: straightened, if it's set up that way. */
   readonly track: MediaStreamTrack | null;
+  /** The camera as it is, for choosing the corners to straighten it by. */
+  readonly rawTrack: MediaStreamTrack | null;
+  readonly straighten: {
+    /** Whether this computer can straighten a camera. */
+    readonly supported: boolean;
+    /** The playmat's corners in the camera picture, while the camera is straightened. */
+    readonly corners: Quad | null;
+    /** Straightens the camera by these corners (remembered for this camera), or (null) stops. */
+    set(corners: Quad | null): void;
+  };
   readonly phone: {
     readonly state: PhoneCameraState;
     readonly urls: readonly string[];
@@ -137,26 +158,111 @@ export function useCamera(): CameraState {
     };
   }, [stopWebcam]);
 
-  const track = source === 'phone' ? phoneTrack : webcamTrack;
+  const rawTrack = source === 'phone' ? phoneTrack : webcamTrack;
+  const cameraKey = source === 'phone' ? 'phone' : `webcam:${deviceId ?? ''}`;
+  const [corners, setCornersState] = useState(() => loadCorners('phone'));
+  const [cornersFor, setCornersFor] = useState('phone');
+  if (cornersFor !== cameraKey) {
+    // Another camera: its own corners, if it had any.
+    setCornersFor(cameraKey);
+    setCornersState(loadCorners(cameraKey));
+  }
+  const setCorners = useCallback(
+    (next: Quad | null) => {
+      saveCorners(cameraKey, next);
+      setCornersState(next);
+    },
+    [cameraKey],
+  );
+  const straightener = useStraightener(rawTrack, corners);
+  const track = straightener?.track ?? rawTrack;
+
   const snapshot = useCallback(
     async (crop: CropRect) => {
       const receiver = receiverRef.current;
       // The phone can take a full-resolution photo; a webcam gives its current frame.
-      if (source === 'phone' && receiver?.isLive) return receiver.requestSnapshot(crop);
-      if (track) return captureFrame(track, crop);
-      throw new Error('The camera is off.');
+      const capture = (part: CropRect, exact = false) => {
+        if (source === 'phone' && receiver?.isLive) return receiver.requestSnapshot(part, { exact });
+        if (rawTrack) return captureFrame(rawTrack, part);
+        throw new Error('The camera is off.');
+      };
+      if (!straightener || !corners) return capture(crop);
+      // Straightened: take the picture of what's behind the crop in the camera, then straighten that too.
+      const h = squareToQuad(corners);
+      const region = cropInCamera(crop, h);
+      const picture = await dataUrlToRgba(await capture(region, true));
+      const aspect = (crop.width * straightener.width) / (crop.height * straightener.height);
+      const long = Math.min(1800, Math.max(picture.width, picture.height));
+      const [width, height] = aspect >= 1 ? [long, Math.round(long / aspect)] : [Math.round(long * aspect), long];
+      return rgbaToDataUrl(warpCrop(picture, region, crop, h, width, height));
     },
-    [source, track],
+    [source, rawTrack, straightener, corners],
   );
 
   return {
     snapshot,
     source,
     track,
+    rawTrack,
+    straighten: { supported: Straightener.supported(), corners, set: setCorners },
     phone: { state: phoneState, urls },
     webcam: { devices, deviceId, error: webcamError },
     selectPhone,
     selectWebcam,
     refreshDevices,
   };
+}
+
+/** The camera straightened by the corners, while there are corners and a camera. */
+function useStraightener(raw: MediaStreamTrack | null, corners: Quad | null): Straightener | null {
+  const [straightener, setStraightener] = useState<Straightener | null>(null);
+  const size = raw && corners ? sizeFor(raw, corners) : null;
+  const width = size?.width;
+  const height = size?.height;
+  useEffect(() => {
+    if (!raw || !corners || !width || !height || !Straightener.supported()) return;
+    let made: Straightener;
+    try {
+      made = new Straightener(raw, corners, width, height);
+    } catch (error) {
+      console.warn('[camera] could not straighten', error);
+      return;
+    }
+    // A new object for each straightener: the state changes only when one starts or stops.
+    queueMicrotask(() => setStraightener(made));
+    return () => {
+      made.stop();
+      setStraightener((current) => (current === made ? null : current));
+    };
+  }, [raw, corners, width, height]);
+  return straightener && raw && corners ? straightener : null;
+}
+
+function sizeFor(track: MediaStreamTrack, corners: Quad): { width: number; height: number } {
+  const { width = 1280, height = 720 } = track.getSettings();
+  return straightenedSize(corners, width, height);
+}
+
+const CORNERS_KEY = 'cb.corners.';
+
+function loadCorners(camera: string): Quad | null {
+  try {
+    const raw = localStorage.getItem(CORNERS_KEY + camera);
+    const value: unknown = raw ? JSON.parse(raw) : null;
+    if (
+      Array.isArray(value) &&
+      value.length === 4 &&
+      value.every((p: { x?: unknown; y?: unknown } | null) => typeof p?.x === 'number' && typeof p.y === 'number')
+    ) {
+      return value as unknown as Quad;
+    }
+  } catch {
+    // Unreadable: as if there were none.
+  }
+  return null;
+}
+
+function saveCorners(camera: string, corners: Quad | null): void {
+  if (corners) localStorage.setItem(CORNERS_KEY + camera, JSON.stringify(corners));
+  else localStorage.removeItem(CORNERS_KEY + camera);
 }

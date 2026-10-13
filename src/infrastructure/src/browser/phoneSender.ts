@@ -215,7 +215,7 @@ export class PhoneSender {
 
   private async handle(message: DesktopToPhone): Promise<void> {
     if (message.t === 'snapshot') {
-      await this.takeSnapshot(message.id, message.crop);
+      await this.takeSnapshot(message.id, message.crop, message.margin);
       return;
     }
     if (message.t === 'pong' || message.session !== this.session || !this.pc) return;
@@ -231,13 +231,13 @@ export class PhoneSender {
   }
 
   /** A full-resolution photo of part of the view, for a player who wants to read a card on this table. */
-  private async takeSnapshot(id: string, crop: PhoneCrop): Promise<void> {
+  private async takeSnapshot(id: string, crop: PhoneCrop, margin?: number): Promise<void> {
     if (!this.track || this.track.readyState !== 'live') {
       this.send({ t: 'snapshot-failed', id, message: 'The camera is off.' });
       return;
     }
     try {
-      this.send({ t: 'snapshot', id, image: await capturePhoto(this.track, crop) });
+      this.send({ t: 'snapshot', id, image: await capturePhoto(this.track, crop, margin) });
     } catch (error) {
       this.send({ t: 'snapshot-failed', id, message: (error as Error).message });
     }

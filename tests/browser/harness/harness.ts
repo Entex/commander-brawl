@@ -4,6 +4,7 @@ import {
   CardIdentifier,
   CardIndex,
   TableSession,
+  type Quad,
   type SignalingEvent,
   type TableSignaling,
 } from '@commander-brawl/application';
@@ -12,6 +13,7 @@ import {
   dataUrlToRgba,
   openCamera,
   PhoneReceiver,
+  Straightener,
   TesseractReader,
   WebRtcPeerLinkFactory,
   type PhoneCameraState,
@@ -181,6 +183,50 @@ const harness = {
       found: result.picture !== null,
       guesses: result.guesses.map((guess) => ({ name: guess.card.name, score: guess.score })),
     };
+  },
+
+  /**
+   * Straightens a test picture (top left red, top right blue, bottom left green, bottom right yellow) with
+   * these corners, and reports the straight picture's size and the color in the middle of each quarter.
+   */
+  async straightenTestPicture(corners: Quad): Promise<{ width: number; height: number; colors: string[] }> {
+    const source = Object.assign(document.createElement('canvas'), { width: 640, height: 480 });
+    const draw = () => {
+      const g = source.getContext('2d')!;
+      [
+        ['#f00', 0, 0],
+        ['#00f', 320, 0],
+        ['#0f0', 0, 240],
+        ['#ff0', 320, 240],
+      ].forEach(([color, x, y]) => {
+        g.fillStyle = color as string;
+        g.fillRect(x as number, y as number, 320, 240);
+      });
+    };
+    draw();
+    const painter = setInterval(draw, 30);
+    const straightener = new Straightener(source.captureStream(30).getVideoTracks()[0]!, corners, 320, 180);
+    const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true });
+    document.body.append(video);
+    video.srcObject = new MediaStream([straightener.track]);
+    await video.play();
+    while (video.getVideoPlaybackQuality().totalVideoFrames < 3) await new Promise((r) => setTimeout(r, 50));
+    const out = Object.assign(document.createElement('canvas'), { width: video.videoWidth, height: video.videoHeight });
+    const g = out.getContext('2d', { willReadFrequently: true })!;
+    g.drawImage(video, 0, 0);
+    const colorAt = (fx: number, fy: number) => {
+      const [r, gr, b] = g.getImageData(Math.floor(fx * out.width), Math.floor(fy * out.height), 1, 1).data;
+      return [r! > 128 ? 'r' : '', gr! > 128 ? 'g' : '', b! > 128 ? 'b' : ''].join('');
+    };
+    const result = {
+      width: video.videoWidth,
+      height: video.videoHeight,
+      colors: [colorAt(0.25, 0.25), colorAt(0.75, 0.25), colorAt(0.25, 0.75), colorAt(0.75, 0.75)],
+    };
+    clearInterval(painter);
+    straightener.stop();
+    video.remove();
+    return result;
   },
 
   phoneDisconnected(): void {

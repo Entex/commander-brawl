@@ -929,6 +929,58 @@ button.swatch.selected {
   border-radius: 3.5% / 4.75%;
 }
 
+/* Straightening a camera that looks at the table at an angle */
+
+.corner-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.corner-frame {
+  position: relative;
+  align-self: center;
+  cursor: crosshair;
+  background: #000;
+}
+
+.corner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+}
+
+.corner-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.corner-outline polygon {
+  fill: rgb(124 156 255 / 15%);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.corner-dot {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.straighten-row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 /* Phases and the clock */
 
 .phases {

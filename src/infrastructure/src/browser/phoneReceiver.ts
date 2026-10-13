@@ -25,8 +25,12 @@ export class PhoneReceiver {
     return this.state === 'live';
   }
 
-  /** Asks the phone for a full-resolution picture of part of its view. A JPEG data URL. */
-  requestSnapshot(crop: PhoneCrop, timeoutMs = 10_000): Promise<string> {
+  /**
+   * Asks the phone for a full-resolution picture of part of its view. A JPEG data URL. With `exact`, no margin
+   * around the crop: for a picture that has to line up with the video, like one to straighten.
+   */
+  requestSnapshot(crop: PhoneCrop, options: { exact?: boolean; timeoutMs?: number } = {}): Promise<string> {
+    const timeoutMs = options.timeoutMs ?? 10_000;
     const id = `s${++this.nextSnapshot}`;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -43,7 +47,7 @@ export class PhoneReceiver {
           reject(error);
         },
       });
-      this.events.send({ t: 'snapshot', id, crop });
+      this.events.send(options.exact ? { t: 'snapshot', id, crop, margin: 0 } : { t: 'snapshot', id, crop });
     });
   }
 

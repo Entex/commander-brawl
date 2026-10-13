@@ -21,6 +21,17 @@ export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';
 export { crop, extract, toGray } from './pixels';
 export type { GrayImage, PixelRect, RgbaImage } from './pixels';
 export type { Invite } from './invite';
+export {
+  PLAYMAT_RATIO,
+  applyHomography,
+  cropInCamera,
+  homography,
+  orderCorners,
+  squareToQuad,
+  straightenedSize,
+  warpCrop,
+} from './perspective';
+export type { Homography, Point, Quad } from './perspective';
 export { Pointers, toPointer } from './pointers';
 export type { Pointer, TablePoint } from './pointers';
 export { SnapshotError, Snapshots, clampCrop } from './snapshots';

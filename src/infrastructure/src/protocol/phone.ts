@@ -33,8 +33,11 @@ export type PhoneToDesktop =
 export type DesktopToPhone =
   | { readonly t: 'answer'; readonly session: number; readonly sdp: string }
   | { readonly t: 'candidate'; readonly session: number; readonly candidate: IceCandidate }
-  /** Take a sharp picture of this part of the camera view. */
-  | { readonly t: 'snapshot'; readonly id: string; readonly crop: PhoneCrop }
+  /**
+   * Take a sharp picture of this part of the camera view: a little more than that (`margin`, a share of the crop
+   * on each side, 0.2 if not given) when the photo may not line up exactly with the video.
+   */
+  | { readonly t: 'snapshot'; readonly id: string; readonly crop: PhoneCrop; readonly margin?: number }
   | { readonly t: 'pong' };
 
 export function parsePhoneToDesktop(raw: string): PhoneToDesktop | null {
@@ -79,8 +82,14 @@ export function parseDesktopToPhone(raw: string): DesktopToPhone | null {
       return isSession(message.session) && isCandidate(message.candidate)
         ? { t: 'candidate', session: message.session, candidate: message.candidate }
         : null;
-    case 'snapshot':
-      return isId(message.id) && isCrop(message.crop) ? { t: 'snapshot', id: message.id, crop: message.crop } : null;
+    case 'snapshot': {
+      if (!isId(message.id) || !isCrop(message.crop)) return null;
+      const { margin } = message;
+      if (margin === undefined) return { t: 'snapshot', id: message.id, crop: message.crop };
+      return typeof margin === 'number' && margin >= 0 && margin <= 0.5
+        ? { t: 'snapshot', id: message.id, crop: message.crop, margin }
+        : null;
+    }
     case 'pong':
       return { t: 'pong' };
     default:

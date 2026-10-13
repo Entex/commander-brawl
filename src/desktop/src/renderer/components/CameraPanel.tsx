@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import type { CameraState } from '../useCamera';
+import { CornerPicker } from './CornerPicker';
 import { VideoView } from './VideoView';
 
 interface CameraPanelProps {
@@ -18,6 +19,7 @@ const PHONE_STATE_TEXT = {
 export function CameraPanel({ camera, onClose }: CameraPanelProps) {
   const [qr, setQr] = useState<string | null>(null);
   const [showOtherLinks, setShowOtherLinks] = useState(false);
+  const [picking, setPicking] = useState(false);
   const phoneUrl = camera.phone.urls[0];
 
   useEffect(() => {
@@ -100,10 +102,38 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
 
         <section className="camera-preview">
           <h3>What the others see</h3>
-          {camera.track ? (
+          {picking && camera.rawTrack ? (
+            <CornerPicker
+              track={camera.rawTrack}
+              initial={camera.straighten.corners}
+              onDone={(corners) => {
+                camera.straighten.set(corners);
+                setPicking(false);
+              }}
+              onCancel={() => setPicking(false)}
+            />
+          ) : camera.track ? (
             <VideoView track={camera.track} className="preview-video" testId="camera-preview" />
           ) : (
             <p className="hint">No camera yet.</p>
+          )}
+          {camera.straighten.supported && camera.rawTrack && !picking && (
+            <div className="row straighten-row">
+              {camera.straighten.corners ? (
+                <>
+                  <span className="hint">Straightened to your playmat. Moved the camera? Set the corners again.</span>
+                  <button onClick={() => setPicking(true)}>Change the corners</button>
+                  <button onClick={() => camera.straighten.set(null)}>Don't straighten</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setPicking(true)}>Straighten the view</button>
+                  <span className="hint">
+                    For a camera that looks at the table at an angle: click the four corners of your playmat.
+                  </span>
+                </>
+              )}
+            </div>
           )}
         </section>
       </div>

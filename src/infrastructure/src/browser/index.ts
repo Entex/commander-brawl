@@ -8,6 +8,7 @@ export { dataUrlToRgba, imageToRgba, rgbaToDataUrl } from './pixels';
 export { cardImageUrl, symbolUrl } from './scryfallImages';
 export type { CardImageSize } from './scryfallImages';
 export { LinkStatsReader } from './stats';
+export { Straightener } from './straightener';
 export { TesseractReader } from './textReader';
 export type { TesseractFiles } from './textReader';
 export { pictureToScreen, screenToPicture } from './videoGeometry';

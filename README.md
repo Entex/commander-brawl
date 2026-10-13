@@ -25,6 +25,9 @@ These scripts avoid the "unknown publisher" warnings. Windows and macOS only sho
 ## Play
 
 1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, which must be on the same Wi-Fi as your computer. The phone browser warns that the connection isn't private. That's expected, because the page comes from your own computer. Tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Point the phone at your play area. Any webcam works too, including an iPhone through Continuity Camera on a Mac.
+
+   A phone usually looks at the table at an angle. Under _What the others see_, click _Straighten the view_ and click the four corners of your playmat: the others get a straight top-down view of it (your computer does the straightening). The corners are remembered for that camera; set them again if you move it.
+
 2. **Host.** One player clicks _Host_ and shares the invite code, for example in Discord. The app asks the router to open TCP port 47801 (UPnP). If the router refuses, the app says so; turn on UPnP or forward that port manually.
 3. **Join.** Everyone else pastes the invite code and clicks _Join_.
 
