@@ -2,6 +2,7 @@ import type { GameView } from '@commander-brawl/application';
 import { MAX_DIE_SIDES, MAX_ROLLS, isOut, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { useState } from 'react';
 import { describeRoll } from '../describeEvent';
+import { Icon, type GameIconName } from '../icons/Icon';
 import type { Players } from '../names';
 import { submitGameEvent } from '../useGame';
 import { Menu } from './Menu';
@@ -20,7 +21,7 @@ export function RollMenu({ game, players }: { readonly game: GameState | null; r
   const inGame = players.map((p) => p.player.seat).filter((seat) => !game || !isOut(game, seat));
   const opponents = inGame.filter((seat) => seat !== self);
   return (
-    <Menu label="🎲 Roll">
+    <Menu label="Roll" icon="rolling-dices">
       {(close) => (
         <>
           {QUICK_DICE.map((sides) => (
@@ -32,7 +33,7 @@ export function RollMenu({ game, players }: { readonly game: GameState | null; r
                 submitGameEvent({ type: 'roll-dice', sides, count: 1 });
               }}
             >
-              d{sides}
+              <Icon name="dice-twenty-faces-twenty" />d{sides}
             </button>
           ))}
           <button
@@ -42,10 +43,11 @@ export function RollMenu({ game, players }: { readonly game: GameState | null; r
               submitGameEvent({ type: 'flip-coins', count: 1 });
             }}
           >
+            <Icon name="coinflip" />
             Flip a coin
           </button>
-          <PickButton label="Random opponent" seats={opponents} close={close} />
-          <PickButton label="Random player" seats={inGame} close={close} />
+          <PickButton label="Random opponent" icon="convergence-target" seats={opponents} close={close} />
+          <PickButton label="Random player" icon="meeple-group" seats={inGame} close={close} />
           <CustomRoll close={close} />
         </>
       )}
@@ -55,10 +57,12 @@ export function RollMenu({ game, players }: { readonly game: GameState | null; r
 
 function PickButton({
   label,
+  icon,
   seats,
   close,
 }: {
   readonly label: string;
+  readonly icon: GameIconName;
   readonly seats: readonly SeatIndex[];
   close(): void;
 }) {
@@ -71,6 +75,7 @@ function PickButton({
         submitGameEvent({ type: 'pick-seat', seats: [...seats] });
       }}
     >
+      <Icon name={icon} />
       {label}
     </button>
   );
@@ -129,18 +134,18 @@ export function RollBanner({ game, players }: { readonly game: GameView | null; 
     <div className="roll-banner" role="status" data-testid="roll-banner">
       {rolls.slice(-3).map((entry) => (
         <p key={entry.seq}>
-          <span aria-hidden="true">{ICONS[entry.event.type] ?? ''}</span> {describeRoll(entry, players)}
+          <Icon name={ICONS[entry.event.type] ?? 'rolling-dices'} /> {describeRoll(entry, players)}
         </p>
       ))}
     </div>
   );
 }
 
-const ICONS: Record<string, string> = {
-  'dice-rolled': '🎲',
-  'coins-flipped': '🪙',
-  'seat-picked': '🎯',
-  'planar-die-rolled': '🌀',
+const ICONS: Record<string, GameIconName> = {
+  'dice-rolled': 'rolling-dices',
+  'coins-flipped': 'coinflip',
+  'seat-picked': 'convergence-target',
+  'planar-die-rolled': 'magic-portal',
 };
 
 function isRoll(type: string): boolean {

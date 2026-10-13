@@ -7,6 +7,7 @@ import {
   type GameState,
   type SeatIndex,
 } from '@commander-brawl/domain';
+import { Icon } from '../icons/Icon';
 import type { Players } from '../names';
 import { submitGameEvent } from '../useGame';
 
@@ -28,7 +29,9 @@ export function Rule0Panel({ game, players, selfSeat, onClose }: Rule0PanelProps
     <div className="overlay" role="dialog" aria-label="Rule 0">
       <div className="panel rule0-panel" data-testid="rule0-panel">
         <header className="panel-header">
-          <h2>Rule 0</h2>
+          <h2>
+            <Icon name="scales" /> Rule 0
+          </h2>
           <button onClick={onClose}>Done</button>
         </header>
         <p className="hint">

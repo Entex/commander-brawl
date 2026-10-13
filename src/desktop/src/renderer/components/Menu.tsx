@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Icon, type GameIconName } from '../icons/Icon';
 
 /** A button that opens a short list of less-used actions. Closes on Escape or a click elsewhere. */
 export function Menu({
   label,
+  icon,
   children,
 }: {
   readonly label: string;
+  readonly icon?: GameIconName;
   readonly children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -30,6 +33,7 @@ export function Menu({
   return (
     <div className="menu" ref={root}>
       <button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {icon && <Icon name={icon} />}
         {label}
       </button>
       {open && (

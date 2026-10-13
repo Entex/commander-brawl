@@ -1,6 +1,7 @@
 import type { CardGuess } from '@commander-brawl/application';
 import type { Card, SeatIndex } from '@commander-brawl/domain';
 import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
+import { Icon } from '../icons/Icon';
 
 interface SnapshotRequest {
   /** Tells a newer request's picture from an older one's. */
@@ -37,7 +38,9 @@ export function SnapshotView({ snapshot, onOpenCard, onTrack, onSearch, onClose 
     <div className="overlay" role="dialog" aria-label={`From ${snapshot.from}'s camera`} onClick={onClose}>
       <div className="panel snapshot-panel" data-testid="snapshot" onClick={(event) => event.stopPropagation()}>
         <header className="panel-header">
-          <h2>From {snapshot.from}'s camera</h2>
+          <h2>
+            <Icon name="spyglass" /> From {snapshot.from}'s camera
+          </h2>
           <button onClick={onClose}>Close</button>
         </header>
         {snapshot.status === 'loading' && <p className="hint">Asking their camera for a sharp picture…</p>}

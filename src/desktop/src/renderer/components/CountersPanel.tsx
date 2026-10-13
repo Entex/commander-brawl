@@ -11,6 +11,7 @@ import {
 } from '@commander-brawl/domain';
 import { useState } from 'react';
 import { forgetPreset, loadPresets, newCounterId, savePreset } from '../counterPresets';
+import { Icon } from '../icons/Icon';
 import { submitGameEvent } from '../useGame';
 import { DayNightChoice, StormStepper } from './Markers';
 
@@ -38,7 +39,9 @@ export function CountersPanel({ game, onClose }: CountersPanelProps) {
     <div className="overlay" role="dialog" aria-label="Counters">
       <div className="panel counters-panel">
         <header className="panel-header">
-          <h2>Counters</h2>
+          <h2>
+            <Icon name="abacus" /> Counters
+          </h2>
           <button onClick={onClose}>Done</button>
         </header>
 

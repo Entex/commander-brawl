@@ -40,9 +40,11 @@ The app recovers from these problems by itself:
 - **A video link fails.** It restarts, first gently and then from scratch.
 - **The host's app crashes or is closed by accident.** The host opens it again and clicks _Resume table_. Friends' apps are still trying to reconnect, so they come back by themselves, to the same seats and the same game. (_Close table_ in the menu ends the table for everyone.)
 
+**Colors.** Every player has a color, by seat: red, yellow, blue and green. It frames their video, and marks their name, their life total, the phase strip on their turn, their pings and arrows, and their lines in the game log.
+
 **Turns.** _Random turn order_ starts the first turn. The active player clicks through the phases (upkeep, draw, main, combat with its steps, second main, end), so everyone can see where they are, and passes the turn when done. For a turn timer or a chess clock, pick _Clock_ in the menu. Running out doesn't stop anyone: it just shows.
 
-**✋ Wait!** (or the W key) is "Wait, I have a response!": it flashes on every screen with your name, and your seat lights up, so it isn't lost when everyone talks at once. It also pauses the clock until the active player moves on.
+**Wait!** (the orange button, or the W key) is "Wait, I have a response!": it flashes on every screen with your name, and your seat lights up, so it isn't lost when everyone talks at once. It also pauses the clock until the active player moves on.
 
 **Pointing.** Right-click a spot on any video to ping it ("this creature"); drag from one spot to another, on the same video or someone else's, to draw an arrow ("attacking you"). Everyone sees it in the same spot, even with a flipped video, in your color and with your name, for a few seconds.
 
@@ -50,7 +52,7 @@ The app recovers from these problems by itself:
 
 **Markers.** A player's _Details_ has the monarch, the initiative (which ventures into Undercity), dungeon progress room by room for every paper dungeon, the Ring's temptations and the city's blessing; they show on the seat. Day and night and the storm count (for the current turn) are under _Counters_ and show in the bar at the top.
 
-**🎲 Roll** has dice (d6, d20 and the rest, or any number of dice with any number of sides), a coin flip, and a random opponent or player. The host rolls, so everyone can trust the result: it shows on every screen and lands in the game log, and nobody can send a result of their own.
+**Roll** has dice (d6, d20 and the rest, or any number of dice with any number of sides), a coin flip, and a random opponent or player. The host rolls, so everyone can trust the result: it shows on every screen and lands in the game log, and nobody can send a result of their own.
 
 **Planechase and Archenemy** (menu). Planechase uses one shared planar deck with every plane there is (phenomena optional): the current plane is in a bar at the top, shown big when it changes, with the planar die (first roll each turn free, then {1}, {2}…) and Planeswalk. Archenemy gives the archenemy a deck of every scheme: they set schemes in motion, everyone sees each one, and ongoing schemes stay until abandoned. The host shuffles the decks and rolls the planar die.
 
@@ -69,7 +71,7 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield or Archidekt link, or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
 
-**Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, combos, mass land denial and extra turns, lists the deck's combos, and points out what doesn't usually fit the bracket. A seat shows its bracket, with ⚠ if something doesn't fit.
+**Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, combos, mass land denial and extra turns, lists the deck's combos, and points out what doesn't usually fit the bracket. A seat shows its bracket, with a warning sign if something doesn't fit.
 
 **Combo warnings.** During the game, when a player has all but one piece of a combo from their deck on the battlefield (as kept track of at the table), everyone sees a warning: "Alex has 2 of 3 pieces of …, missing …".
 
@@ -77,7 +79,7 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 The app also works out which card it is and lists the likeliest few; click one to see it in _Cards_. It finds the card's outline in the picture and straightens it, reads the name on your computer (with [Tesseract](https://github.com/tesseract-ocr/tesseract), offline), and, if the player is playing a deck, compares the artwork with that deck's cards. Artwork works even when the name is too small to read, and tells which way up a tapped or upside-down card is. It goes by the artwork of each card's usual printing, so a different printing relies on the name.
 
-**Clips.** Switch on _Record clips_ in the menu, and _💾 Last 30 s_ saves the last half minute of the table (every seat, with names and life totals) as a video file, for that ridiculous turn. It's off by default, because recording takes some CPU and memory.
+**Clips.** Switch on _Record clips_ in the menu, and _Last 30 s_ saves the last half minute of the table (every seat, with names and life totals) as a video file, for that ridiculous turn. It's off by default, because recording takes some CPU and memory.
 
 _Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
 
@@ -94,6 +96,10 @@ npm run package      # release/: one archive per platform, the install scripts, 
 ```
 
 The browser tests use Playwright's Chromium (`npx playwright install chromium`). To use a Chromium you already have, set `CB_CHROMIUM=/usr/bin/chromium`.
+
+### Icons and fonts
+
+The icons are from [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The app carries only the ones it uses, in `src/desktop/src/renderer/icons/gameIcons.ts`; to add one, put its name in `scripts/game-icons.mjs` and run `npm run game-icons`. Headings, names and life totals use [Cinzel](https://fonts.google.com/specimen/Cinzel) (SIL Open Font License).
 
 ### Layout
 
@@ -150,3 +156,9 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 | `CB_MOXFIELD_API`, `CB_ARCHIDEKT_API` | Stand-ins for the deck sites (tests use local fakes).                                  |
 | `CB_SPELLBOOK_API`                    | A stand-in for Commander Spellbook (tests use a local fake).                           |
 | `CB_SAVE_DIR`                         | Save files (like the game log) here without asking.                                    |
+
+## Credits
+
+- Icons: [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
+- Font: [Cinzel](https://github.com/NDISCOVER/Cinzel-Typeface) by Natanael Gama, SIL Open Font License 1.1.
+- Card data and pictures: [Scryfall](https://scryfall.com). Combos: [Commander Spellbook](https://commanderspellbook.com).

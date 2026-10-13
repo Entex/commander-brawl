@@ -1,4 +1,5 @@
 import { comboThreats, type ComboThreat, type GameState } from '@commander-brawl/domain';
+import { Icon } from '../icons/Icon';
 import { seatName, type Players } from '../names';
 
 const SHOWN = 4;
@@ -14,7 +15,7 @@ export function ComboWarnings({ game, players }: { readonly game: GameState; rea
     <div className="combo-warnings" role="status" data-testid="combo-warnings">
       {threats.slice(0, SHOWN).map((threat) => (
         <p key={`${threat.seat}-${threat.combo.cards.join('+')}`}>
-          <span aria-hidden="true">⚠</span> {describeThreat(threat, players)}
+          <Icon name="skull-bolt" /> {describeThreat(threat, players)}
         </p>
       ))}
       {threats.length > SHOWN && <p className="hint">and {threats.length - SHOWN} more</p>}

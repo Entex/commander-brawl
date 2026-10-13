@@ -9,10 +9,24 @@ import {
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { PHASE_LABELS, formatClock, seatName, type Players } from '../names';
+import { Icon, type GameIconName } from '../icons/Icon';
+import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 
 /** The phases shown in the strip; combat opens up into its steps while it's on. */
 const STRIP: readonly Phase[] = ['upkeep', 'draw', 'main1', 'combat', 'main2', 'end'];
+
+const PHASE_ICONS: Record<Phase, GameIconName> = {
+  upkeep: 'sunrise',
+  draw: 'card-pickup',
+  main1: 'magic-swirl',
+  combat: 'crossed-swords',
+  attackers: 'sword-brandish',
+  blockers: 'checked-shield',
+  damage: 'bloody-sword',
+  main2: 'magic-swirl',
+  end: 'night-sleep',
+};
 
 interface TurnControlsProps {
   readonly game: GameState;
@@ -34,18 +48,22 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
           disabled={players.length === 0}
           onClick={() => submitGameEvent({ type: 'randomize-turn-order', seats: players.map((p) => p.player.seat) })}
         >
-          Random turn order
+          <Icon name="cycle" /> Random turn order
         </button>
-        {game.clock && <span className="hint">⏱ Clock starts with the first turn</span>}
+        {game.clock && (
+          <span className="hint">
+            <Icon name="hourglass" /> Clock starts with the first turn
+          </span>
+        )}
       </div>
     );
   }
   const yours = game.activeSeat === self;
   return (
-    <div className="turn" data-testid="turn">
+    <div className={`turn ${seatColorClass(game.activeSeat)}`} data-testid="turn">
       <span>
         Turn {game.turn} · Round {game.round} ·{' '}
-        <strong>{yours ? 'Your turn' : `${seatName(players, game.activeSeat)}'s turn`}</strong>
+        <strong className="turn-whose">{yours ? 'Your turn' : `${seatName(players, game.activeSeat)}'s turn`}</strong>
       </span>
       {game.phase && <PhaseStrip phase={game.phase} canChange={yours} />}
       {game.clock && (
@@ -53,7 +71,7 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
       )}
       {yours && (
         <button className="primary" onClick={() => submitGameEvent({ type: 'turn-passed', from: game.activeSeat! })}>
-          Pass turn
+          Pass turn <Icon name="next-button" />
         </button>
       )}
     </div>
@@ -75,10 +93,12 @@ function PhaseStrip({ phase, canChange }: { readonly phase: Phase; readonly canC
             aria-pressed={p === phase}
             onClick={() => p !== phase && submitGameEvent({ type: 'phase-set', phase: p })}
           >
+            <Icon name={PHASE_ICONS[p]} />
             {PHASE_LABELS[p]}
           </button>
         ) : (
           <span key={p} className={className} aria-current={p === phase ? 'step' : undefined}>
+            <Icon name={PHASE_ICONS[p]} />
             {PHASE_LABELS[p]}
           </span>
         );
@@ -108,7 +128,7 @@ function ClockControl({
       data-testid="clock"
       title={clock.settings.kind === 'turn' ? 'Time left this turn' : 'Time left on their chess clock'}
     >
-      ⏱ {formatClock(left)}
+      <Icon name="hourglass" /> {formatClock(left)}
       {!running && <span className="clock-state">{clock.paused ? 'Paused' : 'Stopped'}</span>}
       {!readOnly && (
         <button onClick={() => submitGameEvent({ type: running ? 'clock-paused' : 'clock-resumed' })}>
@@ -137,7 +157,7 @@ export function SeatClock({
       className={`badge seat-clock${running ? ' seat-clock-running' : ''}${left < 0 ? ' clock-over' : ''}`}
       data-testid="seat-clock"
     >
-      ⏱ {formatClock(left)}
+      <Icon name="hourglass" /> {formatClock(left)}
     </span>
   );
 }
@@ -170,12 +190,14 @@ export function ClockPanel({ clock, onClose }: { readonly clock: Clock | null; o
     <div className="overlay" role="dialog" aria-label="Clock" onClick={onClose}>
       <div className="panel clock-panel" onClick={(event) => event.stopPropagation()}>
         <header className="panel-header">
-          <h2>Clock</h2>
+          <h2>
+            <Icon name="hourglass" /> Clock
+          </h2>
           <button onClick={onClose}>Close</button>
         </header>
         <p className="hint">
-          Keeps games moving. Nobody loses for running out: it just shows. ✋ Wait! pauses it; the next phase or turn
-          starts it again.
+          Keeps games moving. Nobody loses for running out: it just shows. <b>Wait!</b> pauses it; the next phase or
+          turn starts it again.
         </p>
         <fieldset className="clock-choices">
           <label>

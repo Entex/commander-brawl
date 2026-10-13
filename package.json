@@ -9,6 +9,7 @@
   "devDependencies": {
     "@electron/packager": "^20.3.0",
     "@eslint/js": "^10.0.1",
+    "@iconify-json/game-icons": "^1.2.4",
     "@playwright/test": "^1.64.0",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^24.19.2",
@@ -37,7 +38,8 @@
     "test:e2e": "node scripts/build.mjs && playwright test -c tests/e2e",
     "check": "npm run typecheck && npm run lint && prettier --check . && npm test && npm run test:browser",
     "format": "prettier --write .",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "game-icons": "node scripts/game-icons.mjs"
   },
   "engines": {
     "node": ">=24"

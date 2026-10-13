@@ -1,5 +1,6 @@
 import { MAX_CHANGE, type SeatIndex } from '@commander-brawl/domain';
 import { useRef, useState } from 'react';
+import { Icon } from '../icons/Icon';
 import { formatChange, useGroupedChange } from '../useGroupedChange';
 
 interface LifeCounterProps {
@@ -17,6 +18,7 @@ export function LifeCounter({ seat, life, onChange }: LifeCounterProps) {
   if (!onChange) {
     return (
       <div className="life life-shown" data-testid={`life-${seat}`}>
+        <Icon name="hearts" className="life-icon" />
         <span className="life-total" data-testid={`life-total-${seat}`}>
           {life}
         </span>
@@ -31,6 +33,7 @@ export function LifeCounter({ seat, life, onChange }: LifeCounterProps) {
       <button aria-label="Lose 1 life" onClick={() => add(-1)}>
         −1
       </button>
+      <Icon name="hearts" className="life-icon" />
       {typing ? (
         <LifeInput
           current={shown}

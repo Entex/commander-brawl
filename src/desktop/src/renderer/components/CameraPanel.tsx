@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
+import { Icon } from '../icons/Icon';
 import type { CameraState } from '../useCamera';
 import { CornerPicker } from './CornerPicker';
 import { VideoView } from './VideoView';
@@ -31,7 +32,9 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
     <div className="overlay" role="dialog" aria-label="Camera">
       <div className="panel camera-panel">
         <header className="panel-header">
-          <h2>Your camera</h2>
+          <h2>
+            <Icon name="photo-camera" /> Your camera
+          </h2>
           <button onClick={onClose}>Done</button>
         </header>
 

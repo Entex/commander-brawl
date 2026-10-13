@@ -8,6 +8,7 @@ import {
   type GameState,
   type SeatIndex,
 } from '@commander-brawl/domain';
+import { Icon } from '../icons/Icon';
 import { submitGameEvent } from '../useGame';
 import { Stepper } from './SeatDetails';
 
@@ -17,29 +18,32 @@ export function SeatMarkers({ seat, game }: { readonly seat: SeatIndex; readonly
   if (!state) return null;
   return (
     <section data-testid="seat-markers">
-      <h4>Markers</h4>
+      <h4>
+        <Icon name="crown" /> Markers
+      </h4>
       <div className="marker-toggles">
         <button
           aria-pressed={game.monarch === seat}
           onClick={() => submitGameEvent({ type: 'monarch-set', seat: game.monarch === seat ? null : seat })}
         >
-          👑 Monarch
+          <Icon name="crown" /> Monarch
         </button>
         <button
           aria-pressed={game.initiative === seat}
           title="Taking the initiative ventures into Undercity"
           onClick={() => submitGameEvent({ type: 'initiative-taken', seat: game.initiative === seat ? null : seat })}
         >
-          Initiative
+          <Icon name="torch" /> Initiative
         </button>
         <button
           aria-pressed={state.citysBlessing}
           onClick={() => submitGameEvent({ type: 'citys-blessing-set', seat, has: !state.citysBlessing })}
         >
-          City's blessing
+          <Icon name="angel-wings" /> City's blessing
         </button>
       </div>
       <Stepper
+        icon="ring"
         label={`The Ring tempted${state.ringTempts > 0 ? ` (${Math.min(state.ringTempts, RING_ABILITIES)} of ${RING_ABILITIES} abilities)` : ''}`}
         unit="Ring temptation"
         value={state.ringTempts}
@@ -95,7 +99,17 @@ function DungeonProgress({
   );
 }
 
-const DAY_NIGHT_LABELS: Record<DayNight, string> = { day: '☀ Day', night: '☾ Night' };
+export function DayNightLabel({ value }: { readonly value: DayNight }) {
+  return value === 'day' ? (
+    <>
+      <Icon name="sun" className="icon-day" /> Day
+    </>
+  ) : (
+    <>
+      <Icon name="moon" className="icon-night" /> Night
+    </>
+  );
+}
 
 /** Day or night, for the whole table. */
 export function DayNightChoice({ value }: { readonly value: DayNight | null }) {
@@ -107,7 +121,7 @@ export function DayNightChoice({ value }: { readonly value: DayNight | null }) {
           aria-pressed={value === option}
           onClick={() => value !== option && submitGameEvent({ type: 'day-night-set', value: option })}
         >
-          {option ? DAY_NIGHT_LABELS[option] : 'Neither'}
+          {option ? <DayNightLabel value={option} /> : 'Neither'}
         </button>
       ))}
     </div>
@@ -124,7 +138,7 @@ export function DayNightSwitch({ value }: { readonly value: DayNight }) {
       title={`Make it ${other}`}
       onClick={() => submitGameEvent({ type: 'day-night-set', value: other })}
     >
-      {DAY_NIGHT_LABELS[value]}
+      <DayNightLabel value={value} />
     </button>
   );
 }
@@ -132,6 +146,7 @@ export function DayNightSwitch({ value }: { readonly value: DayNight }) {
 export function StormStepper({ storm }: { readonly storm: number }) {
   return (
     <Stepper
+      icon="lightning-storm"
       label="Storm count"
       unit="to the storm count"
       value={storm}

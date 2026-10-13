@@ -1,6 +1,8 @@
 import type { GameView, LoggedEvent } from '@commander-brawl/application';
 import type { SeatIndex } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
+import { Icon } from '../icons/Icon';
+import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 
 /** How long a call to wait flashes on every screen. */
@@ -50,6 +52,8 @@ export function ResponseBanner({
 }) {
   if (calls.length === 0) return null;
   const others = [...new Set(calls.filter((c) => c.by.seat !== self).map((c) => c.by.name))];
+  // In the color of whoever called last (when it's just one of them).
+  const caller = others.length === 1 ? calls.findLast((c) => c.by.seat !== self)?.by.seat : undefined;
   const text =
     others.length === 0
       ? 'You asked everyone to wait'
@@ -57,8 +61,8 @@ export function ResponseBanner({
         ? `${others[0]}: “Wait, I have a response!”`
         : `${others.join(' and ')} have responses. Wait!`;
   return (
-    <div className="response-banner" role="alert" data-testid="response-banner">
-      <span aria-hidden="true">✋</span> {text}
+    <div className={`response-banner ${seatColorClass(caller)}`} role="alert" data-testid="response-banner">
+      <Icon name="hand" /> {text}
     </div>
   );
 }
@@ -93,7 +97,7 @@ export function ResponseButton() {
       disabled={coolingDown}
       title="Ask everyone to wait: you have a response (W)"
     >
-      ✋ Wait!
+      <Icon name="hand" /> Wait!
     </button>
   );
 }

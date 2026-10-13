@@ -9,6 +9,7 @@ import {
   type PlayerCounter,
   type SeatIndex,
 } from '@commander-brawl/domain';
+import type { GameIconName } from './icons/Icon';
 
 export type Players = readonly SeatView<unknown>[];
 
@@ -18,6 +19,14 @@ export const COUNTER_NAMES: Record<PlayerCounter, string> = {
   experience: 'Experience',
   rad: 'Rad',
   speed: 'Speed',
+};
+
+export const COUNTER_ICONS: Record<PlayerCounter, GameIconName> = {
+  poison: 'poison-bottle',
+  energy: 'electric',
+  experience: 'star-formation',
+  rad: 'radioactive',
+  speed: 'speedometer',
 };
 
 /** Short names for the phase strip. */

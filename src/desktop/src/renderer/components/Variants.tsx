@@ -14,6 +14,7 @@ import {
 import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { Icon } from '../icons/Icon';
 import { seatName, type Players } from '../names';
 import { submitGameEvent } from '../useGame';
 import { CardText } from './CardText';
@@ -55,12 +56,16 @@ export function VariantsPanel({ game, players, onClose }: VariantsPanelProps) {
     <div className="overlay" role="dialog" aria-label="Planechase and Archenemy" onClick={onClose}>
       <div className="panel variants-panel" onClick={(event) => event.stopPropagation()}>
         <header className="panel-header">
-          <h2>Planechase and Archenemy</h2>
+          <h2>
+            <Icon name="magic-portal" /> Planechase and Archenemy
+          </h2>
           <button onClick={onClose}>Close</button>
         </header>
 
         <section>
-          <h3>Planechase</h3>
+          <h3>
+            <Icon name="magic-portal" /> Planechase
+          </h3>
           <p className="hint">One planar deck for the whole table, with every plane there is, shuffled.</p>
           {game.planechase ? (
             <div className="row">
@@ -90,7 +95,9 @@ export function VariantsPanel({ game, players, onClose }: VariantsPanelProps) {
         </section>
 
         <section>
-          <h3>Archenemy</h3>
+          <h3>
+            <Icon name="daemon-skull" /> Archenemy
+          </h3>
           <p className="hint">One player against the rest, with a deck of every scheme there is, shuffled.</p>
           {game.archenemy ? (
             <div className="row">
@@ -175,7 +182,7 @@ function PlanechaseControls({
   const cost = planechase.rollsThisTurn === 0 ? 'free' : `costs {${planechase.rollsThisTurn}}`;
   return (
     <div className="variant">
-      <span aria-hidden="true">🌀</span>
+      <Icon name="magic-portal" className="icon-planechase" />
       {plane && (
         <button className="link" onClick={() => onShow(plane)} data-testid="plane">
           {plane.name}
@@ -208,7 +215,7 @@ function ArchenemyControls({
   const next = archenemy.deck[setSchemeInMotion(archenemy).index];
   return (
     <div className="variant">
-      <span aria-hidden="true">😈</span>
+      <Icon name="daemon-skull" className="icon-archenemy" />
       <span>{yours ? 'You are' : `${seatName(players, archenemy.seat)} is`} the archenemy</span>
       {scheme && (
         <button className="link" onClick={() => onShow(scheme)} data-testid="scheme">

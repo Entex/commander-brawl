@@ -9,6 +9,7 @@ import {
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { Icon } from '../icons/Icon';
 import { CUSTOM_KIND_PREFIX, counterKindName } from '../names';
 import { submitGameEvent } from '../useGame';
 
@@ -23,7 +24,9 @@ export function PermanentsSection({ seat, game, onOpenCard }: PermanentsProps) {
   const permanents = game.seats[seat]?.permanents ?? [];
   return (
     <section data-testid="permanents">
-      <h4>On the battlefield</h4>
+      <h4>
+        <Icon name="card-play" /> On the battlefield
+      </h4>
       {permanents.length === 0 && <p className="hint">Keep track of counters on a card, or of a group of tokens.</p>}
       {permanents.map((permanent) => (
         <PermanentRow key={permanent.id} seat={seat} permanent={permanent} game={game} onOpenCard={onOpenCard} />

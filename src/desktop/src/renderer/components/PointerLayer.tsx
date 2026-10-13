@@ -10,10 +10,9 @@ import {
   type RefObject,
 } from 'react';
 import type { Mark } from '../usePointers';
+import { SEAT_COLORS } from '../seatColors';
 import { pictureAt, screenAt } from '../videoPoints';
 
-/** Each seat's color for pings and arrows. */
-const SEAT_COLORS = ['#7c9cff', '#f2b84b', '#4cc38a', '#f0616d'];
 /** Moving this far (in pixels) with the button down makes it a drag (an arrow), not a click. */
 const DRAG_DISTANCE = 10;
 
@@ -102,7 +101,7 @@ function tablePointAt(clientX: number, clientY: number): TablePoint | null {
 
 interface Placed {
   readonly key: string;
-  readonly color: string;
+  readonly color: (typeof SEAT_COLORS)[number];
   readonly name: string;
   readonly from: { x: number; y: number };
   /** Null for a ping. */

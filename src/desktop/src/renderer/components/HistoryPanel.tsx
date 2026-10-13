@@ -1,6 +1,7 @@
 import { historyStats, turns, type GameRecord, type OutReason } from '@commander-brawl/application';
 import { useEffect, useState } from 'react';
 import { api, errorMessage } from '../api';
+import { Icon } from '../icons/Icon';
 import { RecapView } from './RecapView';
 
 const HOW: Record<OutReason, string> = {
@@ -44,7 +45,9 @@ export function HistoryPanel({ onClose }: { onClose(): void }) {
       <div className="overlay" role="dialog" aria-label="Game history">
         <div className="panel history-panel" data-testid="history-panel">
           <header className="panel-header">
-            <h2>Game history</h2>
+            <h2>
+              <Icon name="tied-scroll" /> Game history
+            </h2>
             <button onClick={onClose}>Close</button>
           </header>
           <div className="row">
@@ -120,7 +123,9 @@ export function HistoryPanel({ onClose }: { onClose(): void }) {
               )}
               {stats.eliminations.length > 0 && (
                 <section>
-                  <h3>Who knocked out whom</h3>
+                  <h3>
+                    <Icon name="crossed-swords" /> Who knocked out whom
+                  </h3>
                   <ul className="history-eliminations">
                     {stats.eliminations.map((e) => (
                       <li key={`${e.by}-${e.out}`}>

@@ -3,6 +3,7 @@ import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { CardDataStatus, CardDetails } from '../../shared/api';
 import { api } from '../api';
+import { Icon } from '../icons/Icon';
 import { CardText, Symbols } from './CardText';
 
 interface CardsPanelProps {
@@ -33,7 +34,9 @@ export function CardsPanel({ initialCardId = null, onSpotlight, onClose }: Cards
   return (
     <aside className="side-panel cards-panel" aria-label="Cards" data-testid="cards-panel">
       <header className="panel-header">
-        <h2>Cards</h2>
+        <h2>
+          <Icon name="spell-book" /> Cards
+        </h2>
         <button onClick={onClose}>Close</button>
       </header>
       <input

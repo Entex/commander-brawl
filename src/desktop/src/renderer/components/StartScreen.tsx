@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { HostInfo, SavedTableSummary } from '../../shared/api';
 import { api, errorMessage } from '../api';
+import { Icon } from '../icons/Icon';
 import type { CameraState } from '../useCamera';
 import { DecksPanel } from './DecksPanel';
 import { HistoryPanel } from './HistoryPanel';
@@ -48,11 +49,19 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
   return (
     <div className="start-screen">
       <div className="panel start-panel">
-        <h1>Commander Brawl</h1>
+        <header className="start-title">
+          <Icon name="crossed-sabres" className="start-logo" />
+          <div>
+            <h1>Commander Brawl</h1>
+            <p className="hint">Commander with friends, over cameras. No accounts, no servers.</p>
+          </div>
+        </header>
 
         {saved.table && (
           <section className="resume" data-testid="resume">
-            <h2>Resume your table?</h2>
+            <h2>
+              <Icon name="castle" /> Resume your table?
+            </h2>
             <p className="hint">
               You were hosting{saved.table.players.length > 0 ? ` ${listNames(saved.table.players)}` : ' a table'} when
               the app closed (last change at {formatSavedAt(saved.table.savedAt)}). Their apps keep trying to reconnect,
@@ -86,14 +95,22 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
           ) : (
             <p className="hint">No camera yet. Set it up now or once you're at the table.</p>
           )}
-          <button onClick={onOpenCamera}>Set up camera</button>
-          <button onClick={() => setDecksOpen(true)}>Decks</button>
-          <button onClick={() => setHistoryOpen(true)}>History</button>
+          <button onClick={onOpenCamera}>
+            <Icon name="photo-camera" /> Set up camera
+          </button>
+          <button onClick={() => setDecksOpen(true)}>
+            <Icon name="card-draw" /> Decks
+          </button>
+          <button onClick={() => setHistoryOpen(true)}>
+            <Icon name="tied-scroll" /> History
+          </button>
         </div>
 
         <div className="start-actions">
-          <section>
-            <h2>Host a table</h2>
+          <section className="start-choice">
+            <h2>
+              <Icon name="castle" /> Host a table
+            </h2>
             <p className="hint">You'll get an invite code to share with your friends.</p>
             <button
               className="primary"
@@ -104,8 +121,10 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
               {busy === 'host' ? 'Opening the table…' : 'Host'}
             </button>
           </section>
-          <section>
-            <h2>Join a table</h2>
+          <section className="start-choice">
+            <h2>
+              <Icon name="open-gate" /> Join a table
+            </h2>
             <textarea
               value={invite}
               rows={3}
@@ -113,27 +132,35 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
               onChange={(event) => setInvite(event.target.value)}
               data-testid="invite-input"
             />
-            <button
-              className="primary"
-              disabled={busy !== null || !name.trim() || !invite.trim()}
-              onClick={() => void run('join')}
-              data-testid="join"
-            >
-              {busy === 'join' ? 'Joining…' : 'Join'}
-            </button>
-            <button
-              disabled={busy !== null || !name.trim() || !invite.trim()}
-              onClick={() => void run('watch')}
-              title="Watch the game without taking a seat: you see everything and change nothing"
-              data-testid="watch"
-            >
-              {busy === 'watch' ? 'Joining…' : 'Watch'}
-            </button>
+            <div className="start-buttons">
+              <button
+                className="primary"
+                disabled={busy !== null || !name.trim() || !invite.trim()}
+                onClick={() => void run('join')}
+                data-testid="join"
+              >
+                {busy === 'join' ? 'Joining…' : 'Join'}
+              </button>
+              <button
+                disabled={busy !== null || !name.trim() || !invite.trim()}
+                onClick={() => void run('watch')}
+                title="Watch the game without taking a seat: you see everything and change nothing"
+                data-testid="watch"
+              >
+                <Icon name="spyglass" /> {busy === 'watch' ? 'Joining…' : 'Watch'}
+              </button>
+            </div>
           </section>
         </div>
 
         {error && <p className="status status-reconnecting">{error}</p>}
-        <footer className="hint">Version {version}</footer>
+        <footer className="hint">
+          Version {version} · Icons from{' '}
+          <a href="https://game-icons.net" target="_blank" rel="noreferrer">
+            game-icons.net
+          </a>{' '}
+          (CC BY 3.0)
+        </footer>
       </div>
       {decksOpen && <DecksPanel seat={null} playing={null} onClose={() => setDecksOpen(false)} />}
       {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}

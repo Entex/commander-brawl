@@ -1,6 +1,7 @@
 import { counterValue, type GameState } from '@commander-brawl/domain';
+import { Icon } from '../icons/Icon';
 import { submitGameEvent } from '../useGame';
-import { DayNightSwitch, StormStepper } from './Markers';
+import { DayNightLabel, DayNightSwitch, StormStepper } from './Markers';
 import { Stepper } from './SeatDetails';
 
 /** Counters and markers that belong to the whole table, in a bar under the toolbar. */
@@ -11,10 +12,14 @@ export function TableCounters({ game, readOnly = false }: { readonly game: GameS
   if (readOnly) {
     return (
       <div className="table-counters" data-testid="table-counters">
-        {game.dayNight && <span className="chip">{game.dayNight === 'day' ? '☀ Day' : '☾ Night'}</span>}
+        {game.dayNight && (
+          <span className="chip">
+            <DayNightLabel value={game.dayNight} />
+          </span>
+        )}
         {game.storm > 0 && (
           <span className="chip">
-            Storm count <b>{game.storm}</b>
+            <Icon name="lightning-storm" /> Storm count <b>{game.storm}</b>
           </span>
         )}
         {counters.map((counter) => (

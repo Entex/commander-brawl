@@ -14,7 +14,9 @@ import {
   type SeatIndex,
 } from '@commander-brawl/domain';
 import { useState } from 'react';
-import { COUNTER_NAMES, commanderName, describeLoss, seatName, type Players } from '../names';
+import { Icon, type GameIconName } from '../icons/Icon';
+import { COUNTER_ICONS, COUNTER_NAMES, commanderName, describeLoss, seatName, type Players } from '../names';
+import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 import { formatChange, useGroupedChange } from '../useGroupedChange';
 import { SeatMarkers } from './Markers';
@@ -36,7 +38,7 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
   const opponents = players.filter((p) => p.player.seat !== seat);
   return (
     <div
-      className="seat-details"
+      className={`seat-details ${seatColorClass(seat)}`}
       data-testid={`seat-details-${seat}`}
       role="dialog"
       aria-label={`${seatName(players, seat)}'s details`}
@@ -48,7 +50,9 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
 
       {state.deck && (
         <section>
-          <h4>Deck</h4>
+          <h4>
+            <Icon name="card-draw" /> Deck
+          </h4>
           <p className="deck-line">
             {state.deck.name} · {deckSize(state.deck)} cards
           </p>
@@ -56,7 +60,9 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
       )}
 
       <section>
-        <h4>Commanders</h4>
+        <h4>
+          <Icon name="knight-banner" /> Commanders
+        </h4>
         {/* Keyed by the names, so the form starts over when someone else renames them. */}
         <CommanderNames key={state.commanders.join('\n')} seat={seat} names={state.commanders} />
         {state.commanders.map((_, index) => {
@@ -84,11 +90,14 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
       </section>
 
       <section>
-        <h4>Counters</h4>
+        <h4>
+          <Icon name="abacus" /> Counters
+        </h4>
         {PLAYER_COUNTERS.map((counter) => (
           <Stepper
             key={counter}
             label={COUNTER_NAMES[counter]}
+            icon={COUNTER_ICONS[counter]}
             unit={COUNTER_NAMES[counter].toLowerCase()}
             value={state.counters[counter]}
             max={counter === 'speed' ? MAX_SPEED : null}
@@ -112,7 +121,9 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
       </section>
 
       <section>
-        <h4>Commander damage taken</h4>
+        <h4>
+          <Icon name="mailed-fist" /> Commander damage taken
+        </h4>
         {opponents.length === 0 && <p className="hint">Nobody else is at the table yet.</p>}
         {opponents.flatMap((opponent) =>
           (game.seats[opponent.player.seat]?.commanders ?? ['']).map((_, index) => {
@@ -138,7 +149,9 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
       <SeatMarkers seat={seat} game={game} />
 
       <section>
-        <h4>Status</h4>
+        <h4>
+          <Icon name="tombstone" /> Status
+        </h4>
         <OutStatus seat={seat} game={game} players={players} />
       </section>
     </div>
@@ -195,18 +208,20 @@ interface StepperProps {
   readonly min?: number | null;
   readonly max?: number | null;
   readonly color?: CounterColor;
+  readonly icon?: GameIconName;
   /** Offer +5 as well, for things that come in big chunks. */
   readonly big?: boolean;
   onChange(amount: number): void;
 }
 
-export function Stepper({ label, unit, value, min = 0, max = null, color, big = false, onChange }: StepperProps) {
+export function Stepper({ label, unit, value, min = 0, max = null, color, icon, big = false, onChange }: StepperProps) {
   const { draft, add } = useGroupedChange(onChange);
   const shown = value + draft;
   return (
     <div className="stepper-row">
       <span className="stepper-label">
         {color && <span className={`swatch color-${color}`} />}
+        {icon && <Icon name={icon} />}
         {label}
       </span>
       <button aria-label={`Remove 1 ${unit}`} disabled={min !== null && shown <= min} onClick={() => add(-1)}>

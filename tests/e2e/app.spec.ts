@@ -529,12 +529,12 @@ test('"Wait, I have a response!" flashes on every screen', async () => {
 
   await friend.page.keyboard.press('w');
 
-  await expect(host.page.getByTestId('response-banner')).toHaveText('✋ Friend: “Wait, I have a response!”');
+  await expect(host.page.getByTestId('response-banner')).toHaveText('Friend: “Wait, I have a response!”');
   await expect(host.page.locator('.seat-responding')).toContainText('Friend');
   await host.page.screenshot({ path: test.info().outputPath('response.png') });
-  await expect(friend.page.getByTestId('response-banner')).toHaveText('✋ You asked everyone to wait');
+  await expect(friend.page.getByTestId('response-banner')).toHaveText('You asked everyone to wait');
   // No calling again right away, and nothing to undo: it didn't change the game.
-  await expect(friend.page.getByRole('button', { name: '✋ Wait!' })).toBeDisabled();
+  await expect(friend.page.getByRole('button', { name: 'Wait!' })).toBeDisabled();
   await expect(friend.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
   await expect(host.page.getByTestId('last-change')).toHaveText('Friend: “Wait, I have a response!”');
 
@@ -543,7 +543,7 @@ test('"Wait, I have a response!" flashes on every screen', async () => {
   await expect(host.page.getByTestId('last-change')).toContainText('shuffled the turn order');
   await expect(host.page.getByTestId('response-banner')).toHaveCount(0, { timeout: 10_000 });
   await expect(friend.page.getByTestId('response-banner')).toHaveCount(0);
-  await expect(friend.page.getByRole('button', { name: '✋ Wait!' })).toBeEnabled();
+  await expect(friend.page.getByRole('button', { name: 'Wait!' })).toBeEnabled();
 });
 
 test('pings and arrows on the videos, in the same spot for everyone, also on a flipped video', async () => {
@@ -631,7 +631,7 @@ test('phases of the turn, a turn timer that a response pauses, and a chess clock
 
   // The clock runs for the active player, the same for everyone.
   for (const { page } of [active, other]) {
-    await expect(page.getByTestId('clock')).toContainText(/⏱ (2:00|1:5\d)/);
+    await expect(page.getByTestId('clock')).toContainText(/(2:00|1:5\d)/);
     await expect(page.getByTestId('phases').locator('.phase-current')).toHaveText('Upkeep');
   }
 
@@ -656,7 +656,7 @@ test('phases of the turn, a turn timer that a response pauses, and a chess clock
   await active.page.getByRole('button', { name: 'Pass turn' }).click();
   await expect(other.page.getByTestId('turn')).toContainText('Your turn');
   await expect(other.page.getByTestId('phases').locator('.phase-current')).toHaveText('Upkeep');
-  await expect(other.page.getByTestId('clock')).toContainText(/⏱ (2:00|1:5\d)/);
+  await expect(other.page.getByTestId('clock')).toContainText(/(2:00|1:5\d)/);
 
   // A chess clock instead: everyone's time bank on their seat.
   await other.page.getByRole('button', { name: 'Menu' }).click();
@@ -674,10 +674,10 @@ test('markers: monarch, initiative and the Undercity, day and night, the storm c
   // The friend marks the host as the monarch, and gives them the initiative.
   await friend.page.getByRole('button', { name: "Host's details" }).click();
   const markers = friend.page.getByTestId('seat-markers');
-  await markers.getByRole('button', { name: '👑 Monarch' }).click();
+  await markers.getByRole('button', { name: 'Monarch' }).click();
   await markers.getByRole('button', { name: 'Initiative' }).click();
   const hostChips = host.page.getByTestId('chips-0');
-  await expect(hostChips).toContainText('👑 Monarch');
+  await expect(hostChips).toContainText('Monarch');
   await expect(hostChips).toContainText('Initiative');
   // The initiative took them into Undercity; on to the Forge.
   await expect(hostChips).toContainText('Undercity Secret Entrance');
@@ -690,14 +690,17 @@ test('markers: monarch, initiative and the Undercity, day and night, the storm c
 
   // Day and night, and the storm count, for the whole table.
   await host.page.getByRole('button', { name: 'Counters' }).click();
-  await host.page.getByRole('group', { name: 'Day or night' }).getByRole('button', { name: '☀ Day' }).click();
+  await host.page
+    .getByRole('group', { name: 'Day or night' })
+    .getByRole('button', { name: 'Day', exact: true })
+    .click();
   await host.page.getByRole('button', { name: 'Add 1 to the storm count' }).click();
   await host.page.getByRole('button', { name: 'Done' }).click();
   const bar = friend.page.getByTestId('table-counters');
-  await expect(bar.getByTestId('day-night')).toHaveText('☀ Day');
+  await expect(bar.getByTestId('day-night')).toHaveText('Day');
   await expect(bar).toContainText('Storm count');
   await bar.getByTestId('day-night').click();
-  await expect(host.page.getByTestId('day-night')).toHaveText('☾ Night');
+  await expect(host.page.getByTestId('day-night')).toHaveText('Night');
 
   // The storm count is for one turn: the first turn starts it over.
   await host.page.getByRole('button', { name: 'Random turn order' }).click();
@@ -707,26 +710,26 @@ test('markers: monarch, initiative and the Undercity, day and night, the storm c
 test('dice, coin flips and random picks, rolled by the host and shown to everyone', async () => {
   const { host, friend } = await hostAndFriend();
 
-  await friend.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await friend.page.getByRole('button', { name: 'Roll', exact: true }).click();
   await friend.page.getByRole('menuitem', { name: 'd20' }).click();
   const banner = host.page.getByTestId('roll-banner');
-  await expect(banner).toHaveText(/🎲 Friend rolled a d20: ([1-9]|1[0-9]|20)$/);
+  await expect(banner).toHaveText(/Friend rolled a d20: ([1-9]|1[0-9]|20)$/);
   const roll = await banner.textContent();
   // The same result for everyone.
   await expect(friend.page.getByTestId('roll-banner')).toHaveText(roll!);
 
-  await host.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await host.page.getByRole('button', { name: 'Roll', exact: true }).click();
   await host.page.getByLabel('How many dice').fill('3');
   await host.page.getByLabel('Sides').fill('6');
-  await host.page.getByRole('button', { name: 'Roll', exact: true }).click();
+  await host.page.locator('.custom-roll').getByRole('button', { name: 'Roll' }).click();
   await expect(friend.page.getByTestId('roll-banner')).toContainText(/Host rolled 3d6: \d, \d, \d \(\d+\)/);
 
-  await host.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await host.page.getByRole('button', { name: 'Roll', exact: true }).click();
   await host.page.getByRole('menuitem', { name: 'Random opponent' }).click();
   await expect(friend.page.getByTestId('roll-banner')).toContainText('Host picked a random opponent: Friend');
   await friend.page.screenshot({ path: test.info().outputPath('rolls.png') });
 
-  await friend.page.getByRole('button', { name: '🎲 Roll' }).click();
+  await friend.page.getByRole('button', { name: 'Roll', exact: true }).click();
   await friend.page.getByRole('menuitem', { name: 'Flip a coin' }).click();
   await expect(host.page.getByTestId('roll-banner')).toContainText(/Friend flipped a coin: (heads|tails)/);
   // In the log too, and nothing to undo.
@@ -881,9 +884,9 @@ test('a warning for everyone when a player has most of a combo from their deck o
 
   const warnings = friend.page.getByTestId('combo-warnings');
   await expect(warnings).toHaveText(
-    "⚠ Host has 2 of 3 pieces of Sol Ring + Rhystic Study + Atraxa, Praetors' Voice (Infinite test mana): missing Atraxa, Praetors' Voice",
+    "Host has 2 of 3 pieces of Sol Ring + Rhystic Study + Atraxa, Praetors' Voice (Infinite test mana): missing Atraxa, Praetors' Voice",
   );
-  await expect(friend.page.getByTestId('chips-0')).toContainText('⚠ Combo 2/3');
+  await expect(friend.page.getByTestId('chips-0')).toContainText('Combo 2/3');
 });
 
 test('a recap when a game is decided, and finished games kept: stats, the games, sharing them as a file', async () => {
@@ -907,7 +910,7 @@ test('a recap when a game is decided, and finished games kept: stats, the games,
   await expect(host.page.getByTestId('out-0')).toBeVisible();
 
   // Decided: everyone hears who won, and the recap is a click away.
-  await expect(friend.page.getByTestId('game-over')).toContainText('🏆 Friend won');
+  await expect(friend.page.getByTestId('game-over')).toContainText('Friend won');
   await host.page.getByTestId('game-over').getByRole('button', { name: 'Recap' }).click();
   await friend.page.getByTestId('game-over').getByRole('button', { name: 'Recap' }).click();
   const recap = host.page.getByTestId('recap');
@@ -967,7 +970,7 @@ test('saving the last half minute of the table as a video', async () => {
   await host.page.getByRole('button', { name: 'Menu' }).click();
   await host.page.getByRole('menuitemcheckbox', { name: 'Record clips' }).click();
   await host.page.waitForTimeout(3_000);
-  await host.page.getByRole('button', { name: '💾 Last 30 s' }).click();
+  await host.page.getByRole('button', { name: 'Last 30 s' }).click();
   await expect(host.page.getByTestId('clip-note')).toHaveText('Saved the clip.', { timeout: 10_000 });
 
   const [name] = (await readdir(host.saveDir)).filter((file) => file.endsWith('.webm'));
@@ -992,12 +995,12 @@ test('a spectator watches without a seat, and the clean view for streaming', asy
   // Sam sees both players, takes no seat, and has nothing to change the game with.
   await expectVideoFrom(sam.page, 'Host');
   await expectVideoFrom(sam.page, 'Friend');
-  await expect(sam.page.getByText('👁 Watching')).toBeVisible();
+  await expect(sam.page.getByText('Watching', { exact: true })).toBeVisible();
   await expect(sam.page.locator('.seat:not(.seat-free)')).toHaveCount(2);
-  for (const name of ['Undo', '✋ Wait!', '🎲 Roll', 'Counters', 'Lose 1 life', "Host's details"]) {
+  for (const name of ['Undo', 'Wait!', 'Roll', 'Counters', 'Lose 1 life', "Host's details"]) {
     await expect(sam.page.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
-  await expect(host.page.getByTestId('spectators')).toHaveText('👁 1 watching');
+  await expect(host.page.getByTestId('spectators')).toHaveText('1 watching');
 
   // The game, as it happens.
   await friend.page.getByTestId('life-0').getByRole('button', { name: 'Lose 5 life' }).click();
@@ -1037,7 +1040,7 @@ test('Rule 0: brackets, and the deck check pointing out what does not fit', asyn
   await expect(rule0.getByTestId('rule0-0')).toContainText('1 Game Changer (brackets 1–2 have none): Rhystic Study');
   await rule0.getByRole('button', { name: 'Done' }).click();
 
-  await expect(friend.page.getByTestId('seat-0')).toContainText('Bracket 2 ⚠');
+  await expect(friend.page.getByTestId('seat-0').locator('.badge-warn')).toHaveText('Bracket 2');
   await friend.page.getByRole('button', { name: 'Rule 0' }).click();
   await expect(friend.page.getByTestId('rule0-0')).toContainText('1 Game Changer (brackets 1–2 have none)');
 });

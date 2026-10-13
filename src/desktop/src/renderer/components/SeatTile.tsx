@@ -20,7 +20,9 @@ import {
   type SeatIndex,
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
-import { COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
+import { Icon, type GameIconName } from '../icons/Icon';
+import { COUNTER_ICONS, COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
+import { seatColorClass } from '../seatColors';
 import { pictureAt } from '../videoPoints';
 import { submitGameEvent } from '../useGame';
 import { CommanderBadges } from './CommanderBadges';
@@ -81,7 +83,7 @@ export function SeatTile({
 
   return (
     <div
-      className={`seat${active ? ' seat-active' : ''}${responding ? ' seat-responding' : ''}`}
+      className={`seat ${seatColorClass(index)}${active ? ' seat-active' : ''}${responding ? ' seat-responding' : ''}`}
       data-testid={`seat-${seat.player.seat}`}
       data-link={seat.link}
       data-active={active}
@@ -108,7 +110,10 @@ export function SeatTile({
           }
         />
       ) : (
-        <div className="seat-empty">{seat.isSelf ? 'Set up your camera' : 'No camera yet'}</div>
+        <div className="seat-empty">
+          <Icon name="photo-camera" className="seat-empty-icon" />
+          {seat.isSelf ? 'Set up your camera' : 'No camera yet'}
+        </div>
       )}
       {seat.camera === 'reconnecting' && (
         <div className="seat-camera-note" data-testid={`camera-note-${index}`}>
@@ -123,7 +128,12 @@ export function SeatTile({
       <div className="seat-info">
         <div className="seat-label">
           <span className="seat-name">{seat.isSelf && !readOnly ? `${seat.player.name} (you)` : seat.player.name}</span>
-          {active && <span className="badge badge-turn">{seat.isSelf ? 'Your turn' : 'Their turn'}</span>}
+          {active && (
+            <span className="badge badge-turn">
+              <Icon name="knight-banner" />
+              {seat.isSelf ? 'Your turn' : 'Their turn'}
+            </span>
+          )}
           {state?.bracket && <BracketBadge state={state} />}
           {game?.clock?.settings.kind === 'chess' && (
             <SeatClock clock={game.clock} seat={index} hostClockOffset={hostClockOffset} />
@@ -135,17 +145,18 @@ export function SeatTile({
       </div>
       {game && state && isOut(game, index) && (
         <div className="seat-out" data-testid={`out-${index}`}>
+          <Icon name="tombstone" className="seat-out-icon" />
           <strong>Out</strong>
           <span>{outReason(game, index, players)}</span>
         </div>
       )}
       <div className="seat-actions">
         <button title="Turn the picture upside down" onClick={() => setRotation(rotation === 0 ? 180 : 0)}>
-          Flip
+          <Icon name="cycle" /> Flip
         </button>
         {game && !readOnly && (
           <button aria-label={`${seat.player.name}'s details`} onClick={() => setDetailsOpen(!detailsOpen)}>
-            Details
+            <Icon name="open-book" /> Details
           </button>
         )}
       </div>
@@ -180,34 +191,57 @@ interface SeatChipsProps {
 function SeatChips({ seat, game, players }: SeatChipsProps) {
   const state = game.seats[seat.player.seat];
   if (!state) return null;
-  const chips: { key: string; label: string; value: string; danger?: boolean; color?: CounterColor; title: string }[] =
-    [];
+  const chips: {
+    key: string;
+    label: string;
+    value: string;
+    icon?: GameIconName;
+    danger?: boolean;
+    color?: CounterColor;
+    title: string;
+  }[] = [];
 
   const index = seat.player.seat;
-  if (game.monarch === index) chips.push({ key: 'monarch', label: '👑 Monarch', value: '', title: 'The monarch' });
+  if (game.monarch === index) {
+    chips.push({ key: 'monarch', label: 'Monarch', icon: 'crown', value: '', title: 'The monarch' });
+  }
   if (game.initiative === index) {
-    chips.push({ key: 'initiative', label: 'Initiative', value: '', title: 'Has the initiative' });
+    chips.push({ key: 'initiative', label: 'Initiative', icon: 'torch', value: '', title: 'Has the initiative' });
   }
   if (state.dungeon) {
     const dungeon = DUNGEONS[state.dungeon.dungeon];
     chips.push({
       key: 'dungeon',
       label: dungeon.name,
+      icon: 'dungeon-gate',
       value: dungeon.rooms[state.dungeon.room]?.name ?? '',
       title: isLastRoom(state.dungeon) ? 'Dungeon completed' : 'In a dungeon',
     });
   }
   if (state.ringTempts > 0) {
-    chips.push({ key: 'ring', label: 'The Ring', value: `×${state.ringTempts}`, title: 'Times the Ring tempted them' });
+    chips.push({
+      key: 'ring',
+      label: 'The Ring',
+      icon: 'ring',
+      value: `×${state.ringTempts}`,
+      title: 'Times the Ring tempted them',
+    });
   }
   if (state.citysBlessing) {
-    chips.push({ key: 'blessing', label: "City's blessing", value: '', title: "Has the city's blessing" });
+    chips.push({
+      key: 'blessing',
+      label: "City's blessing",
+      icon: 'angel-wings',
+      value: '',
+      title: "Has the city's blessing",
+    });
   }
   const threat = comboThreats(game).find((t) => t.seat === index);
   if (threat) {
     chips.push({
       key: 'combo',
-      label: '⚠ Combo',
+      label: 'Combo',
+      icon: 'skull-bolt',
       value: `${threat.present.length}/${threat.combo.cards.length}`,
       danger: threat.missing.length === 0,
       title: describeThreat(threat, players),
@@ -215,7 +249,13 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
   }
   const summaries = permanentSummaries(game, state.permanents);
   for (const summary of summaries.slice(0, MAX_PERMANENT_CHIPS)) {
-    chips.push({ key: `permanent-${summary.key}`, label: summary.text, value: '', title: summary.text });
+    chips.push({
+      key: `permanent-${summary.key}`,
+      label: summary.text,
+      icon: 'card-play',
+      value: '',
+      title: summary.text,
+    });
   }
   if (summaries.length > MAX_PERMANENT_CHIPS) {
     const more = summaries.length - MAX_PERMANENT_CHIPS;
@@ -228,6 +268,7 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
       chips.push({
         key: counter,
         label: COUNTER_NAMES[counter],
+        icon: COUNTER_ICONS[counter],
         value: String(value),
         danger: counter === 'poison' && value >= POISON_LIMIT,
         title: COUNTER_NAMES[counter],
@@ -252,7 +293,13 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
     const tax = commanderTax(state, index as CommanderIndex);
     if (tax > 0 && !name) {
       const name = commanderName(game, players, seat.player.seat, index as CommanderIndex);
-      chips.push({ key: `tax-${index}`, label: `${name} tax`, value: `+${tax}`, title: 'Commander tax' });
+      chips.push({
+        key: `tax-${index}`,
+        label: `${name} tax`,
+        icon: 'two-coins',
+        value: `+${tax}`,
+        title: 'Commander tax',
+      });
     }
   });
   for (const opponent of players) {
@@ -263,6 +310,7 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
         chips.push({
           key: `damage-${opponent.player.seat}-${commander}`,
           label: commanderName(game, players, opponent.player.seat, commander),
+          icon: 'mailed-fist',
           value: String(damage),
           danger: damage >= COMMANDER_DAMAGE_LIMIT,
           title: 'Commander damage taken',
@@ -275,8 +323,9 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
   return (
     <div className="seat-chips" data-testid={`chips-${seat.player.seat}`}>
       {chips.map((chip) => (
-        <span key={chip.key} className={`chip${chip.danger ? ' chip-danger' : ''}`} title={chip.title}>
+        <span key={chip.key} className={`chip chip-${chip.key}${chip.danger ? ' chip-danger' : ''}`} title={chip.title}>
           {chip.color && <span className={`swatch color-${chip.color}`} />}
+          {chip.icon && <Icon name={chip.icon} />}
           {chip.label} <b>{chip.value}</b>
         </span>
       ))}
@@ -309,9 +358,10 @@ function BracketBadge({ state }: { readonly state: SeatGameState }) {
     <span
       className={`badge${concerns.length > 0 ? ' badge-warn' : ''}`}
       title={concerns.length > 0 ? concerns.join('\n') : `Bracket ${state.bracket}`}
+      data-concerns={concerns.length}
     >
+      <Icon name={concerns.length > 0 ? 'hazard-sign' : 'scales'} />
       Bracket {state.bracket}
-      {concerns.length > 0 ? ' ⚠' : ''}
     </span>
   );
 }
@@ -324,7 +374,10 @@ function outReason(game: GameState, seat: SeatIndex, players: Players): string {
 export function EmptySeat({ index }: { readonly index: number }) {
   return (
     <div className="seat seat-free" data-testid={`seat-${index}`}>
-      <div className="seat-empty">Empty seat</div>
+      <div className="seat-empty">
+        <Icon name="meeple-group" className="seat-empty-icon" />
+        Empty seat
+      </div>
     </div>
   );
 }

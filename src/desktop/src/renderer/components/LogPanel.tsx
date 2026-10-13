@@ -3,7 +3,9 @@ import type { GameEvent, GameState, SeatIndex } from '@commander-brawl/domain';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { describeEvent } from '../describeEvent';
+import { Icon } from '../icons/Icon';
 import type { Players } from '../names';
+import { seatColorClass } from '../seatColors';
 
 interface LogPanelProps {
   readonly game: GameView;
@@ -31,7 +33,9 @@ export function LogPanel({ game, players, onClose }: LogPanelProps) {
   return (
     <aside className="log-panel" aria-label="Game log" data-testid="log-panel">
       <header className="panel-header">
-        <h2>Game log</h2>
+        <h2>
+          <Icon name="scroll-unfurled" /> Game log
+        </h2>
         <button onClick={onClose}>Close</button>
       </header>
       <div className="row">
@@ -57,7 +61,7 @@ export function LogPanel({ game, players, onClose }: LogPanelProps) {
         {shown.map((entry) => (
           <li
             key={entry.id}
-            className={`${undone.has(entry.id) ? 'undone' : ''} ${entry.event.type === 'new-game' ? 'log-game' : ''}`}
+            className={`${seatColorClass(entry.by.seat)} ${undone.has(entry.id) ? 'undone' : ''} ${entry.event.type === 'new-game' ? 'log-game' : ''}`}
           >
             <time>{formatTime(entry.at)}</time>
             <span>{describeEvent(entry, players, game.state, find)}</span>

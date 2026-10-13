@@ -9,7 +9,9 @@ import {
 import { isOut, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { Icon } from '../icons/Icon';
 import type { Players } from '../names';
+import { seatColorClass } from '../seatColors';
 
 /** A game's recap: standings, turns and key moments. Copy it for Discord, or save it as a file. */
 export function RecapView({
@@ -33,7 +35,9 @@ export function RecapView({
     <div className="overlay" role="dialog" aria-label="Game recap">
       <div className="panel recap-panel" data-testid="recap">
         <header className="panel-header">
-          <h2>{winner ? `${winner} won` : 'Game recap'}</h2>
+          <h2>
+            {winner && <Icon name="trophy-cup" className="icon-gold" />} {winner ? `${winner} won` : 'Game recap'}
+          </h2>
           <button onClick={onClose}>Close</button>
         </header>
         <p className="hint">
@@ -43,7 +47,8 @@ export function RecapView({
         <ol className="recap-standings">
           {standings.map((p) => (
             <li key={p.seat}>
-              <b>{p.name}</b>
+              {p.seat === record.winner && <Icon name="laurels-trophy" className="icon-gold" />}{' '}
+              <b className={`seat-text ${seatColorClass(p.seat)}`}>{p.name}</b>
               {(p.commanders.length > 0 || p.deck) && (
                 <span className="hint"> · {[p.commanders.join(' & '), p.deck].filter(Boolean).join(', ')}</span>
               )}
@@ -53,7 +58,9 @@ export function RecapView({
         </ol>
         {record.moments && record.moments.length > 0 && (
           <section>
-            <h3>Key moments</h3>
+            <h3>
+              <Icon name="scroll-unfurled" /> Key moments
+            </h3>
             <ul className="recap-moments">
               {record.moments.map((moment, i) => (
                 <li key={i}>
@@ -155,7 +162,10 @@ export function GameOverBanner({
   if (!winner) return null;
   return (
     <div className="game-over" role="status" data-testid="game-over">
-      <span>🏆 {winner.name} won</span>
+      <Icon name="trophy-cup" className="icon-gold" />
+      <span>
+        <b className={`seat-text ${seatColorClass(winner.seat)}`}>{winner.name}</b> won
+      </span>
       <button className="primary" onClick={onView}>
         Recap
       </button>

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
+import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
 import { CLIP_SECONDS, useClips } from '../clips';
 import { useCloseUps } from '../useCloseUps';
@@ -119,17 +120,24 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
       <header className="toolbar">
         <div className="toolbar-group">
-          {game && <span className="hint">Game {game.state.number}</span>}
-          {spectating && <span className="badge">👁 Watching</span>}
+          <span className="brand">
+            <Icon name="crossed-sabres" />
+            {game ? `Game ${game.state.number}` : 'Commander Brawl'}
+          </span>
+          {spectating && (
+            <span className="badge">
+              <Icon name="all-seeing-eye" /> Watching
+            </span>
+          )}
           {state.spectators.length > 0 && !spectating && (
             <span className="hint" title={state.spectators.map((s) => s.name).join(', ')} data-testid="spectators">
-              👁 {state.spectators.length} watching
+              <Icon name="all-seeing-eye" /> {state.spectators.length} watching
             </span>
           )}
           {host && (
             <>
               <button onClick={() => void copyInvite()} data-testid="copy-invite">
-                {copied ? 'Copied!' : 'Copy invite'}
+                <Icon name="wax-seal" /> {copied ? 'Copied!' : 'Copy invite'}
               </button>
               <ReachabilityBadge host={host} />
             </>
@@ -144,21 +152,21 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               }
               onClick={() => undoTarget && submitGameEvent({ type: 'undo', target: undoTarget.id })}
             >
-              Undo
+              <Icon name="anticlockwise-rotation" /> Undo
             </button>
           )}
           <button onClick={() => setCardsOpen(!cardsOpen)} aria-pressed={cardsOpen} title="Look up a card (Ctrl+K)">
-            Cards
+            <Icon name="spell-book" /> Cards
           </button>
           <button onClick={() => setLogOpen(!logOpen)} aria-pressed={logOpen} disabled={!game}>
-            Log
+            <Icon name="scroll-unfurled" /> Log
           </button>
           {!spectating && (
             <button onClick={() => setCountersOpen(true)} disabled={!game}>
-              Counters
+              <Icon name="abacus" /> Counters
             </button>
           )}
-          <Menu label="Menu">
+          <Menu label="Menu" icon="gears">
             {(close) => (
               <>
                 {!spectating && (
@@ -176,7 +184,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                         setDecksOpen(true);
                       }}
                     >
-                      Decks
+                      <Icon name="card-draw" /> Decks
                     </button>
                     <button
                       role="menuitem"
@@ -186,7 +194,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                       }}
                       disabled={!game}
                     >
-                      Clock
+                      <Icon name="hourglass" /> Clock
                     </button>
                     <button
                       role="menuitem"
@@ -196,7 +204,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                       }}
                       disabled={!game}
                     >
-                      Planechase and Archenemy
+                      <Icon name="magic-portal" /> Planechase and Archenemy
                     </button>
                   </>
                 )}
@@ -207,7 +215,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                     setHistoryOpen(true);
                   }}
                 >
-                  History
+                  <Icon name="tied-scroll" /> History
                 </button>
                 {!spectating && (
                   <button
@@ -217,7 +225,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                       onOpenCamera();
                     }}
                   >
-                    Camera
+                    <Icon name="photo-camera" /> Camera
                   </button>
                 )}
                 <button
@@ -228,7 +236,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                     setClean(true);
                   }}
                 >
-                  Clean view for streaming
+                  <Icon name="tv" /> Clean view for streaming
                 </button>
                 {clips.supported && (
                   <button
@@ -240,14 +248,14 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                       clips.toggle();
                     }}
                   >
-                    Record clips
+                    <Icon name="clapperboard" /> Record clips
                   </button>
                 )}
                 <button role="menuitemcheckbox" aria-checked={showStats} onClick={() => setShowStats((v) => !v)}>
-                  {showStats ? 'Hide stats' : 'Show stats'}
+                  <Icon name="network-bars" /> {showStats ? 'Hide stats' : 'Show stats'}
                 </button>
                 <button role="menuitem" className="danger" onClick={onLeave}>
-                  {host ? 'Close table' : 'Leave'}
+                  <Icon name="exit-door" /> {host ? 'Close table' : 'Leave'}
                 </button>
               </>
             )}
@@ -261,7 +269,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           {!spectating && <ResponseButton />}
           {clips.recording && (
             <button onClick={clips.save} title="Save the last half minute of the table as a video">
-              💾 Last {CLIP_SECONDS} s
+              <Icon name="clapperboard" /> Last {CLIP_SECONDS} s
             </button>
           )}
           {clips.note && (
@@ -269,9 +277,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               {clips.note}
             </span>
           )}
-          {recap.record && !recap.banner && !recap.viewing && <button onClick={recap.view}>Recap</button>}
+          {recap.record && !recap.banner && !recap.viewing && (
+            <button onClick={recap.view}>
+              <Icon name="laurels-trophy" /> Recap
+            </button>
+          )}
           {!spectating && <RollMenu game={game.state} players={state.seats} />}
-          <button onClick={() => setRule0Open(true)}>Rule 0</button>
+          <button onClick={() => setRule0Open(true)}>
+            <Icon name="scales" /> Rule 0
+          </button>
           <TurnControls
             game={game.state}
             players={state.seats}
@@ -410,13 +424,13 @@ function ReachabilityBadge({ host }: { readonly host: HostInfo }) {
   if (reachability.kind === 'internet') {
     return (
       <span className="badge badge-ok" title="Friends can join over the internet">
-        Open
+        <Icon name="open-gate" /> Open
       </span>
     );
   }
   return (
     <span className="badge badge-warn" title="Only players on your network can join">
-      Local network only
+      <Icon name="padlock" /> Local network only
     </span>
   );
 }
@@ -530,7 +544,7 @@ function NewGameButton({ onConfirm }: { onConfirm(): void }) {
         if (armed) onConfirm();
       }}
     >
-      {armed ? 'Start a new game?' : 'New game'}
+      <Icon name="card-random" /> {armed ? 'Start a new game?' : 'New game'}
     </button>
   );
 }

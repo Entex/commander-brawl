@@ -3,6 +3,7 @@ import { MAX_COMMANDERS, MAX_DECK_NAME_LENGTH, deckSize, type DeckList, type Sea
 import { useEffect, useState } from 'react';
 import type { SavedDeck } from '../../shared/api';
 import { api, errorMessage } from '../api';
+import { Icon } from '../icons/Icon';
 import { submitGameEvent } from '../useGame';
 
 interface DecksPanelProps {
@@ -65,7 +66,9 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
     <div className="overlay" role="dialog" aria-label="Decks">
       <div className="panel decks-panel" data-testid="decks-panel">
         <header className="panel-header">
-          <h2>Decks</h2>
+          <h2>
+            <Icon name="card-draw" /> Decks
+          </h2>
           <button onClick={onClose}>Done</button>
         </header>
 
