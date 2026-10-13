@@ -1,5 +1,7 @@
 export { ScryfallArtLibrary } from './artLibrary';
 export { captureFrame, capturePhoto, videoToPhoto, widen } from './capture';
+export { ClipRecorder } from './clipRecorder';
+export type { ClipRecorderOptions } from './clipRecorder';
 export { PhoneReceiver } from './phoneReceiver';
 export type { PhoneCameraState, PhoneReceiverEvents } from './phoneReceiver';
 export { PhoneSender } from './phoneSender';
@@ -14,6 +16,8 @@ export type { TesseractFiles } from './textReader';
 export { pictureToScreen, screenToPicture } from './videoGeometry';
 export type { PicturePoint, VideoFit } from './videoGeometry';
 export { listCameras, openCamera } from './webcam';
+export { lastSeconds, muxWebm } from './webm';
+export type { EncodedFrame, WebmOptions } from './webm';
 export type { CameraDevice } from './webcam';
 export { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from './webRtcPeerLink';
 export type { WebRtcConfig } from './webRtcPeerLink';

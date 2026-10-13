@@ -75,6 +75,8 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 The app also works out which card it is and lists the likeliest few; click one to see it in _Cards_. It finds the card's outline in the picture and straightens it, reads the name on your computer (with [Tesseract](https://github.com/tesseract-ocr/tesseract), offline), and, if the player is playing a deck, compares the artwork with that deck's cards. Artwork works even when the name is too small to read, and tells which way up a tapped or upside-down card is. It goes by the artwork of each card's usual printing, so a different printing relies on the name.
 
+**Clips.** Switch on _Record clips_ in the menu, and _💾 Last 30 s_ saves the last half minute of the table (every seat, with names and life totals) as a video file, for that ridiculous turn. It's off by default, because recording takes some CPU and memory.
+
 _Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development

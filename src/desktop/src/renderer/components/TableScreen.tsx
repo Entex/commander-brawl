@@ -13,6 +13,7 @@ import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
 import { cameraStatus, type CameraState } from '../useCamera';
+import { CLIP_SECONDS, useClips } from '../clips';
 import { useCloseUps } from '../useCloseUps';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
@@ -71,6 +72,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const responseCalls = useResponseCalls(game);
   const { marks: pointerMarks, point } = usePointers(session);
   const recap = useLiveRecap(game, state.seats);
+  const clips = useClips();
   const responding = new Set(responseCalls.map((call) => call.by.seat));
   const [copied, setCopied] = useState(false);
 
@@ -184,6 +186,19 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 >
                   Camera
                 </button>
+                {clips.supported && (
+                  <button
+                    role="menuitemcheckbox"
+                    aria-checked={clips.recording}
+                    title={`Keeps the last ${CLIP_SECONDS} seconds of the table, to save when something great happens`}
+                    onClick={() => {
+                      close();
+                      clips.toggle();
+                    }}
+                  >
+                    Record clips
+                  </button>
+                )}
                 <button role="menuitemcheckbox" aria-checked={showStats} onClick={() => setShowStats((v) => !v)}>
                   {showStats ? 'Hide stats' : 'Show stats'}
                 </button>
@@ -200,6 +215,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {game && (
         <div className="status-bar">
           <ResponseButton />
+          {clips.recording && (
+            <button onClick={clips.save} title="Save the last half minute of the table as a video">
+              💾 Last {CLIP_SECONDS} s
+            </button>
+          )}
+          {clips.note && (
+            <span className="hint" data-testid="clip-note">
+              {clips.note}
+            </span>
+          )}
           {recap.record && !recap.banner && !recap.viewing && <button onClick={recap.view}>Recap</button>}
           <RollMenu game={game.state} players={state.seats} />
           <button onClick={() => setRule0Open(true)}>Rule 0</button>

@@ -121,6 +121,10 @@ export interface DesktopApi {
     analyze(deck: DeckList): Promise<DeckAnalysis>;
     remove(id: string): Promise<void>;
   };
+  clips: {
+    /** Asks where to save the video (a WebM file), then saves it. False if the player cancelled. */
+    save(video: Uint8Array): Promise<boolean>;
+  };
   history: {
     /** Finished games kept on this computer, oldest first. */
     list(): Promise<readonly GameRecord[]>;
@@ -160,6 +164,7 @@ export const Channels = {
   cardsByIds: 'cards:by-ids',
   cardsClosest: 'cards:closest',
   cardsVariant: 'cards:variant',
+  clipsSave: 'clips:save',
   historyList: 'history:list',
   historyExport: 'history:export',
   historyImport: 'history:import',

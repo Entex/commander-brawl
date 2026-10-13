@@ -118,6 +118,8 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
+      // A video table: keep everything (video, the clip recorder) running while you're in Discord.
+      backgroundThrottling: false,
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -171,6 +173,14 @@ function registerIpc(
       filter: { name: 'Text', extensions: ['txt'] },
     }),
   );
+  handle(Channels.clipsSave, (video) => {
+    if (!(video instanceof Uint8Array) || video.length > MAX_CLIP_BYTES) throw new Error('Not a clip');
+    return saveFile(video, {
+      name: `commander-brawl-clip-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`,
+      title: 'Save the clip',
+      filter: { name: 'Video', extensions: ['webm'] },
+    });
+  });
   handle(Channels.historyList, () => history.list());
   handle(Channels.historyExport, async () =>
     saveFile(JSON.stringify({ app: 'commander-brawl', version: 1, games: await history.list() }, null, 1), {
@@ -236,8 +246,14 @@ interface FileChoice {
   readonly filter: { readonly name: string; readonly extensions: string[] };
 }
 
-/** Asks where to save the text (tests: CB_SAVE_DIR), then saves it. False if the player cancelled. */
-async function saveFile(text: string, choice: FileChoice & { readonly name: string }): Promise<boolean> {
+/** A clip is half a minute of video: tens of megabytes at most. */
+const MAX_CLIP_BYTES = 200 * 1024 * 1024;
+
+/** Asks where to save it (tests: CB_SAVE_DIR), then saves it. False if the player cancelled. */
+async function saveFile(
+  contents: string | Uint8Array,
+  choice: FileChoice & { readonly name: string },
+): Promise<boolean> {
   let path: string | undefined;
   if (env.saveDir) {
     path = join(env.saveDir, choice.name);
@@ -250,7 +266,7 @@ async function saveFile(text: string, choice: FileChoice & { readonly name: stri
     path = result.canceled ? undefined : result.filePath;
   }
   if (!path) return false;
-  await writeFile(path, text, 'utf8');
+  await writeFile(path, contents);
   return true;
 }
 

@@ -960,6 +960,28 @@ test('a recap when a game is decided, and finished games kept: stats, the games,
   await expect(history).toContainText('Those games were all here already.');
 });
 
+test('saving the last half minute of the table as a video', async () => {
+  const { host } = await hostAndFriend();
+  // Off until switched on.
+  await expect(host.page.getByRole('button', { name: /Last 30 s/ })).toHaveCount(0);
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitemcheckbox', { name: 'Record clips' }).click();
+  await host.page.waitForTimeout(3_000);
+  await host.page.getByRole('button', { name: '💾 Last 30 s' }).click();
+  await expect(host.page.getByTestId('clip-note')).toHaveText('Saved the clip.', { timeout: 10_000 });
+
+  const [name] = (await readdir(host.saveDir)).filter((file) => file.endsWith('.webm'));
+  expect(name).toMatch(/^commander-brawl-clip-.*\.webm$/);
+  const clip = await readFile(join(host.saveDir, name!));
+  expect([...clip.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+  expect(clip.length).toBeGreaterThan(10_000);
+
+  // Switched off again: no more recording.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitemcheckbox', { name: 'Record clips' }).click();
+  await expect(host.page.getByRole('button', { name: /Last 30 s/ })).toHaveCount(0);
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

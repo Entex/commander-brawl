@@ -12,6 +12,7 @@ import type { Card } from '@commander-brawl/domain';
 import {
   dataUrlToRgba,
   openCamera,
+  ClipRecorder,
   PhoneReceiver,
   Straightener,
   TesseractReader,
@@ -225,6 +226,51 @@ const harness = {
     };
     clearInterval(painter);
     straightener.stop();
+    video.remove();
+    return result;
+  },
+
+  /**
+   * Records a moving picture for a while with the clip recorder, keeping the last `keep` seconds, saves the
+   * clip and plays it back: what a player would see in the file.
+   */
+  async recordClip(
+    recordMs: number,
+    keep: number,
+  ): Promise<{ bytes: number; head: number[]; width: number; height: number; duration: number; played: boolean }> {
+    let n = 0;
+    const recorder = await ClipRecorder.start({
+      width: 320,
+      height: 180,
+      seconds: keep,
+      draw: (g, w, h) => {
+        g.fillStyle = '#123';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#fc0';
+        g.fillRect((n++ * 5) % w, 60, 40, 60);
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, recordMs));
+    const clip = await recorder.save();
+    recorder.stop();
+    const video = Object.assign(document.createElement('video'), { muted: true });
+    video.src = URL.createObjectURL(new Blob([clip], { type: 'video/webm' }));
+    document.body.append(video);
+    await new Promise((resolve, reject) => {
+      video.onloadedmetadata = resolve;
+      video.onerror = () => reject(new Error(video.error?.message ?? 'not playable'));
+    });
+    await video.play();
+    const started = performance.now();
+    while (video.currentTime < 0.3 && performance.now() - started < 3_000) await new Promise((r) => setTimeout(r, 50));
+    const result = {
+      bytes: clip.length,
+      head: [...clip.subarray(0, 4)],
+      width: video.videoWidth,
+      height: video.videoHeight,
+      duration: video.duration,
+      played: video.currentTime >= 0.3,
+    };
     video.remove();
     return result;
   },

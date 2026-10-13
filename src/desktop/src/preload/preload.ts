@@ -46,6 +46,9 @@ const api: DesktopApi = {
     analyze: (deck) => ipcRenderer.invoke(Channels.decksAnalyze, deck),
     remove: (id) => ipcRenderer.invoke(Channels.decksRemove, id),
   },
+  clips: {
+    save: (video) => ipcRenderer.invoke(Channels.clipsSave, video),
+  },
   history: {
     list: () => ipcRenderer.invoke(Channels.historyList),
     export: () => ipcRenderer.invoke(Channels.historyExport),
