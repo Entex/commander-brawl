@@ -1,5 +1,5 @@
 import { createSocket } from 'node:dgram';
-import { lanAddresses } from './network';
+import { lanAddresses, likelyRouter } from './network';
 
 /**
  * Just enough UPnP (Internet Gateway Device, versions 1 and 2) to ask a home router to forward a port: find it,
@@ -40,47 +40,97 @@ export class UpnpError extends Error {
   }
 }
 
+interface Destination {
+  readonly address: string;
+  readonly port: number;
+}
+
 export interface DiscoverOptions {
   readonly timeoutMs?: number;
   /** Where to send the search: the UPnP multicast address, or a test's own responder. */
-  readonly target?: { readonly address: string; readonly port: number };
+  readonly target?: Destination;
   /** Addresses to search from. This computer's addresses at home by default. */
   readonly from?: readonly string[];
+  /** Where the router probably is, to also ask it directly. Its network's first address by default. */
+  readonly router?: (from: string) => Destination | null;
 }
 
+export interface Discovery {
+  /** Where the router's description is, if a router answered. */
+  readonly location: URL | null;
+  /**
+   * Why the search couldn't be sent to everyone on the network, if it couldn't (like EHOSTUNREACH): the system
+   * may have blocked it, as macOS does for apps not allowed on the local network.
+   */
+  readonly sendError: string | null;
+}
+
+/** Searched again after this long, in case the first search or its answer got lost (Wi-Fi drops some). */
+const SEARCH_AGAIN_MS = 1_000;
+
 /**
- * Searches the home network for a router that forwards ports, and returns where its description is. The search is
- * sent from a port of our own, not UPnP's 1900: on Windows the SSDP Discovery service holds that one, and gets the
- * routers' answers sent to it.
+ * Searches the home network for a router that forwards ports, and finds where its description is. The search goes
+ * to everyone on the network (multicast), and to where the router probably is, which gets through where multicast
+ * doesn't. It's sent from a port of our own, not UPnP's 1900: on Windows the SSDP Discovery service holds that one,
+ * and gets the routers' answers sent to it.
  */
-export function discoverGateway(options: DiscoverOptions = {}): Promise<URL | null> {
-  const { timeoutMs = 4_000, target = { address: SSDP_ADDRESS, port: SSDP_PORT } } = options;
+export function discoverGateway(options: DiscoverOptions = {}): Promise<Discovery> {
+  const {
+    timeoutMs = 4_000,
+    target = { address: SSDP_ADDRESS, port: SSDP_PORT },
+    router = (from: string) => {
+      const address = likelyRouter(from);
+      return address ? { address, port: SSDP_PORT } : null;
+    },
+  } = options;
   const from = options.from ?? lanAddresses();
   return new Promise((resolve) => {
     if (from.length === 0) {
-      resolve(null);
+      resolve({ location: null, sendError: null });
       return;
     }
     const sockets = from.map(() => createSocket({ type: 'udp4', reuseAddr: true }));
+    let sendError: string | null = null;
     let settled = false;
     const done = (location: URL | null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(again);
       for (const socket of sockets) socket.close();
-      resolve(location);
+      resolve({ location, sendError: location ? null : sendError });
     };
     const timer = setTimeout(() => done(null), timeoutMs);
+    const searches: (() => void)[] = [];
+    const again = setTimeout(() => searches.forEach((search) => search()), SEARCH_AGAIN_MS);
     sockets.forEach((socket, i) => {
+      const address = from[i]!;
+      const direct = router(address);
       socket.on('message', (message) => {
         const location = parseSearchAnswer(message.toString());
         if (location) done(location);
       });
       socket.on('error', () => undefined);
-      socket.bind(0, from[i], () => {
+      const search = () => {
+        if (settled) return;
         for (const searchTarget of SEARCH_TARGETS) {
-          socket.send(searchRequest(searchTarget, target), target.port, target.address, () => undefined);
+          socket.send(searchRequest(searchTarget, target), target.port, target.address, (error) => {
+            sendError ??= (error as NodeJS.ErrnoException | null)?.code ?? null;
+          });
+          if (direct) socket.send(searchRequest(searchTarget, direct), direct.port, direct.address, () => undefined);
         }
+      };
+      socket.bind(0, address, () => {
+        // Out of this address's network, not wherever the system sends multicast (which may be another network).
+        if (target.address === SSDP_ADDRESS) {
+          try {
+            socket.setMulticastInterface(address);
+          } catch {
+            // Left to the system.
+          }
+        }
+        searches.push(search);
+        search();
       });
     });
   });

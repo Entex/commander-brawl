@@ -1,7 +1,9 @@
 export { createIdentity, fingerprintOf, loadOrCreateIdentity, normalizeFingerprint } from './certificate';
 export type { TlsIdentity } from './certificate';
 export { syncGame } from './gameConnection';
-export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses } from './network';
+export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses, likelyRouter } from './network';
+export { NatPmpError, natPmpExternalAddress, natPmpMapTcp } from './natPmp';
+export type { NatPmpMapping, NatPmpRouter } from './natPmp';
 export { PhoneLinkServer } from './phoneLinkServer';
 export { ScryfallCards, toCard } from './scryfall';
 export { UnsupportedDeckLinkError, analyzeDeck, fetchDeck, isDeckLink } from './spellbook';
@@ -22,7 +24,7 @@ export {
   getConnection,
   parseSearchAnswer,
 } from './upnp';
-export type { UpnpConnection } from './upnp';
+export type { Discovery, UpnpConnection } from './upnp';
 export { nodeTimers, randomId, safeEquals, secureRandom } from './runtime';
 export { TableClient } from './tableClient';
 export type { GameUpdate, TableClientOptions } from './tableClient';

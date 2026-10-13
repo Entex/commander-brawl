@@ -114,13 +114,38 @@ describe('finding the router (UPnP)', () => {
     await new Promise<void>((resolve) => responder.bind(0, '127.0.0.1', resolve));
     closing.push(() => responder.close());
 
-    const location = await discoverGateway({
+    const { location } = await discoverGateway({
       target: { address: '127.0.0.1', port: responder.address().port },
       from: ['127.0.0.1'],
+      router: () => null,
     });
     expect(location?.href).toBe(router.location.href);
     // Not UPnP's own port: on Windows a system service holds it, and would get the answer.
     expect(searchedFromPort).not.toBe(1900);
+  });
+
+  it('asks the router directly too, which answers when the search of the whole network gets nowhere', async () => {
+    const router = await fakeRouter();
+    // Nobody answers the search of the whole network.
+    const everyone = createSocket('udp4');
+    await new Promise<void>((resolve) => everyone.bind(0, '127.0.0.1', resolve));
+    closing.push(() => everyone.close());
+    const direct = createSocket('udp4');
+    direct.on('message', (message, from) => {
+      // Addressed to the router itself.
+      if (!message.toString().includes(`HOST: 127.0.0.1:${direct.address().port}\r\n`)) return;
+      const st = /^ST: (.*)$/m.exec(message.toString())?.[1]?.trim();
+      direct.send(`HTTP/1.1 200 OK\r\nST: ${st}\r\nLOCATION: ${router.location.href}\r\n\r\n`, from.port, from.address);
+    });
+    await new Promise<void>((resolve) => direct.bind(0, '127.0.0.1', resolve));
+    closing.push(() => direct.close());
+
+    const { location } = await discoverGateway({
+      target: { address: '127.0.0.1', port: everyone.address().port },
+      from: ['127.0.0.1'],
+      router: () => ({ address: '127.0.0.1', port: direct.address().port }),
+    });
+    expect(location?.href).toBe(router.location.href);
   });
 
   it("finds the router's port forwarding service, in version 1 or 2 of the standard", () => {

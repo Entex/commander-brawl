@@ -17,6 +17,26 @@ export function lanAddresses(): string[] {
   return [...new Set(found)].sort((a, b) => privateRangeRank(a) - privateRangeRank(b));
 }
 
+/**
+ * Where the home router probably is, for one of this computer's addresses: the first address of that network
+ * (192.168.1.1 for 192.168.1.138), where nearly every home router sits. Node can't ask the system for the real one.
+ */
+export function likelyRouter(localAddress: string): string | null {
+  for (const entries of Object.values(networkInterfaces())) {
+    const entry = entries?.find((e) => e.family === 'IPv4' && e.address === localAddress);
+    if (!entry) continue;
+    const address = parseIpv4(entry.address);
+    const mask = parseIpv4(entry.netmask);
+    // A network of one or two addresses has no router in it.
+    if (!address || !mask || mask[3] >= 254) return null;
+    const [a, b, c, d] = address;
+    const [ma, mb, mc, md] = mask;
+    const router = `${a & ma}.${b & mb}.${c & mc}.${(d & md) + 1}`;
+    return router === localAddress ? null : router;
+  }
+  return null;
+}
+
 /** Public IPv6 addresses. Routers don't translate these, so friends may reach them directly. */
 export function globalIpv6Addresses(): string[] {
   const found: string[] = [];
