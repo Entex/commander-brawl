@@ -1,5 +1,6 @@
 # Publishes a release when a version tag is pushed (v0.2.0 for version 0.2.0 in package.json): the app for every
 # platform, the install scripts and SHA256SUMS. Installed apps find it when they start, and offer to update.
+# Every check has to pass first, the same ones as for any push (check.yml).
 name: Release
 
 on:
@@ -7,21 +8,13 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm ci
 
       - name: Check that the tag is the version in package.json
         run: |
@@ -31,8 +24,24 @@ jobs:
             exit 1
           fi
 
-      - run: npm run typecheck
-      - run: npm test
+  check:
+    uses: ./.github/workflows/check.yml
+
+  release:
+    needs: [version, check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
 
       - name: Package every platform
         run: npm run package
