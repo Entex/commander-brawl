@@ -19,7 +19,7 @@ import {
   type SeatGameState,
   type SeatIndex,
 } from '@commander-brawl/domain';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { cardTargetAt, type CardTarget } from '../cardTarget';
 import { Icon, type GameIconName } from '../icons/Icon';
 import { COUNTER_ICONS, COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
@@ -50,7 +50,7 @@ interface SeatTileProps {
   getStats(memberId: string): Promise<LinkStats | null>;
   /** Shows a card in the Cards panel. */
   onOpenCard(cardId: string): void;
-  /** Asks this player's camera for a sharp picture of the part of their table that was clicked. */
+  /** A card clicked on this player's video (yours too): which card it is, from a sharp picture of it. */
   onLook(target: CardTarget, rotation: 0 | 180): void;
 }
 
@@ -76,6 +76,19 @@ export function SeatTile({
 }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // The chips let the pointer through to the video, so whether it's near them is worked out here.
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const [nearChips, setNearChips] = useState(false);
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const box = chipsRef.current?.getBoundingClientRect();
+    const near =
+      !!box &&
+      event.clientX >= box.left - CHIPS_NEAR &&
+      event.clientX <= box.right + CHIPS_NEAR &&
+      event.clientY >= box.top - CHIPS_NEAR &&
+      event.clientY <= box.bottom + CHIPS_NEAR;
+    if (near !== nearChips) setNearChips(near);
+  };
   const stats = useLinkStats(seat, showStats, getStats);
   const status = LINK_TEXT[seat.link];
   const index = seat.player.seat;
@@ -87,27 +100,21 @@ export function SeatTile({
       data-testid={`seat-${seat.player.seat}`}
       data-link={seat.link}
       data-active={active}
+      onPointerMove={onPointerMove}
+      onPointerLeave={() => setNearChips(false)}
     >
       {seat.track ? (
         <VideoView
           track={seat.track}
           rotation={rotation}
-          className={`seat-video${seat.isSelf ? '' : ' seat-video-look'}`}
+          className="seat-video seat-video-look"
           testId="seat-video"
           seat={index}
-          title={
-            seat.isSelf
-              ? 'Right-click to point at something; drag to draw an arrow'
-              : 'Click a card for a sharp picture of it. Right-click to point at it; drag to draw an arrow'
-          }
-          onClick={
-            seat.isSelf
-              ? undefined
-              : (event) => {
-                  const target = cardTargetAt(event.currentTarget, event.clientX, event.clientY);
-                  if (target) onLook(target, rotation);
-                }
-          }
+          title="Click a card to see which card it is, or Ctrl+drag a box around it. Right-click to point at it; drag to draw an arrow"
+          onClick={(event) => {
+            const target = cardTargetAt(event.currentTarget, event.clientX, event.clientY);
+            if (target) onLook(target, rotation);
+          }}
         />
       ) : (
         <div className="seat-empty">
@@ -141,7 +148,9 @@ export function SeatTile({
           {status && <span className="badge badge-warn">{status}</span>}
         </div>
         {game && state && <CommanderBadges seat={index} game={game} onOpenCard={onOpenCard} />}
-        {game && state && <SeatChips seat={seat} game={game} players={players} />}
+        {game && state && (
+          <SeatChips seat={seat} game={game} players={players} expanded={nearChips} chipsRef={chipsRef} />
+        )}
       </div>
       {game && state && isOut(game, index) && (
         <div className="seat-out" data-testid={`out-${index}`}>
@@ -186,20 +195,15 @@ interface SeatChipsProps {
   readonly seat: SeatView<MediaStreamTrack>;
   readonly game: GameState;
   readonly players: Players;
+  /** The pointer is near: every chip shows its words. */
+  readonly expanded: boolean;
+  readonly chipsRef: RefObject<HTMLDivElement | null>;
 }
 
-function SeatChips({ seat, game, players }: SeatChipsProps) {
+function SeatChips({ seat, game, players, expanded, chipsRef }: SeatChipsProps) {
   const state = game.seats[seat.player.seat];
   if (!state) return null;
-  const chips: {
-    key: string;
-    label: string;
-    value: string;
-    icon?: GameIconName;
-    danger?: boolean;
-    color?: CounterColor;
-    title: string;
-  }[] = [];
+  const chips: Chip[] = [];
 
   const index = seat.player.seat;
   if (game.monarch === index) {
@@ -321,20 +325,66 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
 
   if (chips.length === 0) return null;
   return (
-    <div className="seat-chips" data-testid={`chips-${seat.player.seat}`}>
+    <div ref={chipsRef} className="seat-chips" data-testid={`chips-${seat.player.seat}`}>
       {chips.map((chip) => (
-        <span key={chip.key} className={`chip chip-${chip.key}${chip.danger ? ' chip-danger' : ''}`} title={chip.title}>
-          {chip.color && <span className={`swatch color-${chip.color}`} />}
-          {chip.icon && <Icon name={chip.icon} />}
-          {chip.label} <b>{chip.value}</b>
-        </span>
+        <SeatChip key={chip.key} chip={chip} expanded={expanded} />
       ))}
     </div>
   );
 }
 
+interface Chip {
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+  readonly icon?: GameIconName;
+  readonly danger?: boolean;
+  readonly color?: CounterColor;
+  readonly title: string;
+}
+
+/** How long a chip shows its words when it appears or changes, before it's just its icon (and number). */
+const CHIP_WORDS_MS = 3_000;
+/** A value this short (a number, "+4", "2/3") stays beside the icon; a longer one (a dungeon room) goes too. */
+const SHORT_VALUE = 5;
+
+/**
+ * One chip: its icon and words while it's new or the pointer is near, then just its icon (and a short value),
+ * so it doesn't cover the video. Without an icon, it keeps its words.
+ */
+function SeatChip({ chip, expanded }: { readonly chip: Chip; readonly expanded: boolean }) {
+  const shows = `${chip.label}|${chip.value}`;
+  const [fresh, setFresh] = useState(true);
+  const [shown, setShown] = useState(shows);
+  if (shown !== shows) {
+    setShown(shows);
+    setFresh(true);
+  }
+  useEffect(() => {
+    if (!fresh) return;
+    const timer = setTimeout(() => setFresh(false), CHIP_WORDS_MS);
+    return () => clearTimeout(timer);
+  }, [fresh, shown]);
+  const canCollapse = Boolean(chip.icon || chip.color);
+  const collapsed = canCollapse && !fresh && !expanded;
+  const longValue = chip.value.length > SHORT_VALUE;
+  return (
+    <span
+      className={`chip chip-${chip.key}${chip.danger ? ' chip-danger' : ''}${collapsed ? ' chip-collapsed' : ''}`}
+      title={chip.title}
+    >
+      {chip.color && <span className={`swatch color-${chip.color}`} />}
+      {chip.icon && <Icon name={chip.icon} />}
+      <span className="chip-words">{chip.label} </span>
+      {chip.value && <b className={longValue ? 'chip-words' : undefined}>{chip.value}</b>}
+    </span>
+  );
+}
+
 /** Cards and tokens listed on a seat; the rest are in the player's details. */
 const MAX_PERMANENT_CHIPS = 6;
+/** How near the chips (in pixels) the pointer brings their words back. */
+const CHIPS_NEAR = 24;
 
 function BracketBadge({ state }: { readonly state: SeatGameState }) {
   const concerns = state.bracket && state.deckAnalysis ? bracketConcerns(state.bracket, state.deckAnalysis) : [];

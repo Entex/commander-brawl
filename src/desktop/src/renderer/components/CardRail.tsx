@@ -26,7 +26,7 @@ const LIKELY = 0.6;
 const MAX_OTHERS = 4;
 
 /**
- * The cards clicked on other players' videos, beside the table: the latest one big, with which card it
+ * The cards clicked on the players' videos, beside the table: the latest one big, with which card it
  * probably is and the other guesses to pick instead, and the earlier ones below.
  */
 export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onClear, onClose }: CardRailProps) {
@@ -78,7 +78,7 @@ export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onC
                   <span className="lookup-row-text">
                     <span className="lookup-row-name">{lookupCard(lookup)?.name ?? stepText(lookup)}</span>
                     <span className="hint">
-                      {lookup.from} · {ago(lookup.at, now)}
+                      {lookup.own ? 'You' : lookup.from} · {ago(lookup.at, now)}
                     </span>
                   </span>
                 </button>
@@ -151,7 +151,7 @@ function FeaturedLookup({
         {step.status === 'asking' && (
           <div className="lookup-placeholder">
             <Icon name="spyglass" />
-            Asking {lookup.from}'s camera for a sharp picture…
+            Asking {cameraOf(lookup)} for a sharp picture…
           </div>
         )}
         {step.status === 'failed' && (
@@ -164,8 +164,8 @@ function FeaturedLookup({
         {cardShown && picture && (
           <button
             className="lookup-peek"
-            aria-label={`What ${lookup.from}'s camera saw`}
-            title={`What ${lookup.from}'s camera saw`}
+            aria-label={`What ${cameraOf(lookup)} saw`}
+            title={`What ${cameraOf(lookup)} saw`}
             {...peek}
           >
             <Photo picture={picture} lookup={lookup} />
@@ -180,7 +180,7 @@ function FeaturedLookup({
         <p className="lookup-meta">
           {step.status === 'done' && <Confidence lookup={lookup} />}
           <span>
-            {lookup.from}'s camera · {ago(lookup.at, now)}
+            {lookup.own ? 'Your camera' : `${lookup.from}'s camera`} · {ago(lookup.at, now)}
           </span>
         </p>
       </header>
@@ -239,7 +239,7 @@ function Photo({
     <img
       className={className}
       src={picture.url}
-      alt={`${lookup.from}'s camera`}
+      alt={lookup.own ? 'Your camera' : `${lookup.from}'s camera`}
       style={!picture.straight && lookup.rotation ? { transform: `rotate(${lookup.rotation}deg)` } : undefined}
     />
   );
@@ -269,6 +269,11 @@ function Confidence({ lookup }: { readonly lookup: CardLookup }) {
   const [level, label] =
     score >= LIKELY ? ['likely', 'Likely'] : score >= 0.3 ? ['possibly', 'Possibly'] : ['unsure', 'Unsure'];
   return <span className={`confidence confidence-${level}`}>{label}</span>;
+}
+
+/** Whose camera, in a sentence: "your camera" or "Alex's camera". */
+function cameraOf(lookup: CardLookup): string {
+  return lookup.own ? 'your camera' : `${lookup.from}'s camera`;
 }
 
 /** What a lookup without a card is doing. */

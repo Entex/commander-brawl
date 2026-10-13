@@ -73,6 +73,22 @@ export function locateCardAt(frame: RgbaImage, point: Point): LocatedCard | null
   return { outline, crop: around(outline, MARGIN) };
 }
 
+/**
+ * A card picked out by drawing a rectangle around it on the video (two opposite corners, as fractions): that
+ * rectangle is its outline, and it and a little room around it are asked for.
+ */
+export function cardInArea(from: Point, to: Point): LocatedCard {
+  const [left, right] = [Math.min(from.x, to.x), Math.max(from.x, to.x)];
+  const [top, bottom] = [Math.min(from.y, to.y), Math.max(from.y, to.y)];
+  const outline: Quad = [
+    { x: left, y: top },
+    { x: right, y: top },
+    { x: right, y: bottom },
+    { x: left, y: bottom },
+  ];
+  return { outline, crop: around(outline, MARGIN) };
+}
+
 /** Where to look without an outline: a generous card-sized part of the picture around the point. */
 export function guessCardCrop(point: Point): CropRect {
   return clampCrop({

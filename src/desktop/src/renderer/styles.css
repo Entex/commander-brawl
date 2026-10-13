@@ -752,11 +752,35 @@ button.armed {
   padding: 0.1rem 0.2rem;
 }
 
+/* Over the video: clicks, pings and card picks go through to it. */
 .seat-chips {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+  pointer-events: none;
+}
+
+/* A chip's words fold away after a few seconds, leaving its icon (and a short number). */
+.chip-words {
+  display: inline-block;
+  max-width: 40em;
+  overflow: hidden;
+  vertical-align: bottom;
+  transition:
+    max-width 0.35s ease,
+    opacity 0.35s ease;
+}
+
+.chip-collapsed .chip-words {
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.chip-collapsed {
+  gap: 0.25em;
+  padding-right: 0.4rem;
 }
 
 .chip {
@@ -2171,7 +2195,16 @@ button.response-button:hover:not(:disabled) {
   border-radius: 6px;
   box-shadow: 0 4px 14px rgb(0 0 0 / 60%);
   cursor: zoom-in;
-  transition: transform 0.15s;
+  opacity: 0;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
+}
+
+/* Out of the way of the card until the pointer is on it. */
+.lookup-frame:hover .lookup-peek,
+.lookup-peek:focus-visible {
+  opacity: 1;
 }
 
 .lookup-peek:hover:not(:disabled) {
@@ -2418,6 +2451,17 @@ button.response-button:hover:not(:disabled) {
 .clean-view .card-rail,
 .clean-view .card-outline-layer {
   display: none;
+}
+
+/* A box being drawn around a card (Ctrl+drag). */
+.area-preview {
+  position: absolute;
+  z-index: 6;
+  border: 2px dashed #fff;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 50%);
+  pointer-events: none;
 }
 
 @keyframes lookup-appear {

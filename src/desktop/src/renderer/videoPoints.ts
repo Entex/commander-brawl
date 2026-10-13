@@ -22,6 +22,19 @@ export function pictureAt(video: HTMLVideoElement, clientX: number, clientY: num
   return screenToPicture(fitOf(video, box), clientX - box.left, clientY - box.top);
 }
 
+/** The point of the video's picture nearest a point on screen: on it, or at its edge. Null before it has a picture. */
+export function pictureNear(video: HTMLVideoElement, clientX: number, clientY: number): PicturePoint | null {
+  const box = video.getBoundingClientRect();
+  const fit = fitOf(video, box);
+  const a = pictureToScreen(fit, { x: 0, y: 0 });
+  const b = pictureToScreen(fit, { x: 1, y: 1 });
+  if (!a || !b) return null;
+  // Just inside the picture's edge, so the point is on it.
+  const x = Math.min(Math.max(clientX - box.left, Math.min(a.x, b.x) + 0.5), Math.max(a.x, b.x) - 0.5);
+  const y = Math.min(Math.max(clientY - box.top, Math.min(a.y, b.y) + 0.5), Math.max(a.y, b.y) - 0.5);
+  return screenToPicture(fit, x, y);
+}
+
 /** Where a point of the video's picture is on screen, relative to `origin` (a box on screen). */
 export function screenAt(
   video: HTMLVideoElement,

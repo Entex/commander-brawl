@@ -2,7 +2,7 @@ import { guessCardCrop, locateCardAt, type CropRect, type Quad } from '@commande
 import { videoFrameToRgba } from '@commander-brawl/infrastructure/browser';
 import { pictureAt } from './videoPoints';
 
-/** What a click on another player's video picked out. As fractions of their camera picture. */
+/** What a click on a player's video picked out. As fractions of their camera picture. */
 export interface CardTarget {
   /** The part of their camera picture to ask for. */
   readonly crop: CropRect;

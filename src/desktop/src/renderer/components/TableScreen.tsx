@@ -1,5 +1,6 @@
 import {
   TableSession,
+  cardInArea,
   undoneIds,
   type GameView,
   type LoggedEvent,
@@ -11,6 +12,7 @@ import { MAX_SEATS, STARTING_LIFE, isUndoable, type Card, type SeatIndex } from 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
+import type { CardTarget } from '../cardTarget';
 import { describeEvent } from '../describeEvent';
 import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
@@ -95,11 +97,19 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     void session.setLocalTrack(spectating ? null : camera.track);
   }, [session, camera.track, spectating]);
 
-  // Cards clicked on other players' videos: outlined there, and shown in a column beside the table.
+  // Cards clicked on the players' videos (yours too): outlined there, and shown in a column beside the table.
   const { lookups, look, choose, markTracked, clear: clearLookups } = useCardLookups(camera);
   const [seenOpen, setSeenOpen] = useState(false);
   /** The lookup the Cards panel is searching for (none of the guesses was it). */
   const [correcting, setCorrecting] = useState<number | null>(null);
+  /** Looks up a card clicked, or drawn around, on a player's video: theirs, from their camera, or yours. */
+  const lookAt = (seatIndex: SeatIndex, target: CardTarget, rotation: 0 | 180) => {
+    const seat = state.seats.find((s) => s.player.seat === seatIndex);
+    if (!seat) return;
+    const deck = game?.state.seats[seatIndex]?.deck ?? null;
+    look(seat.isSelf ? null : seat.player.id, seat.player.name, seatIndex, target, rotation, deck);
+    setSeenOpen(true);
+  };
   const track = (lookup: CardLookup, card: Card) => {
     const token = card.layout === 'token' || card.typeLine.startsWith('Token');
     submitGameEvent({
@@ -390,7 +400,12 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
 
       <div className="table-body">
-        <PointerLayer marks={pointerMarks} onPoint={spectating ? ignore : point} selfSeat={selfSeat}>
+        <PointerLayer
+          marks={pointerMarks}
+          onPoint={spectating ? ignore : point}
+          onArea={(seat, from, to, rotation) => lookAt(seat, cardInArea(from, to), rotation)}
+          selfSeat={selfSeat}
+        >
           <ResponseBanner calls={responseCalls} self={selfSeat} />
           <RollBanner game={game} players={state.seats} />
           {recap.record && recap.banner && (
@@ -410,17 +425,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 showStats={showStats}
                 getStats={getStats}
                 onOpenCard={openCard}
-                onLook={(target, rotation) => {
-                  look(
-                    seat.player.id,
-                    seat.player.name,
-                    seat.player.seat,
-                    target,
-                    rotation,
-                    game?.state.seats[seat.player.seat]?.deck ?? null,
-                  );
-                  setSeenOpen(true);
-                }}
+                onLook={(target, rotation) => lookAt(seat.player.seat, target, rotation)}
               />
             ) : (
               <EmptySeat key={`empty-${index}`} index={index} />

@@ -1,5 +1,6 @@
 import type { Pointer, TablePoint } from '@commander-brawl/application';
 import { isSeatIndex, type SeatIndex } from '@commander-brawl/domain';
+import type { PicturePoint } from '@commander-brawl/infrastructure/browser';
 import {
   useEffect,
   useRef,
@@ -11,7 +12,7 @@ import {
 } from 'react';
 import type { Mark } from '../usePointers';
 import { SEAT_COLORS } from '../seatColors';
-import { pictureAt, screenAt } from '../videoPoints';
+import { pictureAt, pictureNear, screenAt } from '../videoPoints';
 
 /** Moving this far (in pixels) with the button down makes it a drag (an arrow), not a click. */
 const DRAG_DISTANCE = 10;
@@ -20,24 +21,87 @@ interface PointerLayerProps {
   readonly marks: readonly Mark[];
   /** The player pointed at something: right-click for a ping, a drag for an arrow. */
   onPoint(pointer: Pointer): void;
+  /**
+   * The player drew a rectangle around a card on a player's video (Ctrl+drag, or ⌘ on a Mac): its
+   * corners on that seat's picture, and how that video is turned on screen.
+   */
+  onArea?: (seat: SeatIndex, from: PicturePoint, to: PicturePoint, rotation: 0 | 180) => void;
   /** You, while drawing an arrow. */
   readonly selfSeat: SeatIndex | null;
   readonly children: ReactNode;
 }
 
+/** A rectangle being drawn, relative to the seats. */
+interface Area {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** A rectangle at least this share of the picture each way: a card, not a slip of the hand. */
+const MIN_AREA = 0.02;
+
 /**
  * The seats, with pings and arrows over their videos. Right-click a video to ping a spot on it; drag from one
- * spot to another (on the same video or another) to draw an arrow. A plain click still goes to the video.
+ * spot to another (on the same video or another) to draw an arrow; Ctrl+drag around a card on a video to pick it
+ * out. A plain click still goes to the video.
  */
-export function PointerLayer({ marks, onPoint, selfSeat, children }: PointerLayerProps) {
+export function PointerLayer({ marks, onPoint, onArea, selfSeat, children }: PointerLayerProps) {
   const ref = useRef<HTMLElement>(null);
   const [drag, setDrag] = useState<{ from: TablePoint; x: number; y: number } | null>(null);
+  const [area, setArea] = useState<Area | null>(null);
   // After a drag that ended where it started, the browser still reports a click there. It isn't one.
   const swallowClick = useRef(false);
+
+  const drawArea = (event: ReactPointerEvent, video: HTMLVideoElement, seat: SeatIndex) => {
+    event.preventDefault();
+    const start = { x: event.clientX, y: event.clientY };
+    let dragging = false;
+    const move = (e: PointerEvent) => {
+      if (!dragging && Math.hypot(e.clientX - start.x, e.clientY - start.y) < DRAG_DISTANCE) return;
+      dragging = true;
+      const origin = ref.current?.getBoundingClientRect();
+      if (!origin) return;
+      setArea({
+        left: Math.min(start.x, e.clientX) - origin.left,
+        top: Math.min(start.y, e.clientY) - origin.top,
+        width: Math.abs(e.clientX - start.x),
+        height: Math.abs(e.clientY - start.y),
+      });
+    };
+    const end = (e: PointerEvent) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      setArea(null);
+      if (!dragging) return;
+      swallowClick.current = true;
+      if (e.type !== 'pointerup') return;
+      const from = pictureNear(video, start.x, start.y);
+      const to = pictureNear(video, e.clientX, e.clientY);
+      if (!from || !to || Math.abs(from.x - to.x) < MIN_AREA || Math.abs(from.y - to.y) < MIN_AREA) return;
+      onArea?.(seat, from, to, video.dataset.rotation === '180' ? 180 : 0);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  };
 
   const onPointerDown = (event: ReactPointerEvent) => {
     swallowClick.current = false;
     if (event.button !== 0) return;
+    if ((event.ctrlKey || event.metaKey) && onArea) {
+      // A seat's video, with cards to pick out (not an empty seat).
+      const video = document
+        .elementFromPoint(event.clientX, event.clientY)
+        ?.closest<HTMLVideoElement>('video.seat-video-look[data-seat]');
+      const seat = Number(video?.dataset.seat);
+      if (video && isSeatIndex(seat)) {
+        drawArea(event, video, seat);
+        return;
+      }
+    }
     const from = tablePointAt(event.clientX, event.clientY);
     if (!from) return;
     event.preventDefault();
@@ -86,6 +150,7 @@ export function PointerLayer({ marks, onPoint, selfSeat, children }: PointerLaye
     >
       {children}
       <Marks container={ref} marks={marks} drag={drag} selfSeat={selfSeat} />
+      {area && <div className="area-preview" style={area} data-testid="area-preview" />}
     </main>
   );
 }

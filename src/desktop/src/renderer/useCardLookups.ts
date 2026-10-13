@@ -1,4 +1,4 @@
-import { Snapshots, type CardGuess, type CropRect, type Quad } from '@commander-brawl/application';
+import { Snapshots, clampCrop, type CardGuess, type CropRect, type Quad } from '@commander-brawl/application';
 import type { Card, DeckList, SeatIndex } from '@commander-brawl/domain';
 import { dataUrlToRgba, rgbaToDataUrl } from '@commander-brawl/infrastructure/browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,11 +21,13 @@ export type LookupStep =
   | { readonly status: 'reading'; readonly picture: LookupPicture }
   | { readonly status: 'done'; readonly picture: LookupPicture; readonly guesses: readonly CardGuess[] };
 
-/** A card clicked on another player's video, and which card it is. */
+/** A card clicked on a player's video (yours too), and which card it is. */
 export interface CardLookup {
   readonly id: number;
   /** Whose camera. */
   readonly from: string;
+  /** Your own camera. */
+  readonly own: boolean;
   readonly seat: SeatIndex;
   /** How their video is turned on our screen; a picture that isn't straightened is shown the same way. */
   readonly rotation: 0 | 180;
@@ -52,11 +54,11 @@ export interface CardLookups {
   /** Newest first. */
   readonly lookups: readonly CardLookup[];
   /**
-   * Asks a player's camera for a sharp picture of the card, then works out which card it is, comparing with
-   * their deck if they're playing one.
+   * Asks a player's camera for a sharp picture of the card (`memberId`, or null for your own camera), then works
+   * out which card it is, comparing with their deck if they're playing one.
    */
   look(
-    memberId: string,
+    memberId: string | null,
     from: string,
     seat: SeatIndex,
     target: CardTarget,
@@ -70,9 +72,9 @@ export interface CardLookups {
   clear(): void;
 }
 
-/** Cards clicked on other players' videos, one lookup each, worked on side by side. */
+/** Cards clicked on players' videos, one lookup each, worked on side by side. */
 export function useCardLookups(camera: CameraState): CardLookups {
-  const requestSnapshot = useSnapshots(camera);
+  const takeSnapshot = useSnapshots(camera);
   const [lookups, setLookups] = useState<readonly CardLookup[]>([]);
   const lastId = useRef(0);
 
@@ -81,11 +83,19 @@ export function useCardLookups(camera: CameraState): CardLookups {
   }, []);
 
   const look = useCallback(
-    (memberId: string, from: string, seat: SeatIndex, target: CardTarget, rotation: 0 | 180, deck: DeckList | null) => {
+    (
+      memberId: string | null,
+      from: string,
+      seat: SeatIndex,
+      target: CardTarget,
+      rotation: 0 | 180,
+      deck: DeckList | null,
+    ) => {
       const id = ++lastId.current;
       const lookup: CardLookup = {
         id,
         from,
+        own: memberId === null,
         seat,
         rotation,
         at: Date.now(),
@@ -103,7 +113,7 @@ export function useCardLookups(camera: CameraState): CardLookups {
       void (async () => {
         let image: string;
         try {
-          image = await requestSnapshot(memberId, target.crop);
+          image = await takeSnapshot(memberId, target.crop);
         } catch (error) {
           step({ status: 'failed', message: (error as Error).message });
           return;
@@ -124,7 +134,7 @@ export function useCardLookups(camera: CameraState): CardLookups {
         }
       })();
     },
-    [requestSnapshot, change],
+    [takeSnapshot, change],
   );
 
   const choose = useCallback((id: number, card: Card) => change(id, (l) => ({ ...l, chosen: card })), [change]);
@@ -155,9 +165,10 @@ async function deckCards(deck: DeckList): Promise<Card[]> {
 
 /**
  * Sharp pictures of cards on other players' tables, and answering their requests for pictures of ours.
- * Lives as long as the table screen. Returns how to ask a player for a picture.
+ * Lives as long as the table screen. Returns how to get a picture: from a player (by id), or from your own
+ * camera (null), the same way theirs answer.
  */
-function useSnapshots(camera: CameraState): (memberId: string, crop: CropRect) => Promise<string> {
+function useSnapshots(camera: CameraState): (memberId: string | null, crop: CropRect) => Promise<string> {
   const cameraRef = useRef(camera);
   const snapshotsRef = useRef<Snapshots | null>(null);
   useEffect(() => {
@@ -185,9 +196,8 @@ function useSnapshots(camera: CameraState): (memberId: string, crop: CropRect) =
       snapshotsRef.current = null;
     };
   }, []);
-  return useCallback(
-    (memberId: string, crop: CropRect) =>
-      snapshotsRef.current?.request(memberId, crop) ?? Promise.reject(new Error('Not at a table.')),
-    [],
-  );
+  return useCallback((memberId: string | null, crop: CropRect) => {
+    if (memberId === null) return cameraRef.current.snapshot(clampCrop(crop));
+    return snapshotsRef.current?.request(memberId, crop) ?? Promise.reject(new Error('Not at a table.'));
+  }, []);
 }

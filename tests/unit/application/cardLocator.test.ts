@@ -1,4 +1,11 @@
-import { guessCardCrop, locateCardAt, type CropRect, type Point, type Quad } from '@commander-brawl/application';
+import {
+  cardInArea,
+  guessCardCrop,
+  locateCardAt,
+  type CropRect,
+  type Point,
+  type Quad,
+} from '@commander-brawl/application';
 import { describe, expect, it } from 'vitest';
 import { addNoise, artwork, blank, drawCard, fillRect, type DrawnCard, type Picture } from '../../support/drawing';
 
@@ -135,6 +142,20 @@ describe('finding the card that was clicked on a video', () => {
     const found = locateCardAt(picture, at(card, picture, 10, 20));
     expect(found).not.toBeNull();
     expect(outlineError(found!.outline, card, picture)).toBeLessThan(tolerance(card));
+  });
+
+  it('takes a box drawn around a card as its outline, drawn either way', () => {
+    const found = cardInArea({ x: 0.6, y: 0.7 }, { x: 0.4, y: 0.3 });
+    expect(found.outline).toEqual([
+      { x: 0.4, y: 0.3 },
+      { x: 0.6, y: 0.3 },
+      { x: 0.6, y: 0.7 },
+      { x: 0.4, y: 0.7 },
+    ]);
+    // Asked for with a little room around it.
+    for (const corner of found.outline) expect(contains(found.crop, corner)).toBe(true);
+    expect(found.crop.width).toBeGreaterThan(0.2);
+    expect(found.crop.width).toBeLessThan(0.3);
   });
 
   it('finds nothing on an empty playmat, and then guesses a generous part around the click', () => {

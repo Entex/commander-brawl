@@ -456,7 +456,7 @@ test('casting a card puts it in the spotlight for everyone', async () => {
   await expect(spotlight).toHaveCount(0);
 });
 
-test("clicking a card on another player's video: outlined there, and which card it is beside the table", async () => {
+test("clicking a card on a player's video, yours too: outlined there, and which card it is beside the table", async () => {
   const host = await launch('Host', { camera: await cardCamera() });
   await host.page.getByTestId('host').click();
   const invite = await host.page.getByTestId('invite-code').inputValue();
@@ -522,13 +522,33 @@ test("clicking a card on another player's video: outlined there, and which card 
     .click();
   await expect(lookup.getByRole('button', { name: 'Tracking Rhystic Study' })).toBeDisabled();
 
+  // Or a box drawn around the card (Ctrl+drag): just that, when a click would pick the wrong thing.
+  const topLeft = await onPicture(video, 0.41, 0.28);
+  const bottomRight = await onPicture(video, 0.59, 0.72);
+  await friend.page.keyboard.down('Control');
+  await friend.page.mouse.move(topLeft.x, topLeft.y);
+  await friend.page.mouse.down();
+  await friend.page.mouse.move(bottomRight.x, bottomRight.y, { steps: 6 });
+  await expect(friend.page.getByTestId('area-preview')).toBeVisible();
+  await friend.page.mouse.up();
+  await friend.page.keyboard.up('Control');
+  await expect(friend.page.getByTestId('area-preview')).toHaveCount(0);
+  await expect(rail.getByRole('region', { name: 'Earlier' }).locator('.lookup-row')).toHaveCount(2);
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
+  await expect(host.page.getByTestId('arrow')).toHaveCount(0);
+
   // Out of the way and back.
   await rail.getByRole('button', { name: 'Hide cards seen' }).click();
   await expect(rail).toHaveCount(0);
   await friend.page.getByTestId('seen-toggle').click();
   await expect(friend.page.getByTestId('card-rail')).toBeVisible();
-  // Your own video isn't for looking at close up.
-  await expect(host.page.locator('.seat-video-look')).toHaveCount(1);
+  // Your own cards too, straight from your own camera.
+  const own = host.page.locator('.seat', { hasText: 'Host (you)' }).getByTestId('seat-video');
+  const ownSpot = await onPicture(own, 0.5, 0.45);
+  await host.page.mouse.click(ownSpot.x, ownSpot.y);
+  const ownLookup = host.page.getByTestId('card-rail').getByTestId('lookup');
+  await expect(ownLookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
+  await expect(ownLookup).toContainText('Your camera');
 });
 
 /** A camera picture of a (made-up) Rhystic Study on a playmat, for the fake camera to show. */
@@ -707,6 +727,9 @@ test('markers: monarch, initiative and the Undercity, day and night, the storm c
   const hostChips = host.page.getByTestId('chips-0');
   await expect(hostChips).toContainText('Monarch');
   await expect(hostChips).toContainText('Initiative');
+  // They don't get in the way of the video: clicks go through, and after a few seconds they're just icons.
+  await expect(hostChips).toHaveCSS('pointer-events', 'none');
+  await expect(hostChips.locator('.chip-monarch')).toHaveClass(/chip-collapsed/, { timeout: 6_000 });
   // The initiative took them into Undercity; on to the Forge.
   await expect(hostChips).toContainText('Undercity Secret Entrance');
   await markers.getByRole('button', { name: 'Forge' }).click();
