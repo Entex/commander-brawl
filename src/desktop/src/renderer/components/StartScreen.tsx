@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { HostInfo, SavedTableSummary } from '../../shared/api';
 import { api, errorMessage } from '../api';
 import type { CameraState } from '../useCamera';
+import { DecksPanel } from './DecksPanel';
 import { VideoView } from './VideoView';
 
 interface StartScreenProps {
@@ -20,6 +21,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
   const [busy, setBusy] = useState<'host' | 'join' | 'resume' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const saved = useSavedTable();
+  const [decksOpen, setDecksOpen] = useState(false);
 
   const run = async (kind: 'host' | 'join' | 'resume') => {
     setBusy(kind);
@@ -83,6 +85,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
             <p className="hint">No camera yet. Set it up now or once you're at the table.</p>
           )}
           <button onClick={onOpenCamera}>Set up camera</button>
+          <button onClick={() => setDecksOpen(true)}>Decks</button>
         </div>
 
         <div className="start-actions">
@@ -121,6 +124,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
         {error && <p className="status status-reconnecting">{error}</p>}
         <footer className="hint">Version {version}</footer>
       </div>
+      {decksOpen && <DecksPanel seat={null} playing={null} onClose={() => setDecksOpen(false)} />}
     </div>
   );
 }

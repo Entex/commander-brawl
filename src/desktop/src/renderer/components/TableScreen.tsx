@@ -17,6 +17,7 @@ import { cameraStatus, type CameraState } from '../useCamera';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
+import { DecksPanel } from './DecksPanel';
 import { LogPanel } from './LogPanel';
 import { Menu } from './Menu';
 import { EmptySeat, SeatTile } from './SeatTile';
@@ -41,6 +42,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [countersOpen, setCountersOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(false);
+  const [decksOpen, setDecksOpen] = useState(false);
+  const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
   const [copied, setCopied] = useState(false);
@@ -78,10 +81,6 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             </>
           )}
         </div>
-        <div className="toolbar-middle">
-          {game && <TurnControls game={game.state} players={state.seats} />}
-          <LastChange game={game} state={state} />
-        </div>
         <div className="toolbar-group">
           <button
             disabled={!undoTarget}
@@ -114,6 +113,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                   role="menuitem"
                   onClick={() => {
                     close();
+                    setDecksOpen(true);
+                  }}
+                >
+                  Decks
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
                     onOpenCamera();
                   }}
                 >
@@ -131,6 +139,13 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         </div>
       </header>
 
+      {/* Its own row, so the turn and Pass turn are never squeezed out by the toolbar on a narrow window. */}
+      {game && (
+        <div className="status-bar">
+          <TurnControls game={game.state} players={state.seats} />
+          <LastChange game={game} state={state} />
+        </div>
+      )}
       <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
       {host?.portChanged && (
@@ -144,6 +159,13 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
       {game && logOpen && <LogPanel game={game} players={state.seats} onClose={() => setLogOpen(false)} />}
       {cardsOpen && <CardsPanel onClose={() => setCardsOpen(false)} />}
+      {decksOpen && (
+        <DecksPanel
+          seat={selfSeat}
+          playing={selfSeat === null ? null : (game?.state.seats[selfSeat]?.deck ?? null)}
+          onClose={() => setDecksOpen(false)}
+        />
+      )}
 
       <main className="seats">
         {seats.map((seat, index) =>

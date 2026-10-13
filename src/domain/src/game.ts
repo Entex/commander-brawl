@@ -6,6 +6,7 @@ import {
   toCustomCounter,
   type CustomCounter,
 } from './customCounters';
+import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { MAX_SEATS, type SeatIndex } from './table';
 
 export const STARTING_LIFE = 40;
@@ -14,8 +15,6 @@ export const MAX_CHANGE = 1000;
 export const MAX_STARTING_LIFE = 999;
 /** 21 or more combat damage from a single commander and you lose. */
 export const COMMANDER_DAMAGE_LIMIT = 21;
-/** Partners and backgrounds give a player two commanders. */
-export const MAX_COMMANDERS = 2;
 export const MAX_COMMANDER_NAME_LENGTH = 40;
 /** 10 poison counters and you lose. */
 export const POISON_LIMIT = 10;
@@ -42,6 +41,8 @@ export interface SeatGameState {
   readonly commanderCasts: readonly number[];
   /** Values of the table's per-player custom counters, by counter id. Missing means the counter's start value. */
   readonly custom: Readonly<Record<string, number>>;
+  /** The deck this player is playing, if they chose one. */
+  readonly deck: DeckList | null;
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -100,6 +101,8 @@ export type GameEvent =
       readonly seat: SeatIndex | null;
       readonly amount: number;
     }
+  /** The player picked the deck they're playing (null: none). Its commanders become the seat's commanders. */
+  | { readonly type: 'deck-chosen'; readonly seat: SeatIndex; readonly deck: DeckList | null }
   /** Sets the turn order and starts the first turn. */
   | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[] }
   /** Only counts if `from` still has the turn, so a double click can't skip a player. */
@@ -129,6 +132,8 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       counters: { poison: 0, energy: 0, experience: 0, rad: 0, speed: 0 },
       commanderCasts: Array.from({ length: MAX_COMMANDERS }, () => 0),
       custom: {},
+      // Like the commanders, the deck usually stays for the next game.
+      deck: previous?.seats[index]?.deck ?? null,
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
@@ -202,6 +207,13 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
         ? { ...state, tableCounters: change(state.tableCounters) }
         : updateSeat(state, event.seat, (seat) => ({ ...seat, custom: change(seat.custom) }));
     }
+    case 'deck-chosen':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        deck: event.deck,
+        commanders:
+          event.deck && event.deck.commanders.length > 0 ? event.deck.commanders.map((c) => c.name) : seat.commanders,
+      }));
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
       return { ...state, turnOrder: event.order, activeSeat: first, turn: 1, round: 1 };
@@ -309,6 +321,12 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isCounterId(value.id) && (value.seat === null || isSeat(value.seat)) && isChange(value.amount)
         ? { type: 'custom-counter-changed', id: value.id, seat: value.seat, amount: value.amount }
         : null;
+    case 'deck-chosen': {
+      if (!isSeat(value.seat)) return null;
+      if (value.deck === null) return { type: 'deck-chosen', seat: value.seat, deck: null };
+      const deck = toDeckList(value.deck);
+      return deck ? { type: 'deck-chosen', seat: value.seat, deck } : null;
+    }
     case 'turn-order-set':
       return isSeatList(value.order) ? { type: 'turn-order-set', order: value.order } : null;
     case 'turn-passed':

@@ -1,4 +1,6 @@
 export { normalizeCardName } from './cards';
+export { MAX_COMMANDERS, MAX_DECK_ENTRIES, MAX_DECK_NAME_LENGTH, deckSize, toDeckList } from './decks';
+export type { DeckCard, DeckList } from './decks';
 export type { Card, CardFace, CommanderLegality, Ruling } from './cards';
 export { isIntent, resolveAction, toGameAction } from './actions';
 export type { GameAction, GameIntent } from './actions';
@@ -17,7 +19,6 @@ export {
   COMMANDER_DAMAGE_LIMIT,
   COMMANDER_TAX_PER_CAST,
   MAX_CHANGE,
-  MAX_COMMANDERS,
   MAX_COMMANDER_NAME_LENGTH,
   MAX_SPEED,
   MAX_STARTING_LIFE,

@@ -1,5 +1,7 @@
 export { createIdentity, fingerprintOf, loadOrCreateIdentity, normalizeFingerprint } from './certificate';
 export type { TlsIdentity } from './certificate';
+export { UnsupportedDeckLinkError, fetchDeck, isDeckLink } from './deckSites';
+export type { DeckSitesOptions } from './deckSites';
 export { syncGame } from './gameConnection';
 export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses } from './network';
 export { PhoneLinkServer } from './phoneLinkServer';

@@ -65,6 +65,11 @@ export function describeEvent(
       const change = `${formatChange(event.amount)} ${name}`;
       return target === by.name ? `${by.name} ${change}` : `${by.name}: ${target} ${change}`;
     }
+    case 'deck-chosen': {
+      const target = seatName(players, event.seat);
+      const who = target === by.name ? by.name : `${by.name}: ${target}`;
+      return event.deck ? `${who} is playing ${event.deck.name}` : `${who} has no deck chosen`;
+    }
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {

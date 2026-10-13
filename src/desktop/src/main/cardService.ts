@@ -52,6 +52,12 @@ export class CardService {
     return this.index?.search(query, RESULTS) ?? [];
   }
 
+  /** The card a deck list means by this name, or undefined. Null while there are no cards yet. */
+  lookup(): ((name: string) => Card | undefined) | null {
+    const index = this.index;
+    return index ? (name) => index.byName(name) : null;
+  }
+
   async details(id: string): Promise<CardDetails | null> {
     const card = this.index?.get(id);
     if (!card) return null;

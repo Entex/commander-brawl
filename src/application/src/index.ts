@@ -1,4 +1,6 @@
 export { CardIndex, editDistance } from './cardIndex';
+export { chooseCommanders, couldBeCommander, parseDeckText, resolveDeck } from './deckImport';
+export type { ImportedDeck, RawDeck, RawDeckEntry } from './deckImport';
 export { GameSync, HostGameLog, MAX_LOG_LENGTH, replayLog, undoneIds } from './gameLog';
 export type { AppendResult, GameSyncMessage, GameSyncTransport, GameView, LogBatch, LoggedEvent } from './gameLog';
 export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';

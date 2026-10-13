@@ -44,6 +44,8 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Cards** (or Ctrl+K) looks up any card: picture, text, both faces, official rulings, and whether it's a Game Changer or banned in Commander. Search forgives typos ("rhystc stdy"). The app downloads all cards from [Scryfall](https://scryfall.com) once (about 30 MB, in the background on first start) and refreshes them weekly, so searching is instant and works offline. Pictures load from Scryfall.
 
+**Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield or Archidekt link, or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
+
 _Show stats_ in the menu shows resolution, frame rate, bitrate, packet loss and delay for each player.
 
 ## Development
@@ -102,12 +104,13 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 
 ### Settings for development and tests
 
-| Variable                         | Effect                                                                                 |
-| -------------------------------- | -------------------------------------------------------------------------------------- |
-| `CB_USER_DATA_DIR`               | Keep settings and certificates in this folder, so several copies can run side by side. |
-| `CB_UPNP=off`                    | Don't ask the router to open a port.                                                   |
-| `CB_LOCAL_ONLY=1`                | Don't use the public address-lookup (STUN) servers; local network only.                |
-| `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port).                        |
-| `CB_RENDERER_URL`                | Load the UI from a dev server.                                                         |
-| `CB_SCRYFALL_API`                | A stand-in for Scryfall's API (tests use a local fake).                                |
-| `CB_SAVE_DIR`                    | Save files (like the game log) here without asking.                                    |
+| Variable                              | Effect                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------- |
+| `CB_USER_DATA_DIR`                    | Keep settings and certificates in this folder, so several copies can run side by side. |
+| `CB_UPNP=off`                         | Don't ask the router to open a port.                                                   |
+| `CB_LOCAL_ONLY=1`                     | Don't use the public address-lookup (STUN) servers; local network only.                |
+| `CB_TABLE_PORT`, `CB_PHONE_PORT`      | Ports for hosting and for the phone page (`0` = any free port).                        |
+| `CB_RENDERER_URL`                     | Load the UI from a dev server.                                                         |
+| `CB_SCRYFALL_API`                     | A stand-in for Scryfall's API (tests use a local fake).                                |
+| `CB_MOXFIELD_API`, `CB_ARCHIDEKT_API` | Stand-ins for the deck sites (tests use local fakes).                                  |
+| `CB_SAVE_DIR`                         | Save files (like the game log) here without asking.                                    |

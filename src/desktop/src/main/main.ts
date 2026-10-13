@@ -4,6 +4,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  net,
   session,
   shell,
   type IpcMainEvent,
@@ -13,6 +14,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Channels, type RendererConfig } from '../shared/api';
 import { CardService } from './cardService';
+import { DeckService } from './deckService';
 import { PhoneLinkService } from './phoneLinkService';
 import { TableService } from './tableService';
 
@@ -28,6 +30,9 @@ const env = {
   saveDir: process.env.CB_SAVE_DIR,
   /** A stand-in for Scryfall's API, for tests. */
   scryfallApi: process.env.CB_SCRYFALL_API,
+  /** Stand-ins for the deck sites, for tests. */
+  moxfieldApi: process.env.CB_MOXFIELD_API,
+  archidektApi: process.env.CB_ARCHIDEKT_API,
 };
 
 if (env.userDataDir) app.setPath('userData', env.userDataDir);
@@ -67,11 +72,22 @@ async function start(): Promise<void> {
     apiUrl: env.scryfallApi,
     emit: (status) => mainWindow?.webContents.send(Channels.cardsStatusUpdate, status),
   });
+  const decks = new DeckService({
+    file: join(dataDir, 'decks.json'),
+    cards,
+    sites: {
+      appVersion: app.getVersion(),
+      // Moxfield turns away Node's own fetch; Chromium's network stack gets through.
+      fetch: (url, init) => net.fetch(url, init),
+      ...(env.moxfieldApi ? { moxfieldApi: env.moxfieldApi } : {}),
+      ...(env.archidektApi ? { archidektApi: env.archidektApi } : {}),
+    },
+  });
   cleanup = async () => {
     await Promise.all([table.shutdown(), phone.close()]);
   };
 
-  registerIpc(table, phone, cards);
+  registerIpc(table, phone, cards, decks);
   restrictPermissions();
   mainWindow = createWindow();
   // After the window is up: reading ~35,000 cards takes a moment, and the window shouldn't wait for it.
@@ -111,7 +127,7 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardService): void {
+function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardService, decks: DeckService): void {
   const config: RendererConfig = { version: app.getVersion(), iceServers: env.localOnly ? [] : null };
   handle(Channels.config, () => config);
   handle(Channels.tableHost, (name) => table.host(requireString(name)));
@@ -128,6 +144,10 @@ function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardSe
   handle(Channels.cardsSearch, (query) => cards.search(requireString(query)));
   handle(Channels.cardsDetails, (id) => cards.details(requireString(id)));
   handle(Channels.cardsRefresh, () => cards.refresh());
+  handle(Channels.decksList, () => decks.list());
+  handle(Channels.decksImport, (source) => decks.import(requireString(source)));
+  handle(Channels.decksSave, (deck, id) => decks.save(deck, typeof id === 'string' ? id : null));
+  handle(Channels.decksRemove, (id) => decks.remove(requireString(id)));
   handle(Channels.phoneInfo, () => phone.info());
   on(Channels.tableSend, (to, data) => {
     if (typeof to === 'string') table.send(to, data);

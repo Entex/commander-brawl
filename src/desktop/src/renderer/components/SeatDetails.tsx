@@ -5,6 +5,7 @@ import {
   PLAYER_COUNTERS,
   commanderTax,
   counterValue,
+  deckSize,
   isOut,
   lossReason,
   type CommanderIndex,
@@ -40,6 +41,15 @@ export function SeatDetails({ seat, game, players, onClose }: SeatDetailsProps) 
         <h3>{seatName(players, seat)}</h3>
         <button onClick={onClose}>Close</button>
       </header>
+
+      {state.deck && (
+        <section>
+          <h4>Deck</h4>
+          <p className="deck-line">
+            {state.deck.name} · {deckSize(state.deck)} cards
+          </p>
+        </section>
+      )}
 
       <section>
         <h4>Commanders</h4>

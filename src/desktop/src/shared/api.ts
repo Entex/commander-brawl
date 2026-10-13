@@ -1,5 +1,5 @@
-import type { GameView, LoggedEvent, SignalingEvent } from '@commander-brawl/application';
-import type { Card, GameAction, Ruling } from '@commander-brawl/domain';
+import type { GameView, ImportedDeck, LoggedEvent, SignalingEvent } from '@commander-brawl/application';
+import type { Card, DeckList, GameAction, Ruling } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 /** How friends outside your home can reach the table you host. */
@@ -58,6 +58,11 @@ export interface CardDetails {
   readonly rulings: readonly Ruling[];
 }
 
+export interface SavedDeck extends DeckList {
+  readonly id: string;
+  readonly savedAt: number;
+}
+
 /** What the preload script exposes to the UI as `window.brawl`. */
 export interface DesktopApi {
   config(): Promise<RendererConfig>;
@@ -90,6 +95,13 @@ export interface DesktopApi {
     details(id: string): Promise<CardDetails | null>;
     refresh(): Promise<void>;
   };
+  decks: {
+    list(): Promise<readonly SavedDeck[]>;
+    /** A Moxfield or Archidekt link, or a pasted deck list. */
+    import(source: string): Promise<ImportedDeck>;
+    save(deck: DeckList, id: string | null): Promise<SavedDeck>;
+    remove(id: string): Promise<void>;
+  };
   phone: {
     info(): Promise<PhoneLinkInfo>;
     send(message: DesktopToPhone): void;
@@ -118,6 +130,10 @@ export const Channels = {
   cardsSearch: 'cards:search',
   cardsDetails: 'cards:details',
   cardsRefresh: 'cards:refresh',
+  decksList: 'decks:list',
+  decksImport: 'decks:import',
+  decksSave: 'decks:save',
+  decksRemove: 'decks:remove',
   phoneInfo: 'phone:info',
   phoneSend: 'phone:send',
   phoneEvent: 'phone:event',

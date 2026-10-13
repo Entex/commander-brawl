@@ -2,6 +2,8 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import type { DesktopApi } from '../../src/desktop/src/shared/api';
+import { startFakeDeckSites, type FakeDeckSites } from '../support/fakeDeckSites';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
 
 // The whole app, two copies on one computer: main process, IPC, UI and video.
@@ -21,13 +23,16 @@ interface Instance {
 const running: Instance[] = [];
 // Card data comes from a stand-in, so the tests never download from the real Scryfall.
 let scryfall: FakeScryfall;
+let deckSites: FakeDeckSites;
 
 test.beforeAll(async () => {
   scryfall = await startFakeScryfall();
+  deckSites = await startFakeDeckSites();
 });
 
 test.afterAll(async () => {
   await scryfall.close();
+  await deckSites.close();
 });
 
 test.afterEach(async () => {
@@ -48,6 +53,8 @@ async function launch(name: string, userDataDir?: string): Promise<Instance> {
       CB_PHONE_PORT: '0',
       CB_SAVE_DIR: saveDir,
       CB_SCRYFALL_API: scryfall.apiUrl,
+      CB_MOXFIELD_API: deckSites.moxfieldApi,
+      CB_ARCHIDEKT_API: deckSites.archidektApi,
     },
   });
   const page = await app.firstWindow();
@@ -75,6 +82,18 @@ async function hostAndFriend(): Promise<{ host: Instance; friend: Instance }> {
   await friend.page.getByTestId('join').click();
   await expectVideoFrom(friend.page, 'Host');
   return { host, friend };
+}
+
+/** The app downloads the cards when it starts; deck import needs them. */
+async function cardsReady(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const { brawl } = window as unknown as { brawl: DesktopApi };
+        return (await brawl.cards.status()).state;
+      }),
+    )
+    .toBe('ready');
 }
 
 async function expectVideoFrom(page: Page, name: string): Promise<void> {
@@ -348,4 +367,36 @@ test('looking up a card', async () => {
   await panel.getByRole('button', { name: 'Delver of Secrets // Insectile Aberration' }).click();
   await expect(card).toContainText('Flying');
   await expect(card).toContainText('3/2');
+});
+
+test('importing decks and playing one', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(host.page);
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Decks' }).click();
+  const panel = host.page.getByTestId('decks-panel');
+
+  // A pasted list that doesn't say which card is the commander, with a typo.
+  await panel
+    .getByLabel('Deck link or list')
+    .fill("1 Atraxa, Praetors' Voice\n1 Sol Ring\n1 Rhystic Study\n1 Sol Rinng");
+  await panel.getByRole('button', { name: 'Import' }).click();
+  await expect(panel.getByText('Not found, so left out: Sol Rinng')).toBeVisible();
+  await panel.getByLabel("Atraxa, Praetors' Voice").check();
+  await panel.getByRole('button', { name: 'Save deck' }).click();
+  await expect(panel.getByTestId('deck-Imported deck')).toContainText("Atraxa, Praetors' Voice · 3 cards");
+
+  // A Moxfield link.
+  await panel.getByLabel('Deck link or list').fill('https://moxfield.com/decks/Y8dZ7');
+  await panel.getByRole('button', { name: 'Import' }).click();
+  await expect(panel.getByLabel('Imported deck')).toContainText("Commander: Atraxa, Praetors' Voice");
+  await panel.getByRole('button', { name: 'Save deck' }).click();
+
+  await panel.getByTestId('deck-Atraxa Counters').getByRole('button', { name: 'Play this deck' }).click();
+  await expect(panel.getByTestId('deck-Atraxa Counters')).toContainText('Playing');
+  await panel.getByRole('button', { name: 'Done' }).click();
+
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host is playing Atraxa Counters');
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  await expect(friend.page.getByTestId('seat-details-0')).toContainText('Atraxa Counters · 3 cards');
 });
