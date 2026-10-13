@@ -7,7 +7,7 @@ import {
   type TableSessionState,
 } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
-import { MAX_SEATS, STARTING_LIFE, type GameState, type SeatIndex } from '@commander-brawl/domain';
+import { MAX_SEATS, STARTING_LIFE, isAnnouncement, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
@@ -19,6 +19,7 @@ import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
+import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
 import { Rule0Panel } from './Rule0Panel';
 import { SnapshotView } from './SnapshotView';
 import { Spotlight } from './Spotlight';
@@ -57,6 +58,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
+  const responseCalls = useResponseCalls(game);
+  const responding = new Set(responseCalls.map((call) => call.by.seat));
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -155,6 +158,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {/* Its own row, so the turn and Pass turn are never squeezed out by the toolbar on a narrow window. */}
       {game && (
         <div className="status-bar">
+          <ResponseButton />
           <button onClick={() => setRule0Open(true)}>Rule 0</button>
           <TurnControls game={game.state} players={state.seats} />
           <LastChange game={game} state={state} />
@@ -194,6 +198,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         />
       )}
 
+      <ResponseBanner calls={responseCalls} self={selfSeat} />
       {game && <Spotlight game={game} />}
       {closeUp && (
         <SnapshotView
@@ -223,6 +228,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               players={state.seats}
               game={game?.state ?? null}
               active={seat.player.seat === activeSeat}
+              responding={responding.has(seat.player.seat)}
               showStats={showStats}
               getStats={getStats}
               onOpenCard={openCard}
@@ -342,7 +348,10 @@ function useUndoTarget(game: GameView | null, state: TableSessionState<MediaStre
   const recent = game?.recent ?? [];
   const undone = undoneIds(recent);
   const target =
-    [...recent].reverse().find((e) => e.by.seat === self && e.event.type !== 'undo' && !undone.has(e.id)) ?? null;
+    [...recent]
+      .reverse()
+      .find((e) => e.by.seat === self && e.event.type !== 'undo' && !isAnnouncement(e.event) && !undone.has(e.id)) ??
+    null;
 
   const targetId = target?.id;
   useEffect(() => {

@@ -35,6 +35,8 @@ The app recovers from these problems by itself:
 - **A video link fails.** It restarts, first gently and then from scratch.
 - **The host's app crashes or is closed by accident.** The host opens it again and clicks _Resume table_. Friends' apps are still trying to reconnect, so they come back by themselves, to the same seats and the same game. (_Close table_ in the menu ends the table for everyone.)
 
+**✋ Wait!** (or the W key) is "Wait, I have a response!": it flashes on every screen with your name, and your seat lights up, so it isn't lost when everyone talks at once.
+
 **Life totals** sit on each seat. Anyone can change anyone's total, and the toolbar shows the last change and who made it. Quick clicks are grouped, so three taps on −1 become one "−3". _New game_ (click twice) resets everything.
 
 Every change goes into a game log kept by the host, and each player's app has a full copy of it.

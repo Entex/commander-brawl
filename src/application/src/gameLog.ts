@@ -1,6 +1,7 @@
 import {
   applyEvent,
   applyEvents,
+  isAnnouncement,
   isIntent,
   newGame,
   resolveAction,
@@ -123,11 +124,18 @@ export class HostGameLog {
     return { ok: true, entry };
   }
 
-  /** Players can only take back their own changes, once. Fixing someone else's mistake is a new change. */
+  /**
+   * Players can only take back their own changes, once. Fixing someone else's mistake is a new change, and an
+   * announcement (a card shown, a call to wait) isn't a change to take back.
+   */
   private canUndo(author: Player, target: string): boolean {
     const entry = this.byId.get(target);
     return (
-      entry !== undefined && entry.event.type !== 'undo' && !this.undone.has(target) && entry.by.seat === author.seat
+      entry !== undefined &&
+      entry.event.type !== 'undo' &&
+      !isAnnouncement(entry.event) &&
+      !this.undone.has(target) &&
+      entry.by.seat === author.seat
     );
   }
 
@@ -160,9 +168,12 @@ export interface GameView {
    * (like a card someone shows), without replaying the past to a player who just joined.
    */
   readonly lastLive: LoggedEvent | null;
+  /** The last few events that arrived as they happened, oldest first: lastLive and the ones before it. */
+  readonly live: readonly LoggedEvent[];
 }
 
 const RECENT_LIMIT = 30;
+const LIVE_LIMIT = 10;
 
 /**
  * A player's copy of the log. Your own changes show up at once and are sent to the host; they stay
@@ -173,7 +184,7 @@ export class GameSync {
   private readonly log: LoggedEvent[] = [];
   private confirmed: GameState = newGame();
   private pending: { readonly id: string; readonly event: GameAction }[] = [];
-  private lastLive: LoggedEvent | null = null;
+  private live: LoggedEvent[] = [];
   private readonly listeners = new Set<(view: GameView) => void>();
   private view: GameView;
 
@@ -222,7 +233,7 @@ export class GameSync {
       this.logId = batch.logId;
       this.log.length = 0;
       this.confirmed = newGame();
-      this.lastLive = null;
+      this.live = [];
     }
     if (batch.from > this.log.length) {
       // Missed something in between. Ask for the gap.
@@ -238,7 +249,7 @@ export class GameSync {
         break;
       }
       this.log.push(entry);
-      if (batch.live) this.lastLive = entry;
+      if (batch.live) this.live = [...this.live.slice(1 - LIVE_LIMIT), entry];
       if (entry.event.type === 'undo') undo = true;
       else this.confirmed = applyEvent(this.confirmed, entry.event);
       this.pending = this.pending.filter((p) => p.id !== entry.id);
@@ -279,7 +290,8 @@ export class GameSync {
       recent: this.log.slice(-RECENT_LIMIT),
       logLength: this.log.length,
       unconfirmed: this.pending.length,
-      lastLive: this.lastLive,
+      lastLive: this.live.at(-1) ?? null,
+      live: this.live,
     };
   }
 }

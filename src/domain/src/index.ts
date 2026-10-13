@@ -30,6 +30,7 @@ export {
   applyEvent,
   applyEvents,
   commanderTax,
+  isAnnouncement,
   isEventId,
   isOut,
   isSeatList,

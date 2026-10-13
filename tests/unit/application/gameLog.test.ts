@@ -72,6 +72,9 @@ describe('HostGameLog', () => {
     expect(log.append(alice, 'x3', { type: 'undo', target: 'nope' })).toEqual(refused);
     log.append(alice, 'e2', hit(0, -1));
     expect(log.append(bob, 'x4', { type: 'undo', target: 'e2' })).toEqual(refused);
+    // Announcements change nothing, so there's nothing to take back.
+    log.append(alice, 'r1', { type: 'response-called' });
+    expect(log.append(alice, 'x5', { type: 'undo', target: 'r1' })).toEqual(refused);
   });
 
   it('continues a saved log under a new id, still knowing what it already has', () => {
@@ -166,6 +169,29 @@ describe('replayLog', () => {
 });
 
 describe('GameSync', () => {
+  it('keeps the last few events that arrived as they happened, but not ones caught up on', () => {
+    const sync = new GameSync({ send: () => true }, () => 'x');
+    const entry = (seq: number): LoggedEvent => ({
+      seq,
+      id: `e${seq}`,
+      at: seq,
+      by: alice,
+      event: { type: 'response-called' },
+    });
+    // Catching up on what happened before.
+    sync.received({ logId: 'log', from: 0, events: [entry(0), entry(1)] });
+    expect(sync.getView().live).toEqual([]);
+    // Then events as they happen.
+    for (let seq = 2; seq < 14; seq++) sync.received({ logId: 'log', from: seq, events: [entry(seq)], live: true });
+    const { live, lastLive } = sync.getView();
+    expect(live.map((e) => e.seq)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(lastLive?.seq).toBe(13);
+
+    // A different log (the host started over) starts with nothing live.
+    sync.received({ logId: 'other', from: 0, events: [entry(0)] });
+    expect(sync.getView()).toMatchObject({ live: [], lastLive: null });
+  });
+
   it('shows your change at once and keeps it once the host confirms it', () => {
     const h = new Harness();
     h.sync.connected();

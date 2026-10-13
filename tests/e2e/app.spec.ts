@@ -507,6 +507,28 @@ async function cardCamera(): Promise<string> {
   }
 }
 
+test('"Wait, I have a response!" flashes on every screen', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await friend.page.keyboard.press('w');
+
+  await expect(host.page.getByTestId('response-banner')).toHaveText('✋ Friend: “Wait, I have a response!”');
+  await expect(host.page.locator('.seat-responding')).toContainText('Friend');
+  await host.page.screenshot({ path: test.info().outputPath('response.png') });
+  await expect(friend.page.getByTestId('response-banner')).toHaveText('✋ You asked everyone to wait');
+  // No calling again right away, and nothing to undo: it didn't change the game.
+  await expect(friend.page.getByRole('button', { name: '✋ Wait!' })).toBeDisabled();
+  await expect(friend.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend: “Wait, I have a response!”');
+
+  // It doesn't get in the way of the buttons under it, and goes by itself after a few seconds.
+  await host.page.getByRole('button', { name: 'Random turn order' }).click();
+  await expect(host.page.getByTestId('last-change')).toContainText('shuffled the turn order');
+  await expect(host.page.getByTestId('response-banner')).toHaveCount(0, { timeout: 10_000 });
+  await expect(friend.page.getByTestId('response-banner')).toHaveCount(0);
+  await expect(friend.page.getByRole('button', { name: '✋ Wait!' })).toBeEnabled();
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

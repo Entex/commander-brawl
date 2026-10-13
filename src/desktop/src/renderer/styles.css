@@ -764,6 +764,53 @@ button.swatch.selected {
   outline-offset: -3px;
 }
 
+/* "Wait, I have a response!" */
+
+.seat-responding {
+  outline: 4px solid var(--warn);
+  outline-offset: -4px;
+  animation: response-flash 0.6s ease-in-out 4 alternate;
+}
+
+.response-button {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #1b1405;
+  font-weight: 700;
+}
+
+.response-button:disabled {
+  opacity: 0.55;
+}
+
+.response-banner {
+  position: fixed;
+  /* Below the toolbar and status bar, over the top of the videos. */
+  top: 6.5rem;
+  pointer-events: none;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 0.8rem 1.6rem;
+  border: 2px solid var(--warn);
+  border-radius: 999px;
+  background: #2a2210;
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 700;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 50%);
+  animation: response-flash 0.6s ease-in-out 4 alternate;
+}
+
+@keyframes response-flash {
+  from {
+    box-shadow: 0 0 0 0 rgb(242 184 75 / 0%);
+  }
+  to {
+    box-shadow: 0 0 0 10px rgb(242 184 75 / 45%);
+  }
+}
+
 .badge-turn {
   background: var(--accent);
   color: #0b0d12;

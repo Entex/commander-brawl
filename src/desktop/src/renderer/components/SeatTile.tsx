@@ -31,6 +31,8 @@ interface SeatTileProps {
   readonly game: GameState | null;
   /** It's this player's turn. */
   readonly active: boolean;
+  /** This player just asked everyone to wait: they have a response. */
+  readonly responding: boolean;
   readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
   /** Shows a card in the Cards panel. */
@@ -46,7 +48,17 @@ const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
   failed: 'Connection lost, retrying…',
 };
 
-export function SeatTile({ seat, players, game, active, showStats, getStats, onOpenCard, onLook }: SeatTileProps) {
+export function SeatTile({
+  seat,
+  players,
+  game,
+  active,
+  responding,
+  showStats,
+  getStats,
+  onOpenCard,
+  onLook,
+}: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const stats = useLinkStats(seat, showStats, getStats);
@@ -56,7 +68,7 @@ export function SeatTile({ seat, players, game, active, showStats, getStats, onO
 
   return (
     <div
-      className={`seat${active ? ' seat-active' : ''}`}
+      className={`seat${active ? ' seat-active' : ''}${responding ? ' seat-responding' : ''}`}
       data-testid={`seat-${seat.player.seat}`}
       data-link={seat.link}
       data-active={active}

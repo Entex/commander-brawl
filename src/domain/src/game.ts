@@ -117,6 +117,11 @@ export type GameEvent =
       readonly card: { readonly id: string; readonly name: string };
       readonly reason: 'cast' | 'show';
     }
+  /**
+   * "Wait, I have a response!": the player wants to respond before the game moves on. Flashes on every
+   * screen; like a card shown, it doesn't change the game.
+   */
+  | { readonly type: 'response-called' }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -246,6 +251,7 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
     case 'bracket-declared':
       return updateSeat(state, event.seat, (seat) => ({ ...seat, bracket: event.bracket }));
     case 'card-shown':
+    case 'response-called':
       return state;
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
@@ -396,6 +402,8 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isSeat(value.from) ? { type: 'turn-passed', from: value.from } : null;
     case 'undo':
       return isEventId(value.target) ? { type: 'undo', target: value.target } : null;
+    case 'response-called':
+      return { type: 'response-called' };
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
@@ -411,6 +419,14 @@ function counterMaximum(counter: PlayerCounter): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * Events that tell the table something without changing the game: a card shown, a call to wait. There's
+ * nothing to undo about them.
+ */
+export function isAnnouncement(event: GameEvent): boolean {
+  return event.type === 'card-shown' || event.type === 'response-called';
 }
 
 /** One to four different seats. */

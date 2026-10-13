@@ -79,6 +79,8 @@ export function describeEvent(
     }
     case 'card-shown':
       return event.reason === 'cast' ? `${by.name} cast ${event.card.name}` : `${by.name} showed ${event.card.name}`;
+    case 'response-called':
+      return `${by.name}: “Wait, I have a response!”`;
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {

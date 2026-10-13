@@ -7,6 +7,7 @@ import {
   STARTING_LIFE,
   applyEvent,
   applyEvents,
+  isAnnouncement,
   isOut,
   lossReason,
   newGame,
@@ -203,6 +204,15 @@ describe('reading game events from the network', () => {
     const event = toGameEvent({ type: 'card-shown', card: { id: 'rhystic', name: 'Rhystic Study' }, reason: 'show' });
     expect(event).toEqual({ type: 'card-shown', card: { id: 'rhystic', name: 'Rhystic Study' }, reason: 'show' });
     expect(applyEvent(newGame(), event!)).toEqual(newGame());
+    expect(isAnnouncement(event!)).toBe(true);
+  });
+
+  it('accepts a call to wait, which changes nothing in the game either', () => {
+    const event = toGameEvent({ type: 'response-called', seat: 9 });
+    expect(event).toEqual({ type: 'response-called' });
+    expect(applyEvent(newGame(), event!)).toEqual(newGame());
+    expect(isAnnouncement(event!)).toBe(true);
+    expect(isAnnouncement({ type: 'life-changed', seat: 0, amount: -1 })).toBe(false);
   });
 
   it('drops extra fields', () => {
