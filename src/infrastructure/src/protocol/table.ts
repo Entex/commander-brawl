@@ -32,7 +32,14 @@ export type TableServerMessage =
   | { readonly t: 'member-joined'; readonly member: Player }
   | { readonly t: 'member-left'; readonly memberId: string }
   | { readonly t: 'signal'; readonly from: string; readonly data: unknown }
-  | { readonly t: 'events'; readonly logId: string; readonly from: number; readonly events: readonly LoggedEvent[] }
+  | {
+      readonly t: 'events';
+      readonly logId: string;
+      readonly from: number;
+      readonly events: readonly LoggedEvent[];
+      /** Broadcast as it happened, not catch-up. */
+      readonly live?: boolean;
+    }
   /** One of your game actions was turned down; drop it. */
   | { readonly t: 'refused'; readonly id: string }
   | { readonly t: 'rejected'; readonly reason: TableRejection };
@@ -98,7 +105,13 @@ export function parseServerMessage(raw: string): TableServerMessage | null {
       if (!isShortString(message.logId) || !isPosition(message.from) || !Array.isArray(message.events)) return null;
       const events = message.events.map(toLoggedEvent);
       return events.every((e): e is LoggedEvent => e !== null)
-        ? { t: 'events', logId: message.logId, from: message.from, events }
+        ? {
+            t: 'events',
+            logId: message.logId,
+            from: message.from,
+            events,
+            ...(message.live === true ? { live: true } : {}),
+          }
         : null;
     }
     case 'refused':

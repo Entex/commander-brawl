@@ -1,6 +1,6 @@
 import type { Card, CardFace } from '@commander-brawl/domain';
 import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { CardDataStatus, CardDetails } from '../../shared/api';
 import { api } from '../api';
 import { CardText, Symbols } from './CardText';
@@ -8,11 +8,13 @@ import { CardText, Symbols } from './CardText';
 interface CardsPanelProps {
   /** Show this card straight away, e.g. a commander someone clicked. */
   readonly initialCardId?: string | null;
+  /** Puts a card in the spotlight for the whole table. Only at a table. */
+  onSpotlight?: (card: Card, reason: 'cast' | 'show') => void;
   onClose(): void;
 }
 
 /** Look up any card: what it does, what it looks like, and its official rulings. */
-export function CardsPanel({ initialCardId = null, onClose }: CardsPanelProps) {
+export function CardsPanel({ initialCardId = null, onSpotlight, onClose }: CardsPanelProps) {
   const status = useCardStatus();
   const [query, setQuery] = useState('');
   const results = useSearch(query, status);
@@ -67,7 +69,22 @@ export function CardsPanel({ initialCardId = null, onClose }: CardsPanelProps) {
             <li className="hint">No card by that name.</li>
           )}
         </ul>
-        {details && <CardView key={details.card.id} details={details} />}
+        {details && (
+          <CardView
+            key={details.card.id}
+            details={details}
+            actions={
+              onSpotlight && (
+                <div className="row card-actions">
+                  <button className="primary" onClick={() => onSpotlight(details.card, 'cast')}>
+                    Cast it
+                  </button>
+                  <button onClick={() => onSpotlight(details.card, 'show')}>Show everyone</button>
+                </div>
+              )
+            }
+          />
+        )}
       </div>
       <footer className="hint">
         Card data and pictures from{' '}
@@ -80,7 +97,7 @@ export function CardsPanel({ initialCardId = null, onClose }: CardsPanelProps) {
   );
 }
 
-export function CardView({ details }: { readonly details: CardDetails }) {
+export function CardView({ details, actions }: { readonly details: CardDetails; readonly actions?: ReactNode }) {
   const { card, rulings } = details;
   const faces: readonly (Card | CardFace)[] = card.faces.length > 0 ? card.faces : [card];
   const images = card.faces.map((f) => f.image).filter((i): i is string => i !== null);
@@ -99,6 +116,7 @@ export function CardView({ details }: { readonly details: CardDetails }) {
         />
       )}
       <div className="card-info">
+        {actions}
         <div className="card-badges">
           {card.gameChanger && (
             <span className="badge badge-warn" title="On Wizards' Game Changers list for Commander brackets">
@@ -196,7 +214,7 @@ function useSearch(query: string, status: CardDataStatus): readonly Card[] {
   return query.trim() ? results : [];
 }
 
-function useDetails(id: string | null): CardDetails | null {
+export function useDetails(id: string | null): CardDetails | null {
   const [details, setDetails] = useState<CardDetails | null>(null);
   useEffect(() => {
     if (!id) return;

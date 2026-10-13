@@ -407,3 +407,22 @@ test('importing decks and playing one', async () => {
   await badge.click();
   await expect(friend.page.getByTestId('card-view')).toContainText('proliferate');
 });
+
+test('casting a card puts it in the spotlight for everyone', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(host.page);
+
+  await host.page.getByRole('button', { name: 'Cards' }).click();
+  const panel = host.page.getByTestId('cards-panel');
+  await panel.getByLabel('Search for a card').fill('rhystic');
+  await panel.getByRole('button', { name: 'Rhystic Study' }).click();
+  await panel.getByRole('button', { name: 'Cast it' }).click();
+
+  const spotlight = friend.page.getByTestId('spotlight');
+  await expect(spotlight).toContainText('Host cast');
+  await expect(spotlight).toContainText('Whenever an opponent casts a spell');
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host cast Rhystic Study');
+
+  await spotlight.getByRole('button', { name: 'Close' }).click();
+  await expect(spotlight).toHaveCount(0);
+});

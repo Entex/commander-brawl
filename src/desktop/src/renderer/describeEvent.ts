@@ -70,6 +70,8 @@ export function describeEvent(
       const who = target === by.name ? by.name : `${by.name}: ${target}`;
       return event.deck ? `${who} is playing ${event.deck.name}` : `${who} has no deck chosen`;
     }
+    case 'card-shown':
+      return event.reason === 'cast' ? `${by.name} cast ${event.card.name}` : `${by.name} showed ${event.card.name}`;
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {

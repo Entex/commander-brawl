@@ -998,6 +998,44 @@ button.swatch.selected {
   margin: 0;
 }
 
+.card-actions {
+  justify-content: flex-start;
+}
+
+.spotlight {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+  width: min(380px, 80vw);
+  max-height: 92vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: rgb(16 18 23 / 0.94);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.6);
+}
+
+.spotlight-who {
+  margin: 0;
+  color: var(--muted);
+}
+
+.spotlight-image {
+  width: 100%;
+  border-radius: 4.75% / 3.5%;
+}
+
+.spotlight-text p {
+  margin: 0.25rem 0;
+}
+
 /* Camera panel */
 
 .overlay {

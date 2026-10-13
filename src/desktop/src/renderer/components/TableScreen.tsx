@@ -18,6 +18,7 @@ import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
+import { Spotlight } from './Spotlight';
 import { LogPanel } from './LogPanel';
 import { Menu } from './Menu';
 import { EmptySeat, SeatTile } from './SeatTile';
@@ -168,6 +169,10 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <CardsPanel
           key={cardFocus?.at ?? 'search'}
           initialCardId={cardFocus?.id ?? null}
+          onSpotlight={(card, reason) => {
+            submitGameEvent({ type: 'card-shown', card: { id: card.id, name: card.name }, reason });
+            setCardsOpen(false);
+          }}
           onClose={() => {
             setCardsOpen(false);
             setCardFocus(null);
@@ -181,6 +186,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           onClose={() => setDecksOpen(false)}
         />
       )}
+
+      {game && <Spotlight game={game} />}
 
       <main className="seats">
         {seats.map((seat, index) =>

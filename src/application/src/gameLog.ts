@@ -30,6 +30,8 @@ export interface LogBatch {
   readonly logId: string;
   readonly from: number;
   readonly events: readonly LoggedEvent[];
+  /** Sent the moment it happened, rather than as catch-up after joining or reconnecting. */
+  readonly live?: boolean;
 }
 
 interface Recorded {
@@ -153,6 +155,11 @@ export interface GameView {
   readonly logLength: number;
   /** Your changes the host hasn't confirmed yet. More than zero for long means the connection is down. */
   readonly unconfirmed: number;
+  /**
+   * The newest event that arrived as it happened, not as catch-up. For reacting to things in the moment
+   * (like a card someone shows), without replaying the past to a player who just joined.
+   */
+  readonly lastLive: LoggedEvent | null;
 }
 
 const RECENT_LIMIT = 30;
@@ -166,6 +173,7 @@ export class GameSync {
   private readonly log: LoggedEvent[] = [];
   private confirmed: GameState = newGame();
   private pending: { readonly id: string; readonly event: GameAction }[] = [];
+  private lastLive: LoggedEvent | null = null;
   private readonly listeners = new Set<(view: GameView) => void>();
   private view: GameView;
 
@@ -214,6 +222,7 @@ export class GameSync {
       this.logId = batch.logId;
       this.log.length = 0;
       this.confirmed = newGame();
+      this.lastLive = null;
     }
     if (batch.from > this.log.length) {
       // Missed something in between. Ask for the gap.
@@ -229,6 +238,7 @@ export class GameSync {
         break;
       }
       this.log.push(entry);
+      if (batch.live) this.lastLive = entry;
       if (entry.event.type === 'undo') undo = true;
       else this.confirmed = applyEvent(this.confirmed, entry.event);
       this.pending = this.pending.filter((p) => p.id !== entry.id);
@@ -269,6 +279,7 @@ export class GameSync {
       recent: this.log.slice(-RECENT_LIMIT),
       logLength: this.log.length,
       unconfirmed: this.pending.length,
+      lastLive: this.lastLive,
     };
   }
 }

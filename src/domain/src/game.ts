@@ -103,6 +103,15 @@ export type GameEvent =
     }
   /** The player picked the deck they're playing (null: none). Its commanders become the seat's commanders. */
   | { readonly type: 'deck-chosen'; readonly seat: SeatIndex; readonly deck: DeckList | null }
+  /**
+   * A player put a card in the spotlight for everyone to see, because they cast it or just to show it.
+   * It doesn't change the game; it's there so every player sees the card, and it lands in the log.
+   */
+  | {
+      readonly type: 'card-shown';
+      readonly card: { readonly id: string; readonly name: string };
+      readonly reason: 'cast' | 'show';
+    }
   /** Sets the turn order and starts the first turn. */
   | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[] }
   /** Only counts if `from` still has the turn, so a double click can't skip a player. */
@@ -214,6 +223,8 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
         commanders:
           event.deck && event.deck.commanders.length > 0 ? event.deck.commanders.map((c) => c.name) : seat.commanders,
       }));
+    case 'card-shown':
+      return state;
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
       return { ...state, turnOrder: event.order, activeSeat: first, turn: 1, round: 1 };
@@ -326,6 +337,26 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       if (value.deck === null) return { type: 'deck-chosen', seat: value.seat, deck: null };
       const deck = toDeckList(value.deck);
       return deck ? { type: 'deck-chosen', seat: value.seat, deck } : null;
+    }
+    case 'card-shown': {
+      const card = value.card as { id?: unknown; name?: unknown } | null;
+      const valid =
+        typeof card === 'object' &&
+        card !== null &&
+        typeof card.id === 'string' &&
+        card.id.length > 0 &&
+        card.id.length <= 64 &&
+        typeof card.name === 'string' &&
+        card.name.length > 0 &&
+        card.name.length <= 160 &&
+        (value.reason === 'cast' || value.reason === 'show');
+      return valid
+        ? {
+            type: 'card-shown',
+            card: { id: card.id as string, name: card.name as string },
+            reason: value.reason as 'cast' | 'show',
+          }
+        : null;
     }
     case 'turn-order-set':
       return isSeatList(value.order) ? { type: 'turn-order-set', order: value.order } : null;

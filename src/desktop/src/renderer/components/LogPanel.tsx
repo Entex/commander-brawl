@@ -121,6 +121,7 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'counter-changed':
     case 'commander-cast':
       return [event.seat];
+    case 'card-shown':
     case 'custom-counter-saved':
     case 'custom-counter-removed':
     case 'new-game':

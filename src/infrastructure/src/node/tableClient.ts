@@ -230,7 +230,12 @@ export class TableClient implements TableSignaling {
         this.emit({ type: 'signal', from: message.from, data: message.data });
         break;
       case 'events': {
-        const batch: LogBatch = { logId: message.logId, from: message.from, events: message.events };
+        const batch: LogBatch = {
+          logId: message.logId,
+          from: message.from,
+          events: message.events,
+          ...(message.live ? { live: true } : {}),
+        };
         for (const listener of this.gameListeners) listener({ type: 'batch', batch });
         break;
       }

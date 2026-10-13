@@ -175,6 +175,20 @@ describe('shared game state', () => {
     for (const player of [alice, bob]) expect(lives(player)[2]).toBe(40);
   });
 
+  it('marks events as live for players who were there, but not for a player catching up', async () => {
+    const invite = await host();
+    const alice = await join(invite, 'Alice');
+    const bob = await join(invite, 'Bob');
+    alice.game.submit({ type: 'card-shown', card: { id: 'rhystic', name: 'Rhystic Study' }, reason: 'cast' });
+    await settle([alice, bob], 1);
+    expect(bob.game.getView().lastLive?.event.type).toBe('card-shown');
+    expect(alice.game.getView().lastLive?.event.type).toBe('card-shown');
+
+    const late = await join(invite, 'Late');
+    await settle([late], 1);
+    expect(late.game.getView().lastLive).toBeNull();
+  });
+
   it('the host records who made each change, so nobody can pretend to be someone else', async () => {
     const invite = await host();
     const alice = await join(invite, 'Alice');

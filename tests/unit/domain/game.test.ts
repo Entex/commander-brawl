@@ -199,6 +199,12 @@ describe('reading game events from the network', () => {
     });
   });
 
+  it('accepts a shown card, which changes nothing in the game', () => {
+    const event = toGameEvent({ type: 'card-shown', card: { id: 'rhystic', name: 'Rhystic Study' }, reason: 'show' });
+    expect(event).toEqual({ type: 'card-shown', card: { id: 'rhystic', name: 'Rhystic Study' }, reason: 'show' });
+    expect(applyEvent(newGame(), event!)).toEqual(newGame());
+  });
+
   it('drops extra fields', () => {
     expect(toGameEvent({ type: 'life-changed', seat: 0, amount: 1, sneaky: true })).toEqual({
       type: 'life-changed',
@@ -221,6 +227,8 @@ describe('reading game events from the network', () => {
     ['a very long commander name', { type: 'commanders-named', seat: 0, names: ['x'.repeat(41)] }],
     ['commander damage from a third commander', { type: 'commander-damage', from: 0, commander: 2, to: 1, amount: 1 }],
     ['an unclear out status', { type: 'out-set', seat: 0, out: 'yes' }],
+    ['a shown card without a name', { type: 'card-shown', card: { id: 'x', name: '' }, reason: 'cast' }],
+    ['a shown card for no reason', { type: 'card-shown', card: { id: 'x', name: 'X' }, reason: 'because' }],
     ['an unknown counter', { type: 'counter-changed', seat: 0, counter: 'mana', amount: 1 }],
     ['casting a commander twice at once', { type: 'commander-cast', seat: 0, commander: 0, amount: 2 }],
     ['starting life of zero', { type: 'new-game', startingLife: 0 }],

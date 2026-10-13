@@ -155,7 +155,7 @@ export class TableServer {
             const { entry } = result;
             this.save(() => this.store?.eventAdded(entry));
             // Everyone gets it, the author too: that's their confirmation.
-            this.broadcastAll({ t: 'events', logId: this.game.logId, from: entry.seq, events: [entry] });
+            this.broadcastAll({ t: 'events', logId: this.game.logId, from: entry.seq, events: [entry], live: true });
           } else if (result.reason === 'refused') {
             send(ws, { t: 'refused', id: message.id });
           }
