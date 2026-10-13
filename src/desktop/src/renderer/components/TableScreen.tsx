@@ -8,13 +8,14 @@ import {
 } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
 import { MAX_SEATS, STARTING_LIFE, type GameState, type SeatIndex } from '@commander-brawl/domain';
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
 import { describeEvent } from '../describeEvent';
 import { seatName, type Players } from '../names';
 import { cameraStatus, type CameraState } from '../useCamera';
 import { submitGameEvent, useGame } from '../useGame';
+import { CardsPanel } from './CardsPanel';
 import { CountersPanel } from './CountersPanel';
 import { LogPanel } from './LogPanel';
 import { Menu } from './Menu';
@@ -39,6 +40,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [showStats, setShowStats] = useState(false);
   const [countersOpen, setCountersOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [cardsOpen, setCardsOpen] = useState(false);
+  useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
   const [copied, setCopied] = useState(false);
 
@@ -89,6 +92,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           >
             Undo
           </button>
+          <button onClick={() => setCardsOpen(!cardsOpen)} aria-pressed={cardsOpen} title="Look up a card (Ctrl+K)">
+            Cards
+          </button>
           <button onClick={() => setLogOpen(!logOpen)} aria-pressed={logOpen} disabled={!game}>
             Log
           </button>
@@ -137,6 +143,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
 
       {game && logOpen && <LogPanel game={game} players={state.seats} onClose={() => setLogOpen(false)} />}
+      {cardsOpen && <CardsPanel onClose={() => setCardsOpen(false)} />}
 
       <main className="seats">
         {seats.map((seat, index) =>
@@ -230,6 +237,24 @@ function TurnControls({ game, players }: { readonly game: GameState; readonly pl
       )}
     </div>
   );
+}
+
+/** Ctrl (or Cmd on a Mac) plus a key, anywhere in the window. */
+function useShortcut(key: string, action: () => void): void {
+  const actionRef = useRef(action);
+  useEffect(() => {
+    actionRef.current = action;
+  }, [action]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === key) {
+        event.preventDefault();
+        actionRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [key]);
 }
 
 /** Your most recent change that hasn't been taken back yet. Ctrl+Z takes it back. */

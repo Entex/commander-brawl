@@ -1,3 +1,4 @@
+export { CardIndex, editDistance } from './cardIndex';
 export { GameSync, HostGameLog, MAX_LOG_LENGTH, replayLog, undoneIds } from './gameLog';
 export type { AppendResult, GameSyncMessage, GameSyncTransport, GameView, LogBatch, LoggedEvent } from './gameLog';
 export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';

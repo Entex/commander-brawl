@@ -722,7 +722,8 @@ button.swatch.selected {
   position: relative;
 }
 
-.log-panel {
+.log-panel,
+.side-panel {
   position: absolute;
   top: 49px;
   right: 0;
@@ -785,6 +786,112 @@ button.swatch.selected {
   border-radius: 999px;
   font-weight: 600;
   pointer-events: none;
+}
+
+.cards-panel {
+  width: min(820px, 96vw);
+}
+
+.cards-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 1rem;
+}
+
+.card-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+}
+
+.card-results button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.35rem 0.5rem;
+}
+
+.card-results button[aria-current='true'] {
+  background: var(--panel-raised);
+  border-color: var(--accent);
+}
+
+.card-result-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-result-cost {
+  flex-shrink: 0;
+}
+
+.symbol {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+  margin: 0 0.04em;
+}
+
+.card-view {
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 1rem;
+  align-content: start;
+}
+
+.card-image {
+  width: 100%;
+  border-radius: 4.75% / 3.5%;
+  cursor: pointer;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.card-info h3 {
+  font-size: 1.05rem;
+}
+
+.card-type,
+.card-stats {
+  margin: 0;
+  color: var(--muted);
+}
+
+.card-oracle p {
+  margin: 0.3rem 0;
+  line-height: 1.4;
+}
+
+.card-rulings ul {
+  padding-left: 1rem;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.card-rulings time {
+  font-variant-numeric: tabular-nums;
+}
+
+.card-rulings p {
+  display: inline;
+}
+
+.badge-error {
+  color: var(--error);
 }
 
 /* Camera panel */

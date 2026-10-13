@@ -27,6 +27,13 @@ const api: DesktopApi = {
     log: () => ipcRenderer.invoke(Channels.gameLog),
     saveLog: (text) => ipcRenderer.invoke(Channels.gameSaveLog, text),
   },
+  cards: {
+    status: () => ipcRenderer.invoke(Channels.cardsStatus),
+    onStatus: (listener) => listen(Channels.cardsStatusUpdate, listener),
+    search: (query) => ipcRenderer.invoke(Channels.cardsSearch, query),
+    details: (id) => ipcRenderer.invoke(Channels.cardsDetails, id),
+    refresh: () => ipcRenderer.invoke(Channels.cardsRefresh),
+  },
   phone: {
     info: () => ipcRenderer.invoke(Channels.phoneInfo),
     send: (message) => ipcRenderer.send(Channels.phoneSend, message),

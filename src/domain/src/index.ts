@@ -1,3 +1,5 @@
+export { normalizeCardName } from './cards';
+export type { Card, CardFace, CommanderLegality, Ruling } from './cards';
 export { isIntent, resolveAction, toGameAction } from './actions';
 export type { GameAction, GameIntent } from './actions';
 export {

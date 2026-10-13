@@ -2,6 +2,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
 
 // The whole app, two copies on one computer: main process, IPC, UI and video.
 // Needs a display. On a Linux machine without one, run it with `xvfb-run -a npm run test:e2e`.
@@ -18,6 +19,16 @@ interface Instance {
 }
 
 const running: Instance[] = [];
+// Card data comes from a stand-in, so the tests never download from the real Scryfall.
+let scryfall: FakeScryfall;
+
+test.beforeAll(async () => {
+  scryfall = await startFakeScryfall();
+});
+
+test.afterAll(async () => {
+  await scryfall.close();
+});
 
 test.afterEach(async () => {
   for (const instance of running.splice(0)) await instance.app.close().catch(() => undefined);
@@ -36,6 +47,7 @@ async function launch(name: string, userDataDir?: string): Promise<Instance> {
       CB_TABLE_PORT: '0',
       CB_PHONE_PORT: '0',
       CB_SAVE_DIR: saveDir,
+      CB_SCRYFALL_API: scryfall.apiUrl,
     },
   });
   const page = await app.firstWindow();
@@ -315,4 +327,25 @@ test("the host's app crashing mid-game, and the table resumed with everyone in t
   // And the game goes on.
   await friend.page.getByTestId('life-0').getByRole('button', { name: 'Gain 1 life' }).click();
   await expect(again.page.getByTestId('life-total-0')).toHaveText('36');
+});
+
+test('looking up a card', async () => {
+  const host = await launch('Host');
+  await host.page.getByTestId('host').click();
+  await expect(host.page.getByTestId('seat-0')).toBeVisible();
+
+  await host.page.keyboard.press('Control+k');
+  const panel = host.page.getByTestId('cards-panel');
+  await panel.getByLabel('Search for a card').fill('rhystc');
+  await panel.getByRole('button', { name: 'Rhystic Study' }).click();
+
+  const card = panel.getByTestId('card-view');
+  await expect(card).toContainText('Whenever an opponent casts a spell');
+  await expect(card).toContainText('Game Changer');
+  await expect(card).toContainText('It triggers on every spell.');
+
+  await panel.getByLabel('Search for a card').fill('insectile');
+  await panel.getByRole('button', { name: 'Delver of Secrets // Insectile Aberration' }).click();
+  await expect(card).toContainText('Flying');
+  await expect(card).toContainText('3/2');
 });

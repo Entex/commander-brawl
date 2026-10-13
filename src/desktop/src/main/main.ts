@@ -12,6 +12,7 @@ import {
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Channels, type RendererConfig } from '../shared/api';
+import { CardService } from './cardService';
 import { PhoneLinkService } from './phoneLinkService';
 import { TableService } from './tableService';
 
@@ -25,6 +26,8 @@ const env = {
   localOnly: process.env.CB_LOCAL_ONLY === '1',
   /** Save files here without asking, for tests. */
   saveDir: process.env.CB_SAVE_DIR,
+  /** A stand-in for Scryfall's API, for tests. */
+  scryfallApi: process.env.CB_SCRYFALL_API,
 };
 
 if (env.userDataDir) app.setPath('userData', env.userDataDir);
@@ -58,13 +61,21 @@ async function start(): Promise<void> {
     emit: (event) => mainWindow?.webContents.send(Channels.tableEvent, event),
     emitGame: (view) => mainWindow?.webContents.send(Channels.gameUpdate, view),
   });
+  const cards = new CardService({
+    dir: join(dataDir, 'cards'),
+    appVersion: app.getVersion(),
+    apiUrl: env.scryfallApi,
+    emit: (status) => mainWindow?.webContents.send(Channels.cardsStatusUpdate, status),
+  });
   cleanup = async () => {
     await Promise.all([table.shutdown(), phone.close()]);
   };
 
-  registerIpc(table, phone);
+  registerIpc(table, phone, cards);
   restrictPermissions();
   mainWindow = createWindow();
+  // After the window is up: reading ~35,000 cards takes a moment, and the window shouldn't wait for it.
+  void cards.start();
 }
 
 function createWindow(): BrowserWindow {
@@ -100,7 +111,7 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-function registerIpc(table: TableService, phone: PhoneLinkService): void {
+function registerIpc(table: TableService, phone: PhoneLinkService, cards: CardService): void {
   const config: RendererConfig = { version: app.getVersion(), iceServers: env.localOnly ? [] : null };
   handle(Channels.config, () => config);
   handle(Channels.tableHost, (name) => table.host(requireString(name)));
@@ -113,6 +124,10 @@ function registerIpc(table: TableService, phone: PhoneLinkService): void {
   handle(Channels.gameView, () => table.gameView());
   handle(Channels.gameLog, () => table.gameLog());
   handle(Channels.gameSaveLog, (text) => saveText(requireString(text)));
+  handle(Channels.cardsStatus, () => cards.status());
+  handle(Channels.cardsSearch, (query) => cards.search(requireString(query)));
+  handle(Channels.cardsDetails, (id) => cards.details(requireString(id)));
+  handle(Channels.cardsRefresh, () => cards.refresh());
   handle(Channels.phoneInfo, () => phone.info());
   on(Channels.tableSend, (to, data) => {
     if (typeof to === 'string') table.send(to, data);

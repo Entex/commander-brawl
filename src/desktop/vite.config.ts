@@ -7,7 +7,8 @@ const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
+  // Card pictures and mana symbols come from Scryfall.
+  "img-src 'self' data: https://cards.scryfall.io https://svgs.scryfall.io",
   "media-src 'self' blob: mediastream:",
   "connect-src 'self'",
 ].join('; ');

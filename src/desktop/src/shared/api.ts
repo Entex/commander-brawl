@@ -1,5 +1,5 @@
 import type { GameView, LoggedEvent, SignalingEvent } from '@commander-brawl/application';
-import type { GameAction } from '@commander-brawl/domain';
+import type { Card, GameAction, Ruling } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 /** How friends outside your home can reach the table you host. */
@@ -45,6 +45,19 @@ export interface PhoneLinkInfo {
   readonly connected: boolean;
 }
 
+/** The card data on this computer. */
+export type CardDataStatus =
+  | { readonly state: 'missing' }
+  | { readonly state: 'downloading'; readonly progress: number }
+  | { readonly state: 'ready'; readonly count: number; readonly updatedAt: string }
+  /** The download failed. Older cards may still be there (count > 0). */
+  | { readonly state: 'error'; readonly message: string; readonly count: number };
+
+export interface CardDetails {
+  readonly card: Card;
+  readonly rulings: readonly Ruling[];
+}
+
 /** What the preload script exposes to the UI as `window.brawl`. */
 export interface DesktopApi {
   config(): Promise<RendererConfig>;
@@ -70,6 +83,13 @@ export interface DesktopApi {
     /** Asks where to save the text, then saves it. False if the player cancelled. */
     saveLog(text: string): Promise<boolean>;
   };
+  cards: {
+    status(): Promise<CardDataStatus>;
+    onStatus(listener: (status: CardDataStatus) => void): () => void;
+    search(query: string): Promise<readonly Card[]>;
+    details(id: string): Promise<CardDetails | null>;
+    refresh(): Promise<void>;
+  };
   phone: {
     info(): Promise<PhoneLinkInfo>;
     send(message: DesktopToPhone): void;
@@ -93,6 +113,11 @@ export const Channels = {
   gameUpdate: 'game:update',
   gameLog: 'game:log',
   gameSaveLog: 'game:save-log',
+  cardsStatus: 'cards:status',
+  cardsStatusUpdate: 'cards:status-update',
+  cardsSearch: 'cards:search',
+  cardsDetails: 'cards:details',
+  cardsRefresh: 'cards:refresh',
   phoneInfo: 'phone:info',
   phoneSend: 'phone:send',
   phoneEvent: 'phone:event',

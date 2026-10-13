@@ -3,6 +3,8 @@ export type { TlsIdentity } from './certificate';
 export { syncGame } from './gameConnection';
 export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses } from './network';
 export { PhoneLinkServer } from './phoneLinkServer';
+export { ScryfallCards, toCard } from './scryfall';
+export type { SavedCards, ScryfallOptions } from './scryfall';
 export type { PhoneLinkEvents, PhoneLinkServerOptions } from './phoneLinkServer';
 export { openRouterPort } from './portMapping';
 export type { PortMappingResult } from './portMapping';
