@@ -1,14 +1,18 @@
 import type { LinkStats, SeatView } from '@commander-brawl/application';
+import { isOut, lossReason, type CommanderIndex, type GameState } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
+import { commanderName, describeLoss, type Players } from '../names';
+import { submitGameEvent } from '../useGame';
 import { LifeCounter } from './LifeCounter';
+import { SeatDetails } from './SeatDetails';
 import { VideoView } from './VideoView';
 
 interface SeatTileProps {
   readonly seat: SeatView<MediaStreamTrack>;
-  readonly showStats: boolean;
+  readonly players: Players;
   /** Null until the game state has arrived. */
-  readonly life: number | null;
-  onLifeChange(amount: number): void;
+  readonly game: GameState | null;
+  readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
 }
 
@@ -19,10 +23,13 @@ const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
   failed: 'Connection lost, retrying…',
 };
 
-export function SeatTile({ seat, showStats, life, onLifeChange, getStats }: SeatTileProps) {
+export function SeatTile({ seat, players, game, showStats, getStats }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const stats = useLinkStats(seat, showStats, getStats);
   const status = LINK_TEXT[seat.link];
+  const index = seat.player.seat;
+  const state = game?.seats[index];
 
   return (
     <div className="seat" data-testid={`seat-${seat.player.seat}`} data-link={seat.link}>
@@ -35,13 +42,59 @@ export function SeatTile({ seat, showStats, life, onLifeChange, getStats }: Seat
         <span className="seat-name">{seat.isSelf ? `${seat.player.name} (you)` : seat.player.name}</span>
         {status && <span className="badge badge-warn">{status}</span>}
       </div>
+      {game && state && <SeatChips seat={seat} game={game} players={players} />}
+      {game && state && isOut(state) && (
+        <div className="seat-out" data-testid={`out-${index}`}>
+          <strong>Out</strong>
+          <span>{lossReason(state) && state.outOverride === null ? describeLoss(lossReason(state)!, game, players) : 'Marked as out'}</span>
+        </div>
+      )}
       <div className="seat-actions">
         <button title="Turn the picture upside down" onClick={() => setRotation(rotation === 0 ? 180 : 0)}>
           Flip
         </button>
+        {game && (
+          <button aria-label={`${seat.player.name}'s details`} onClick={() => setDetailsOpen(!detailsOpen)}>
+            Details
+          </button>
+        )}
       </div>
-      {life !== null && <LifeCounter seat={seat.player.seat} life={life} onChange={onLifeChange} />}
+      {state && (
+        <LifeCounter
+          seat={index}
+          life={state.life}
+          onChange={(amount) => submitGameEvent({ type: 'life-changed', seat: index, amount })}
+        />
+      )}
+      {game && detailsOpen && (
+        <SeatDetails seat={index} game={game} players={players} onClose={() => setDetailsOpen(false)} />
+      )}
       {showStats && stats && <StatsLine stats={stats} />}
+    </div>
+  );
+}
+
+/** Commander damage this player has taken, at a glance. */
+function SeatChips({ seat, game, players }: { readonly seat: SeatView<MediaStreamTrack>; readonly game: GameState; readonly players: Players }) {
+  const state = game.seats[seat.player.seat];
+  if (!state) return null;
+  const chips = players.flatMap((opponent) =>
+    (game.seats[opponent.player.seat]?.commanders ?? []).flatMap((_, index) => {
+      const commander = index as CommanderIndex;
+      const damage = state.commanderDamage[opponent.player.seat]?.[commander] ?? 0;
+      return damage > 0
+        ? [{ key: `${opponent.player.seat}-${commander}`, label: commanderName(game, players, opponent.player.seat, commander), damage }]
+        : [];
+    }),
+  );
+  if (chips.length === 0) return null;
+  return (
+    <div className="seat-chips">
+      {chips.map((chip) => (
+        <span key={chip.key} className={`chip${chip.damage >= 21 ? ' chip-danger' : ''}`} title="Commander damage taken">
+          {chip.label} <b>{chip.damage}</b>
+        </span>
+      ))}
     </div>
   );
 }

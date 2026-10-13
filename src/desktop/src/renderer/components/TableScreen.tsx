@@ -80,9 +80,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             <SeatTile
               key={seat.player.id}
               seat={seat}
+              players={state.seats}
+              game={game?.state ?? null}
               showStats={showStats}
-              life={game?.state.seats[seat.player.seat]?.life ?? null}
-              onLifeChange={(amount) => submitGameEvent({ type: 'life-changed', seat: seat.player.seat, amount })}
               getStats={getStats}
             />
           ) : (
@@ -115,10 +115,10 @@ function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
 
 function LastChange({ game, state }: { readonly game: GameView | null; readonly state: TableSessionState<MediaStreamTrack> }) {
   const last = game?.recent.at(-1);
-  if (!last) return null;
+  if (!game || !last) return null;
   return (
     <span className="last-change" data-testid="last-change">
-      {describeEvent(last, state.seats)}
+      {describeEvent(last, state.seats, game.state)}
     </span>
   );
 }

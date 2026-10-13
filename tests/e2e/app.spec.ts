@@ -46,6 +46,18 @@ async function useWebcam(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Done' }).click();
 }
 
+/** A host with one friend at the table, both seeing each other. */
+async function hostAndFriend(): Promise<{ host: Instance; friend: Instance }> {
+  const host = await launch('Host');
+  await host.page.getByTestId('host').click();
+  const invite = await host.page.getByTestId('invite-code').inputValue();
+  const friend = await launch('Friend');
+  await friend.page.getByTestId('invite-input').fill(invite);
+  await friend.page.getByTestId('join').click();
+  await expectVideoFrom(friend.page, 'Host');
+  return { host, friend };
+}
+
 async function expectVideoFrom(page: Page, name: string): Promise<void> {
   const seat = page.locator('.seat[data-link="connected"]', { hasText: name });
   await expect(seat).toHaveCount(1, { timeout: 30_000 });
@@ -130,4 +142,40 @@ test('life totals are shared, and everyone sees who changed what', async () => {
   await host.page.getByRole('button', { name: 'Start a new game?' }).click();
   await expect(friend.page.getByTestId('life-total-0')).toHaveText('40');
   await expect(friend.page.getByText('Game 2')).toBeVisible();
+});
+
+test('typing a life total sets it for everyone', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await host.page.getByTestId('life-total-0').click();
+  await host.page.getByLabel('Life total').fill('25');
+  await host.page.getByLabel('Life total').press('Enter');
+
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('25');
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host −15 life');
+});
+
+test('21 commander damage knocks a player out, and they can say they are still in', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  // The friend names their commander.
+  await friend.page.getByRole('button', { name: "Friend's details" }).click();
+  await friend.page.getByTestId('seat-details-1').getByLabel('Commander', { exact: true }).fill('Atraxa');
+  await friend.page.getByTestId('seat-details-1').getByRole('button', { name: 'Save' }).click();
+  await expect(host.page.getByTestId('last-change')).toHaveText("Friend: Friend's commander is Atraxa");
+
+  // Then hits the host with it, 21 in total.
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  const details = friend.page.getByTestId('seat-details-0');
+  for (let i = 0; i < 4; i++) await details.getByRole('button', { name: 'Add 5 damage from Atraxa' }).click();
+  await details.getByRole('button', { name: 'Add 1 damage from Atraxa' }).click();
+
+  await expect(host.page.getByTestId('out-0')).toContainText('21 commander damage from Atraxa');
+  await expect(host.page.getByTestId('life-total-0')).toHaveText('19');
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend: Host took 21 commander damage from Atraxa');
+
+  // A card keeps the host in the game.
+  await host.page.getByRole('button', { name: "Host's details" }).click();
+  await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Still in' }).click();
+  await expect(friend.page.getByTestId('out-0')).toHaveCount(0);
 });

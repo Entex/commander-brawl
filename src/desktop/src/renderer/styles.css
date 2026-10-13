@@ -345,7 +345,7 @@ button.armed {
   border-radius: 8px;
 }
 
-.life button {
+.life button:not(.life-total) {
   background: transparent;
   border-color: transparent;
   padding: 0.2rem 0.45rem;
@@ -354,7 +354,7 @@ button.armed {
   transition: opacity 0.15s;
 }
 
-.seat:hover .life button {
+.seat:hover .life button:not(.life-total) {
   opacity: 1;
 }
 
@@ -376,6 +376,135 @@ button.armed {
   padding: 0 0.5rem;
   font-weight: 600;
   font-size: 0.85rem;
+}
+
+.life-total {
+  background: transparent;
+  border: none;
+  padding: 0 0.2rem;
+  cursor: text;
+}
+
+.life-input {
+  width: 4.2ch;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.1rem 0.2rem;
+}
+
+.seat-chips {
+  position: absolute;
+  top: 38px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.chip {
+  background: rgb(0 0 0 / 0.7);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8rem;
+}
+
+.chip-danger {
+  color: var(--error);
+}
+
+.seat-out {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: rgb(16 18 23 / 0.72);
+  pointer-events: none;
+  color: var(--muted);
+}
+
+.seat-out strong {
+  font-size: 2.4rem;
+  color: var(--error);
+  letter-spacing: 0.05em;
+}
+
+.seat-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.seat-details {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  bottom: 6px;
+  width: min(360px, 90%);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  z-index: 2;
+}
+
+.seat-details h3,
+.seat-details h4 {
+  margin: 0;
+}
+
+.seat-details h4 {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+
+.commander-names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.damage-row,
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.damage-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.damage-value {
+  min-width: 2.2ch;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-row span {
+  flex: 1;
 }
 
 /* Camera panel */
