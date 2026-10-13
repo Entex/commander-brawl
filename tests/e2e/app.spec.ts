@@ -179,3 +179,20 @@ test('21 commander damage knocks a player out, and they can say they are still i
   await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Still in' }).click();
   await expect(friend.page.getByTestId('out-0')).toHaveCount(0);
 });
+
+test('poison, other counters and commander tax show on the seat for everyone', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  const details = friend.page.getByTestId('seat-details-0');
+  for (let i = 0; i < 3; i++) await details.getByRole('button', { name: 'Add 1 energy' }).click();
+  await details.getByRole('button', { name: "Cast Host's commander" }).click();
+  await details.getByRole('button', { name: "Cast Host's commander" }).click();
+
+  const chips = host.page.getByTestId('chips-0');
+  await expect(chips).toContainText('Energy 3');
+  await expect(chips).toContainText("Host's commander tax +4");
+
+  for (let i = 0; i < 10; i++) await details.getByRole('button', { name: 'Add 1 poison' }).click();
+  await expect(host.page.getByTestId('out-0')).toContainText('10 poison counters');
+});

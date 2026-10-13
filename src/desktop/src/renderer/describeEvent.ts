@@ -1,6 +1,6 @@
 import type { LoggedEvent } from '@commander-brawl/application';
 import type { GameState } from '@commander-brawl/domain';
-import { commanderName, seatName, type Players } from './names';
+import { COUNTER_NAMES, commanderName, seatName, type Players } from './names';
 import { formatChange } from './useGroupedChange';
 
 /** One line for the game log, e.g. "Robin: Alex −3 life". */
@@ -32,6 +32,17 @@ export function describeEvent(entry: LoggedEvent, players: Players, game: GameSt
       if (event.out === true) return target === by.name ? `${by.name} is out` : `${by.name} marked ${target} as out`;
       if (event.out === false) return `${by.name}: ${target} is still in`;
       return `${by.name}: the rules decide whether ${target} is out again`;
+    }
+    case 'counter-changed': {
+      const target = seatName(players, event.seat);
+      const change = `${formatChange(event.amount)} ${COUNTER_NAMES[event.counter].toLowerCase()}`;
+      return target === by.name ? `${by.name} ${change}` : `${by.name}: ${target} ${change}`;
+    }
+    case 'commander-cast': {
+      const commander = commanderName(game, players, event.seat, event.commander);
+      const target = seatName(players, event.seat);
+      const who = target === by.name ? by.name : `${by.name}: ${target}`;
+      return event.amount > 0 ? `${who} cast ${commander}` : `${who} took back a cast of ${commander}`;
     }
     case 'new-game':
       return `${by.name} started a new game`;

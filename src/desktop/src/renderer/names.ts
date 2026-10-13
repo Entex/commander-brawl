@@ -1,7 +1,15 @@
 import type { SeatView } from '@commander-brawl/application';
-import type { CommanderIndex, GameState, LossReason, SeatIndex } from '@commander-brawl/domain';
+import { POISON_LIMIT, type CommanderIndex, type GameState, type LossReason, type PlayerCounter, type SeatIndex } from '@commander-brawl/domain';
 
 export type Players = readonly SeatView<unknown>[];
+
+export const COUNTER_NAMES: Record<PlayerCounter, string> = {
+  poison: 'Poison',
+  energy: 'Energy',
+  experience: 'Experience',
+  rad: 'Rad',
+  speed: 'Speed',
+};
 
 export function seatName(players: Players, seat: SeatIndex): string {
   return players.find((p) => p.player.seat === seat)?.player.name ?? `Seat ${seat + 1}`;
@@ -18,6 +26,8 @@ export function describeLoss(reason: LossReason, game: GameState, players: Playe
   switch (reason.kind) {
     case 'life':
       return 'Out of life';
+    case 'poison':
+      return `${POISON_LIMIT} poison counters`;
     case 'commander-damage':
       return `21 commander damage from ${commanderName(game, players, reason.from, reason.commander)}`;
   }

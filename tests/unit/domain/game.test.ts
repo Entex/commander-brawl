@@ -1,6 +1,9 @@
 import {
   COMMANDER_DAMAGE_LIMIT,
   MAX_CHANGE,
+  MAX_SPEED,
+  POISON_LIMIT,
+  commanderTax,
   STARTING_LIFE,
   applyEvent,
   applyEvents,
@@ -110,6 +113,61 @@ describe('commanders', () => {
   });
 });
 
+describe('player counters', () => {
+  const counter = (counter: 'poison' | 'energy' | 'speed', amount: number): GameEvent => ({
+    type: 'counter-changed',
+    seat: 1,
+    counter,
+    amount,
+  });
+
+  it('start at zero and add up', () => {
+    const state = applyEvents(newGame(), [counter('energy', 3), counter('energy', 2), counter('energy', -1)]);
+    expect(state.seats[1]!.counters).toEqual({ poison: 0, energy: 4, experience: 0, rad: 0, speed: 0 });
+  });
+
+  it('never go below zero', () => {
+    const state = applyEvents(newGame(), [counter('energy', 1), counter('energy', -1), counter('energy', -1)]);
+    expect(state.seats[1]!.counters.energy).toBe(0);
+  });
+
+  it(`stop speed at ${MAX_SPEED}`, () => {
+    expect(applyEvent(newGame(), counter('speed', 6)).seats[1]!.counters.speed).toBe(MAX_SPEED);
+  });
+
+  it(`knock a player out at ${POISON_LIMIT} poison`, () => {
+    const almost = applyEvent(newGame(), counter('poison', POISON_LIMIT - 1));
+    expect(isOut(almost.seats[1]!)).toBe(false);
+    const dead = applyEvent(almost, counter('poison', 1));
+    expect(lossReason(dead.seats[1]!)).toEqual({ kind: 'poison' });
+  });
+
+  it('reset for a new game', () => {
+    const state = applyEvents(newGame(), [counter('poison', 4), { type: 'new-game', startingLife: 40 }]);
+    expect(state.seats[1]!.counters.poison).toBe(0);
+  });
+});
+
+describe('commander tax', () => {
+  const cast = (amount: 1 | -1, commander: 0 | 1 = 0): GameEvent => ({ type: 'commander-cast', seat: 0, commander, amount });
+
+  it('goes up by 2 for every cast, per commander', () => {
+    const state = applyEvents(newGame(), [cast(1), cast(1), cast(1, 1)]);
+    expect(commanderTax(state.seats[0]!, 0)).toBe(4);
+    expect(commanderTax(state.seats[0]!, 1)).toBe(2);
+  });
+
+  it('can take back a cast, but not below zero', () => {
+    const state = applyEvents(newGame(), [cast(1), cast(-1), cast(-1)]);
+    expect(commanderTax(state.seats[0]!, 0)).toBe(0);
+  });
+
+  it('starts over in a new game', () => {
+    const state = applyEvents(newGame(), [cast(1), { type: 'new-game', startingLife: 40 }]);
+    expect(commanderTax(state.seats[0]!, 0)).toBe(0);
+  });
+});
+
 describe('reading game events from the network', () => {
   it('accepts valid events', () => {
     expect(toGameEvent({ type: 'life-changed', seat: 3, amount: 5 })).toEqual({ type: 'life-changed', seat: 3, amount: 5 });
@@ -146,6 +204,8 @@ describe('reading game events from the network', () => {
     ['a very long commander name', { type: 'commanders-named', seat: 0, names: ['x'.repeat(41)] }],
     ['commander damage from a third commander', { type: 'commander-damage', from: 0, commander: 2, to: 1, amount: 1 }],
     ['an unclear out status', { type: 'out-set', seat: 0, out: 'yes' }],
+    ['an unknown counter', { type: 'counter-changed', seat: 0, counter: 'mana', amount: 1 }],
+    ['casting a commander twice at once', { type: 'commander-cast', seat: 0, commander: 0, amount: 2 }],
     ['starting life of zero', { type: 'new-game', startingLife: 0 }],
   ])('rejects %s', (_case, raw) => {
     expect(toGameEvent(raw)).toBeNull();

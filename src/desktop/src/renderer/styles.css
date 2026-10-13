@@ -481,7 +481,7 @@ button.armed {
   gap: 0.5rem;
 }
 
-.damage-row,
+.stepper-row,
 .status-row {
   display: flex;
   align-items: center;
@@ -489,14 +489,14 @@ button.armed {
   padding: 0.2rem 0;
 }
 
-.damage-label {
+.stepper-label {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.damage-value {
+.stepper-value {
   min-width: 2.2ch;
   text-align: center;
   font-weight: 700;
