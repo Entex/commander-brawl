@@ -59,6 +59,16 @@ export function formatClock(ms: number): string {
   return ms < 0 && seconds > 0 ? `-${text}` : text;
 }
 
+/** A custom counter put on cards is stored by id ("custom:abc"); others by what they're called ("+1/+1"). */
+export const CUSTOM_KIND_PREFIX = 'custom:';
+
+/** What to call a kind of counter on a card. */
+export function counterKindName(game: GameState, kind: string): string {
+  if (!kind.startsWith(CUSTOM_KIND_PREFIX)) return kind;
+  const id = kind.slice(CUSTOM_KIND_PREFIX.length);
+  return game.customCounters.find((c) => c.id === id)?.name ?? 'counter';
+}
+
 export function seatName(players: Players, seat: SeatIndex): string {
   return players.find((p) => p.player.seat === seat)?.player.name ?? `Seat ${seat + 1}`;
 }

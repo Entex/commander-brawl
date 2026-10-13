@@ -9,6 +9,18 @@ import {
 import { isBracket, toDeckAnalysis, type Bracket, type DeckAnalysis } from './brackets';
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { canVenture, isDungeonId, isLastRoom, type DayNight, type DungeonPosition } from './markers';
+import {
+  addPermanent,
+  changeCount,
+  changeCounter,
+  changePermanent,
+  changeTapped,
+  isCounterKind,
+  toNewPermanent,
+  untapAll,
+  type NewPermanent,
+  type Permanent,
+} from './permanents';
 import { MAX_SEATS, type SeatIndex } from './table';
 import {
   planeswalk,
@@ -77,6 +89,8 @@ export interface SeatGameState {
   /** Times the Ring has tempted this player. */
   readonly ringTempts: number;
   readonly citysBlessing: boolean;
+  /** Cards with counters and groups of tokens the player keeps track of here. */
+  readonly permanents: readonly Permanent[];
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -196,6 +210,19 @@ export type GameEvent =
   | { readonly type: 'scheme-set-in-motion'; readonly scheme: VariantCard }
   | { readonly type: 'scheme-abandoned'; readonly id: string }
   | { readonly type: 'archenemy-ended' }
+  | { readonly type: 'permanent-added'; readonly seat: SeatIndex; readonly permanent: NewPermanent }
+  | { readonly type: 'permanent-removed'; readonly seat: SeatIndex; readonly id: string }
+  /** More or fewer tokens in a group. */
+  | { readonly type: 'permanent-count-changed'; readonly seat: SeatIndex; readonly id: string; readonly amount: number }
+  /** Taps this many (untaps, if negative). */
+  | { readonly type: 'permanent-tapped'; readonly seat: SeatIndex; readonly id: string; readonly amount: number }
+  | {
+      readonly type: 'permanent-counter-changed';
+      readonly seat: SeatIndex;
+      readonly id: string;
+      readonly kind: string;
+      readonly amount: number;
+    }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -243,6 +270,7 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       completedDungeons: 0,
       ringTempts: 0,
       citysBlessing: false,
+      permanents: [],
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
@@ -415,6 +443,22 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
         : state;
     case 'archenemy-ended':
       return { ...state, archenemy: null };
+    case 'permanent-added':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        permanents: addPermanent(seat.permanents, event.permanent),
+      }));
+    case 'permanent-removed':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        permanents: seat.permanents.filter((p) => p.id !== event.id),
+      }));
+    case 'permanent-count-changed':
+      return changeSeatPermanent(state, event.seat, event.id, (p) => changeCount(p, event.amount));
+    case 'permanent-tapped':
+      return changeSeatPermanent(state, event.seat, event.id, (p) => changeTapped(p, event.amount));
+    case 'permanent-counter-changed':
+      return changeSeatPermanent(state, event.seat, event.id, (p) => changeCounter(p, event.kind, event.amount));
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
       return {
@@ -432,8 +476,13 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
     case 'turn-passed': {
       const passed = passTurn(state, event.from);
       if (passed === state || passed.activeSeat === null) return passed;
+      // The untap step: the new active player's permanents untap.
+      const untapped = updateSeat(passed, passed.activeSeat, (seat) => ({
+        ...seat,
+        permanents: untapAll(seat.permanents),
+      }));
       return {
-        ...passed,
+        ...untapped,
         phase: PHASES_START,
         storm: 0,
         planechase: passed.planechase && { ...passed.planechase, rollsThisTurn: 0 },
@@ -459,6 +508,15 @@ function passTurn(state: GameState, from: SeatIndex): GameState {
     return { ...state, activeSeat: next, turn: state.turn + 1, round: wrapped ? state.round + 1 : state.round };
   }
   return state;
+}
+
+function changeSeatPermanent(
+  state: GameState,
+  seat: SeatIndex,
+  id: string,
+  change: (permanent: Permanent) => Permanent,
+): GameState {
+  return updateSeat(state, seat, (s) => ({ ...s, permanents: changePermanent(s.permanents, id, change) }));
 }
 
 /** Moves the player to that room, if venturing can take them there; finishing a dungeon counts. */
@@ -692,6 +750,23 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     case 'planechase-ended':
     case 'archenemy-ended':
       return { type: value.type };
+    case 'permanent-added': {
+      const permanent = toNewPermanent(value.permanent);
+      return permanent && isSeatIndex(value.seat) ? { type: 'permanent-added', seat: value.seat, permanent } : null;
+    }
+    case 'permanent-removed':
+      return isSeatIndex(value.seat) && isPermanentId(value.id)
+        ? { type: 'permanent-removed', seat: value.seat, id: value.id }
+        : null;
+    case 'permanent-count-changed':
+    case 'permanent-tapped':
+      return isSeatIndex(value.seat) && isPermanentId(value.id) && isChange(value.amount)
+        ? { type: value.type, seat: value.seat, id: value.id, amount: value.amount }
+        : null;
+    case 'permanent-counter-changed':
+      return isSeatIndex(value.seat) && isPermanentId(value.id) && isCounterKind(value.kind) && isChange(value.amount)
+        ? { type: 'permanent-counter-changed', seat: value.seat, id: value.id, kind: value.kind, amount: value.amount }
+        : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
@@ -749,6 +824,10 @@ function isPlayerCounter(value: unknown): value is PlayerCounter {
 
 function updateSeat(state: GameState, seat: SeatIndex, update: (seat: SeatGameState) => SeatGameState): GameState {
   return { ...state, seats: state.seats.map((s, index) => (index === seat ? update(s) : s)) };
+}
+
+function isPermanentId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 64;
 }
 
 /** One of the four seats. */

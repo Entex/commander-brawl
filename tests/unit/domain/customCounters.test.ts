@@ -135,7 +135,7 @@ describe('reading custom counters from the network', () => {
     ['no name', { ...bounty, name: '  ' }],
     ['a long name', { ...bounty, name: 'x'.repeat(25) }],
     ['an unknown color', { ...bounty, color: 'chartreuse' }],
-    ['an unknown scope', { ...bounty, scope: 'card' }],
+    ['an unknown scope', { ...bounty, scope: 'planet' }],
     ['lowest above highest', { ...bounty, min: 5, max: 2 }],
     ['a fractional limit', { ...bounty, max: 2.5 }],
     ['no start', { ...bounty, start: null }],

@@ -1,5 +1,5 @@
 import { Snapshots, type CropRect } from '@commander-brawl/application';
-import type { Card, DeckList } from '@commander-brawl/domain';
+import type { Card, DeckList, SeatIndex } from '@commander-brawl/domain';
 import { dataUrlToRgba } from '@commander-brawl/infrastructure/browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { IpcTableSignaling, api } from './api';
@@ -14,7 +14,7 @@ export interface CloseUps {
    * Asks a player's camera for a sharp picture of part of their table, then works out which card it is,
    * comparing with their deck if they're playing one.
    */
-  look(memberId: string, from: string, crop: CropRect, rotation: 0 | 180, deck: DeckList | null): void;
+  look(memberId: string, from: string, seat: SeatIndex, crop: CropRect, rotation: 0 | 180, deck: DeckList | null): void;
   close(): void;
 }
 
@@ -24,8 +24,8 @@ export function useCloseUps(camera: CameraState): CloseUps {
   const lastLook = useRef(0);
 
   const look = useCallback(
-    (memberId: string, from: string, crop: CropRect, rotation: 0 | 180, deck: DeckList | null) => {
-      const request = { id: ++lastLook.current, from, rotation };
+    (memberId: string, from: string, seat: SeatIndex, crop: CropRect, rotation: 0 | 180, deck: DeckList | null) => {
+      const request = { id: ++lastLook.current, from, seat, rotation };
       // Only the newest close-up's results are shown, and none once it's closed.
       const update = (change: (current: SnapshotState) => SnapshotState) =>
         setCloseUp((current) => (current?.id === request.id ? change(current) : current));

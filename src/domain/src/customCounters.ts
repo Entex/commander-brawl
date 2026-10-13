@@ -9,7 +9,8 @@ export const COUNTER_COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue
 export type CounterColor = (typeof COUNTER_COLORS)[number];
 
 /** Each player has their own value, or there's one value for the whole table. */
-export type CounterScope = 'player' | 'table';
+/** Each player has one; the table has one; or it goes on cards (see Permanent). */
+export type CounterScope = 'player' | 'table' | 'card';
 
 export interface CustomCounter {
   readonly id: string;
@@ -59,7 +60,7 @@ export function toCustomCounter(raw: unknown): CustomCounter | null {
     name.length > 0 &&
     name.length <= MAX_CUSTOM_COUNTER_NAME_LENGTH &&
     (COUNTER_COLORS as readonly unknown[]).includes(value.color) &&
-    (value.scope === 'player' || value.scope === 'table') &&
+    (value.scope === 'player' || value.scope === 'table' || value.scope === 'card') &&
     isLimit(value.start) &&
     value.start !== null &&
     isLimit(value.min) &&

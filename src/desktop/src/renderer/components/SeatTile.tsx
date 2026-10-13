@@ -25,6 +25,7 @@ import { submitGameEvent } from '../useGame';
 import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
 import { SeatDetails } from './SeatDetails';
+import { permanentSummaries } from './Permanents';
 import { SeatClock } from './Turn';
 import { VideoView } from './VideoView';
 
@@ -151,7 +152,13 @@ export function SeatTile({
         />
       )}
       {game && detailsOpen && (
-        <SeatDetails seat={index} game={game} players={players} onClose={() => setDetailsOpen(false)} />
+        <SeatDetails
+          seat={index}
+          game={game}
+          players={players}
+          onOpenCard={onOpenCard}
+          onClose={() => setDetailsOpen(false)}
+        />
       )}
       {showStats && stats && <StatsLine stats={stats} />}
     </div>
@@ -190,6 +197,14 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
   }
   if (state.citysBlessing) {
     chips.push({ key: 'blessing', label: "City's blessing", value: '', title: "Has the city's blessing" });
+  }
+  const summaries = permanentSummaries(game, state.permanents);
+  for (const summary of summaries.slice(0, MAX_PERMANENT_CHIPS)) {
+    chips.push({ key: `permanent-${summary.key}`, label: summary.text, value: '', title: summary.text });
+  }
+  if (summaries.length > MAX_PERMANENT_CHIPS) {
+    const more = summaries.length - MAX_PERMANENT_CHIPS;
+    chips.push({ key: 'permanents-more', label: `+${more} more`, value: '', title: 'See Details' });
   }
 
   for (const counter of PLAYER_COUNTERS) {
@@ -253,6 +268,9 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
     </div>
   );
 }
+
+/** Cards and tokens listed on a seat; the rest are in the player's details. */
+const MAX_PERMANENT_CHIPS = 6;
 
 /** How big a card usually is in a camera picture, as a share of the picture's width. */
 const CARD_WIDTH_SHARE = 0.2;

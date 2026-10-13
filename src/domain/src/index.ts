@@ -76,3 +76,11 @@ export {
   toVariantDeck,
 } from './variants';
 export type { Archenemy, PlanarDieResult, Planechase, Scheme, VariantCard } from './variants';
+export {
+  MAX_COUNTER_KINDS,
+  MAX_COUNTER_KIND_LENGTH,
+  MAX_PERMANENTS,
+  MAX_TOKENS_IN_GROUP,
+  PERMANENT_COUNTERS,
+} from './permanents';
+export type { NewPermanent, Permanent } from './permanents';

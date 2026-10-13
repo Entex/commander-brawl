@@ -475,7 +475,16 @@ test("clicking a card on another player's video: a sharp picture of it, and whic
   await expect(guesses).toContainText('Rhystic Study', { timeout: 30_000 });
   await friend.page.screenshot({ path: test.info().outputPath('close-up.png') });
 
+  // Keeping track of it, on the host's side.
+  await guesses.getByRole('button', { name: 'Track Rhystic Study' }).click();
+  await expect(snapshot).toHaveCount(0);
+  await host.page.getByRole('button', { name: "Host's details" }).click();
+  await expect(host.page.getByTestId('permanent-Rhystic Study')).toBeVisible();
+  await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Close' }).click();
+
   // Picking the card shows it, with its text.
+  await friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video').click();
+  await expect(guesses).toContainText('Rhystic Study', { timeout: 30_000 });
   await guesses
     .getByRole('button', { name: /Rhystic Study/ })
     .first()
@@ -757,6 +766,42 @@ test('Planechase and Archenemy: a shared planar deck and the planar die, a schem
   await expect(host.page.getByTestId('last-change')).toContainText(
     /Friend set (My Test Plan|Ongoing Test Plan) in motion/,
   );
+});
+
+test('counters on cards and groups of tokens, untapped when their turn starts', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(friend.page);
+
+  // The friend keeps track of the host's Atraxa and three Goblin tokens.
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  const battlefield = friend.page.getByTestId('permanents');
+  const name = battlefield.getByLabel('Card or token to keep track of');
+  await name.fill('atraxa');
+  await battlefield.getByRole('button', { name: "Atraxa, Praetors' Voice" }).click();
+  await battlefield.getByLabel("Put a counter on Atraxa, Praetors' Voice").selectOption('+1/+1');
+  await battlefield.getByRole('button', { name: "Add a +1/+1 counter to Atraxa, Praetors' Voice" }).click();
+  await battlefield.getByLabel('How many tokens').fill('3');
+  await name.fill('Goblin');
+  await battlefield.getByRole('button', { name: '“Goblin” as 3 tokens' }).click();
+  await battlefield.getByRole('button', { name: 'Tap one Goblin', exact: true }).click();
+
+  const chips = host.page.getByTestId('chips-0');
+  await expect(chips).toContainText("Atraxa, Praetors' Voice, +1/+1 2");
+  await expect(chips).toContainText('Goblin ×3 (1 tapped)');
+  await battlefield.scrollIntoViewIfNeeded();
+  await friend.page.screenshot({ path: test.info().outputPath('battlefield.png') });
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend: Host tapped Goblin');
+
+  // Their tokens untap when their turn starts.
+  await host.page.getByRole('button', { name: 'Random turn order' }).click();
+  for (let pass = 0; pass < 2; pass++) {
+    const active = (await host.page.getByTestId('turn').textContent())!.includes('Your turn') ? host : friend;
+    await active.page.getByRole('button', { name: 'Pass turn' }).click();
+    if (active === friend) break;
+  }
+  await expect(host.page.getByTestId('turn')).toContainText('Your turn');
+  await expect(chips).toContainText('Goblin ×3');
+  await expect(chips).not.toContainText('tapped');
 });
 
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {

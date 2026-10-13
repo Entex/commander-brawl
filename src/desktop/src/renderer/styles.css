@@ -762,6 +762,63 @@ button.swatch.selected {
   white-space: nowrap;
 }
 
+/* Cards and tokens on the battlefield */
+
+.permanent {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.permanent-tapped .permanent-name {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.permanent-head,
+.permanent-counters,
+.permanent-count,
+.add-permanent-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.permanent-counters {
+  margin-top: 0.3rem;
+}
+
+.permanent-counters select {
+  width: auto;
+}
+
+.permanent-count {
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.permanent-count button,
+.permanent-counters .chip button {
+  padding: 0.05rem 0.45rem;
+}
+
+.permanent-name {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.add-permanent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.add-permanent input[type='number'] {
+  width: 4rem;
+}
+
 /* Markers: monarch, initiative, dungeons, the Ring, day and night */
 
 .marker-toggles {
@@ -1433,6 +1490,16 @@ button.swatch.selected {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.guess-row {
+  display: flex;
+  gap: 0.3rem;
+  align-items: stretch;
+}
+
+.guess-track {
+  font-size: 0.8rem;
 }
 
 .guess {

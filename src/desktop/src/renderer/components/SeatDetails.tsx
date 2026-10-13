@@ -18,16 +18,19 @@ import { COUNTER_NAMES, commanderName, describeLoss, seatName, type Players } fr
 import { submitGameEvent } from '../useGame';
 import { formatChange, useGroupedChange } from '../useGroupedChange';
 import { SeatMarkers } from './Markers';
+import { PermanentsSection } from './Permanents';
 
 interface SeatDetailsProps {
   readonly seat: SeatIndex;
   readonly game: GameState;
   readonly players: Players;
+  /** Shows a card in the Cards panel. */
+  onOpenCard(cardId: string): void;
   onClose(): void;
 }
 
 /** Everything about one player's game that doesn't fit on the video. */
-export function SeatDetails({ seat, game, players, onClose }: SeatDetailsProps) {
+export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDetailsProps) {
   const state = game.seats[seat];
   if (!state) return null;
   const opponents = players.filter((p) => p.player.seat !== seat);
@@ -129,6 +132,8 @@ export function SeatDetails({ seat, game, players, onClose }: SeatDetailsProps) 
           }),
         )}
       </section>
+
+      <PermanentsSection seat={seat} game={game} onOpenCard={onOpenCard} />
 
       <SeatMarkers seat={seat} game={game} />
 

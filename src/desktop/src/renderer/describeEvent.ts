@@ -1,6 +1,14 @@
 import type { LoggedEvent } from '@commander-brawl/application';
 import { DUNGEONS, type GameState, type SeatIndex } from '@commander-brawl/domain';
-import { COUNTER_NAMES, PHASE_NAMES, commanderName, describeClock, seatName, type Players } from './names';
+import {
+  COUNTER_NAMES,
+  PHASE_NAMES,
+  commanderName,
+  counterKindName,
+  describeClock,
+  seatName,
+  type Players,
+} from './names';
 import { formatChange } from './useGroupedChange';
 
 /**
@@ -20,6 +28,8 @@ export function describeEvent(
     return target === by.name ? by.name : `${by.name}: ${target}`;
   };
   const byOther = (seat: SeatIndex) => (seatName(players, seat) === by.name ? '' : ` (${by.name})`);
+  const permanentName = (seat: SeatIndex, id: string) =>
+    game.seats[seat]?.permanents.find((p) => p.id === id)?.name ?? 'a permanent';
   switch (event.type) {
     case 'life-changed': {
       const target = seatName(players, event.seat);
@@ -135,6 +145,23 @@ export function describeEvent(
     }
     case 'archenemy-ended':
       return `${by.name} ended Archenemy`;
+    case 'permanent-added': {
+      const { name, token, count } = event.permanent;
+      return `${who(event.seat)} added ${token ? `${count} ${name} token${count === 1 ? '' : 's'}` : name}`;
+    }
+    case 'permanent-removed':
+      return `${who(event.seat)} removed ${permanentName(event.seat, event.id)}`;
+    case 'permanent-count-changed':
+      return `${who(event.seat)}: ${permanentName(event.seat, event.id)} ${formatChange(event.amount)}`;
+    case 'permanent-tapped':
+      return `${who(event.seat)} ${event.amount > 0 ? 'tapped' : 'untapped'} ${permanentName(event.seat, event.id)}${
+        Math.abs(event.amount) > 1 ? ` ×${Math.abs(event.amount)}` : ''
+      }`;
+    case 'permanent-counter-changed':
+      return `${who(event.seat)}: ${permanentName(event.seat, event.id)} ${formatChange(event.amount)} ${counterKindName(
+        game,
+        event.kind,
+      )}`;
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {

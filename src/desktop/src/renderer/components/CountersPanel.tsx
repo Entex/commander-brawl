@@ -114,7 +114,7 @@ export function CountersPanel({ game, onClose }: CountersPanelProps) {
 }
 
 export function describeCounter(counter: CustomCounter): string {
-  const parts = [counter.scope === 'player' ? 'each player' : 'whole table'];
+  const parts = [counter.scope === 'player' ? 'each player' : counter.scope === 'table' ? 'whole table' : 'on cards'];
   if (counter.start !== 0) parts.push(`starts at ${counter.start}`);
   if (counter.min !== null && counter.max !== null) parts.push(`${counter.min} to ${counter.max}`);
   else if (counter.min !== null) parts.push(`at least ${counter.min}`);
@@ -195,6 +195,10 @@ function CounterForm({ initial, onSave, onCancel }: CounterFormProps) {
           </label>
           <label>
             <input type="radio" checked={scope === 'table'} onChange={() => setScope('table')} /> The whole table
+          </label>
+          <label>
+            <input type="radio" checked={scope === 'card'} onChange={() => setScope('card')} /> Cards (put it on a card
+            in a player's details)
           </label>
         </div>
       </div>

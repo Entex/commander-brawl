@@ -123,6 +123,11 @@ function seatsIn(event: GameEvent): SeatIndex[] {
       return event.seat === null ? [] : [event.seat];
     case 'ventured':
     case 'ring-tempted':
+    case 'permanent-added':
+    case 'permanent-removed':
+    case 'permanent-count-changed':
+    case 'permanent-tapped':
+    case 'permanent-counter-changed':
     case 'citys-blessing-set':
     case 'life-changed':
     case 'deck-chosen':

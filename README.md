@@ -41,6 +41,8 @@ The app recovers from these problems by itself:
 
 **Pointing.** Right-click a spot on any video to ping it ("this creature"); drag from one spot to another, on the same video or someone else's, to draw an arrow ("attacking you"). Everyone sees it in the same spot, even with a flipped video, in your color and with your name, for a few seconds.
 
+**On the battlefield.** In a player's _Details_, keep track of cards with counters on them (+1/+1, loyalty, shield… or a custom counter made for cards) and groups of tokens (how many, how many tapped); they show on the seat, and untap when that player's turn starts. A card picked out in a close-up can be tracked from there.
+
 **Markers.** A player's _Details_ has the monarch, the initiative (which ventures into Undercity), dungeon progress room by room for every paper dungeon, the Ring's temptations and the city's blessing; they show on the seat. Day and night and the storm count (for the current turn) are under _Counters_ and show in the bar at the top.
 
 **🎲 Roll** has dice (d6, d20 and the rest, or any number of dice with any number of sides), a coin flip, and a random opponent or player. The host rolls, so everyone can trust the result: it shows on every screen and lands in the game log, and nobody can send a result of their own.

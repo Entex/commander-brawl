@@ -235,6 +235,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             closeCloseUp();
             openCard(id);
           }}
+          onTrack={(card, seat) => {
+            closeCloseUp();
+            const token = card.layout === 'token' || card.typeLine.startsWith('Token');
+            submitGameEvent({
+              type: 'permanent-added',
+              seat,
+              permanent: { id: crypto.randomUUID(), name: card.name, cardId: card.id, token, count: 1 },
+            });
+          }}
           onSearch={() => {
             closeCloseUp();
             setCardFocus(null);
@@ -271,6 +280,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 look(
                   seat.player.id,
                   seat.player.name,
+                  seat.player.seat,
                   crop,
                   rotation,
                   game?.state.seats[seat.player.seat]?.deck ?? null,
