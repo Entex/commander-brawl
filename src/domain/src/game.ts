@@ -8,6 +8,7 @@ import {
 } from './customCounters';
 import { isBracket, toDeckAnalysis, type Bracket, type DeckAnalysis } from './brackets';
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
+import { canVenture, isDungeonId, isLastRoom, type DayNight, type DungeonPosition } from './markers';
 import { MAX_SEATS, type SeatIndex } from './table';
 import {
   clockForTurn,
@@ -59,6 +60,12 @@ export interface SeatGameState {
   readonly deckAnalysis: DeckAnalysis | null;
   /** How strong the player says their deck is. */
   readonly bracket: Bracket | null;
+  /** Where the player is in a dungeon, if they've ventured into one. */
+  readonly dungeon: DungeonPosition | null;
+  readonly completedDungeons: number;
+  /** Times the Ring has tempted this player. */
+  readonly ringTempts: number;
+  readonly citysBlessing: boolean;
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -79,6 +86,13 @@ export interface GameState {
   readonly round: number;
   /** Where the active player is in their turn, or null before the first turn. */
   readonly phase: Phase | null;
+  readonly monarch: SeatIndex | null;
+  /** Who has the initiative. */
+  readonly initiative: SeatIndex | null;
+  /** Null until a card makes it day or night. */
+  readonly dayNight: DayNight | null;
+  /** Spells cast this turn, by anyone. Starts over every turn. */
+  readonly storm: number;
   /** The turn timer or chess clock, if the table uses one. */
   readonly clock: Clock | null;
 }
@@ -143,6 +157,15 @@ export type GameEvent =
   | { readonly type: 'clock-set'; readonly settings: ClockSettings | null }
   | { readonly type: 'clock-paused' }
   | { readonly type: 'clock-resumed' }
+  | { readonly type: 'monarch-set'; readonly seat: SeatIndex | null }
+  /** Taking the initiative also ventures into Undercity, if the player isn't in a dungeon already. */
+  | { readonly type: 'initiative-taken'; readonly seat: SeatIndex | null }
+  /** Into a dungeon's first room, or on to a room the current one leads to. Anything else is ignored. */
+  | { readonly type: 'ventured'; readonly seat: SeatIndex; readonly to: DungeonPosition }
+  | { readonly type: 'ring-tempted'; readonly seat: SeatIndex; readonly amount: number }
+  | { readonly type: 'citys-blessing-set'; readonly seat: SeatIndex; readonly has: boolean }
+  | { readonly type: 'day-night-set'; readonly value: DayNight | null }
+  | { readonly type: 'storm-changed'; readonly amount: number }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -184,6 +207,10 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       deck: previous?.seats[index]?.deck ?? null,
       deckAnalysis: previous?.seats[index]?.deckAnalysis ?? null,
       bracket: previous?.seats[index]?.bracket ?? null,
+      dungeon: null,
+      completedDungeons: 0,
+      ringTempts: 0,
+      citysBlessing: false,
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
@@ -192,6 +219,10 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
     turn: 0,
     round: 0,
     phase: null,
+    monarch: null,
+    initiative: null,
+    dayNight: null,
+    storm: 0,
     // Same clock as last game, started over once the first turn begins.
     clock: previous?.clock ? newClock(previous.clock.settings, null, 0) : null,
   };
@@ -297,10 +328,32 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
       return state.clock && state.activeSeat !== null && !state.clock.running
         ? { ...state, clock: runClock(state.clock, state.activeSeat, at) }
         : state;
+    case 'monarch-set':
+      return { ...state, monarch: event.seat };
+    case 'initiative-taken': {
+      const taken = { ...state, initiative: event.seat };
+      return event.seat !== null && !state.seats[event.seat]?.dungeon
+        ? venture(taken, event.seat, { dungeon: 'undercity', room: 0 })
+        : taken;
+    }
+    case 'ventured':
+      return venture(state, event.seat, event.to);
+    case 'ring-tempted':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        ringTempts: Math.max(0, seat.ringTempts + event.amount),
+      }));
+    case 'citys-blessing-set':
+      return updateSeat(state, event.seat, (seat) => ({ ...seat, citysBlessing: event.has }));
+    case 'day-night-set':
+      return { ...state, dayNight: event.value };
+    case 'storm-changed':
+      return { ...state, storm: Math.max(0, state.storm + event.amount) };
     case 'turn-order-set': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
       return {
         ...state,
+        storm: 0,
         turnOrder: event.order,
         activeSeat: first,
         turn: 1,
@@ -315,6 +368,7 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
       return {
         ...passed,
         phase: PHASES_START,
+        storm: 0,
         clock: passed.clock ? clockForTurn(passed.clock, passed.activeSeat, at) : null,
       };
     }
@@ -337,6 +391,17 @@ function passTurn(state: GameState, from: SeatIndex): GameState {
     return { ...state, activeSeat: next, turn: state.turn + 1, round: wrapped ? state.round + 1 : state.round };
   }
   return state;
+}
+
+/** Moves the player to that room, if venturing can take them there; finishing a dungeon counts. */
+function venture(state: GameState, seatIndex: SeatIndex, to: DungeonPosition): GameState {
+  const seat = state.seats[seatIndex];
+  if (!seat || !canVenture(seat.dungeon, to)) return state;
+  return updateSeat(state, seatIndex, () => ({
+    ...seat,
+    dungeon: to,
+    completedDungeons: seat.completedDungeons + (isLastRoom(to) ? 1 : 0),
+  }));
 }
 
 /** A turn starts at its upkeep. */
@@ -478,6 +543,35 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return { type: 'clock-paused' };
     case 'clock-resumed':
       return { type: 'clock-resumed' };
+    case 'monarch-set':
+    case 'initiative-taken':
+      return value.seat === null || isSeatIndex(value.seat) ? { type: value.type, seat: value.seat } : null;
+    case 'ventured': {
+      const to = value.to as Record<string, unknown> | null;
+      return isSeatIndex(value.seat) &&
+        typeof to === 'object' &&
+        to !== null &&
+        isDungeonId(to.dungeon) &&
+        isWholeNumber(to.room) &&
+        to.room >= 0 &&
+        to.room < 20
+        ? { type: 'ventured', seat: value.seat, to: { dungeon: to.dungeon, room: to.room } }
+        : null;
+    }
+    case 'ring-tempted':
+      return isSeatIndex(value.seat) && isChange(value.amount)
+        ? { type: 'ring-tempted', seat: value.seat, amount: value.amount }
+        : null;
+    case 'citys-blessing-set':
+      return isSeatIndex(value.seat) && typeof value.has === 'boolean'
+        ? { type: 'citys-blessing-set', seat: value.seat, has: value.has }
+        : null;
+    case 'day-night-set':
+      return value.value === null || value.value === 'day' || value.value === 'night'
+        ? { type: 'day-night-set', value: value.value }
+        : null;
+    case 'storm-changed':
+      return isChange(value.amount) ? { type: 'storm-changed', amount: value.amount } : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }

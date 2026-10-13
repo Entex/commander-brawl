@@ -63,3 +63,5 @@ export {
   toClockSettings,
 } from './turns';
 export type { Clock, ClockKind, ClockSettings, Phase } from './turns';
+export { DUNGEONS, DUNGEON_IDS, RING_ABILITIES, canVenture, isDungeonId, isLastRoom } from './markers';
+export type { DayNight, Dungeon, DungeonId, DungeonPosition, DungeonRoom } from './markers';

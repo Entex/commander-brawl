@@ -762,6 +762,37 @@ button.swatch.selected {
   white-space: nowrap;
 }
 
+/* Markers: monarch, initiative, dungeons, the Ring, day and night */
+
+.marker-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.marker-toggles button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #0b0d12;
+  font-weight: 600;
+}
+
+.dungeon p {
+  margin: 0.3rem 0;
+}
+
+.dungeon-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.day-night {
+  font-weight: 600;
+}
+
 /* Phases and the clock */
 
 .phases {

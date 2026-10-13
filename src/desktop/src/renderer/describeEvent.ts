@@ -1,5 +1,5 @@
 import type { LoggedEvent } from '@commander-brawl/application';
-import type { GameState } from '@commander-brawl/domain';
+import { DUNGEONS, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { COUNTER_NAMES, PHASE_NAMES, commanderName, describeClock, seatName, type Players } from './names';
 import { formatChange } from './useGroupedChange';
 
@@ -14,6 +14,12 @@ export function describeEvent(
   find: (id: string) => LoggedEvent | undefined = () => undefined,
 ): string {
   const { event, by } = entry;
+  // "Alex" when Alex did it to themselves, "Robin: Alex" when Robin did it for Alex.
+  const who = (seat: SeatIndex) => {
+    const target = seatName(players, seat);
+    return target === by.name ? by.name : `${by.name}: ${target}`;
+  };
+  const byOther = (seat: SeatIndex) => (seatName(players, seat) === by.name ? '' : ` (${by.name})`);
   switch (event.type) {
     case 'life-changed': {
       const target = seatName(players, event.seat);
@@ -89,6 +95,25 @@ export function describeEvent(
       return `${by.name} paused the clock`;
     case 'clock-resumed':
       return `${by.name} restarted the clock`;
+    case 'monarch-set':
+      return event.seat === null ? `${by.name}: nobody is the monarch` : `${who(event.seat)} became the monarch`;
+    case 'initiative-taken':
+      return event.seat === null ? `${by.name}: nobody has the initiative` : `${who(event.seat)} took the initiative`;
+    case 'ventured': {
+      const dungeon = DUNGEONS[event.to.dungeon];
+      const room = dungeon.rooms[event.to.room]?.name ?? 'a room';
+      return `${who(event.seat)} ventured into ${room} (${dungeon.name})`;
+    }
+    case 'ring-tempted':
+      return event.amount > 0
+        ? `The Ring tempted ${seatName(players, event.seat)}${byOther(event.seat)}`
+        : `${by.name} took back the Ring tempting ${seatName(players, event.seat)}`;
+    case 'citys-blessing-set':
+      return `${who(event.seat)} ${event.has ? 'got' : 'lost'} the city's blessing`;
+    case 'day-night-set':
+      return event.value ? `${by.name}: it became ${event.value}` : `${by.name}: no more day and night`;
+    case 'storm-changed':
+      return `${by.name}: storm count ${formatChange(event.amount)}`;
     case 'turn-order-set':
       return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {

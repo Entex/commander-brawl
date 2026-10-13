@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { COUNTER_NAMES, commanderName, describeLoss, seatName, type Players } from '../names';
 import { submitGameEvent } from '../useGame';
 import { formatChange, useGroupedChange } from '../useGroupedChange';
+import { SeatMarkers } from './Markers';
 
 interface SeatDetailsProps {
   readonly seat: SeatIndex;
@@ -128,6 +129,8 @@ export function SeatDetails({ seat, game, players, onClose }: SeatDetailsProps) 
           }),
         )}
       </section>
+
+      <SeatMarkers seat={seat} game={game} />
 
       <section>
         <h4>Status</h4>

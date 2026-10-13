@@ -651,6 +651,42 @@ test('phases of the turn, a turn timer that a response pauses, and a chess clock
   await expect(active.page.locator('.seat-clock-running')).toHaveCount(1);
 });
 
+test('markers: monarch, initiative and the Undercity, day and night, the storm count', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  // The friend marks the host as the monarch, and gives them the initiative.
+  await friend.page.getByRole('button', { name: "Host's details" }).click();
+  const markers = friend.page.getByTestId('seat-markers');
+  await markers.getByRole('button', { name: '👑 Monarch' }).click();
+  await markers.getByRole('button', { name: 'Initiative' }).click();
+  const hostChips = host.page.getByTestId('chips-0');
+  await expect(hostChips).toContainText('👑 Monarch');
+  await expect(hostChips).toContainText('Initiative');
+  // The initiative took them into Undercity; on to the Forge.
+  await expect(hostChips).toContainText('Undercity Secret Entrance');
+  await markers.getByRole('button', { name: 'Forge' }).click();
+  await expect(hostChips).toContainText('Undercity Forge');
+  await expect(markers.getByTestId('dungeon')).toContainText('Put two +1/+1 counters on target creature.');
+  await markers.scrollIntoViewIfNeeded();
+  await friend.page.screenshot({ path: test.info().outputPath('markers.png') });
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend: Host ventured into Forge (Undercity)');
+
+  // Day and night, and the storm count, for the whole table.
+  await host.page.getByRole('button', { name: 'Counters' }).click();
+  await host.page.getByRole('group', { name: 'Day or night' }).getByRole('button', { name: '☀ Day' }).click();
+  await host.page.getByRole('button', { name: 'Add 1 to the storm count' }).click();
+  await host.page.getByRole('button', { name: 'Done' }).click();
+  const bar = friend.page.getByTestId('table-counters');
+  await expect(bar.getByTestId('day-night')).toHaveText('☀ Day');
+  await expect(bar).toContainText('Storm count');
+  await bar.getByTestId('day-night').click();
+  await expect(host.page.getByTestId('day-night')).toHaveText('☾ Night');
+
+  // The storm count is for one turn: the first turn starts it over.
+  await host.page.getByRole('button', { name: 'Random turn order' }).click();
+  await expect(bar).not.toContainText('Storm count');
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);

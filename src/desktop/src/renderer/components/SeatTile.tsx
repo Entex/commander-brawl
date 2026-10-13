@@ -1,12 +1,14 @@
 import { clampCrop, type CropRect, type LinkStats, type SeatView } from '@commander-brawl/application';
 import {
   COMMANDER_DAMAGE_LIMIT,
+  DUNGEONS,
   PLAYER_COUNTERS,
   POISON_LIMIT,
   bracketConcerns,
   commanderTax,
   counterValue,
   hasReachedLoss,
+  isLastRoom,
   isOut,
   lossReason,
   startValue,
@@ -168,6 +170,27 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
   if (!state) return null;
   const chips: { key: string; label: string; value: string; danger?: boolean; color?: CounterColor; title: string }[] =
     [];
+
+  const index = seat.player.seat;
+  if (game.monarch === index) chips.push({ key: 'monarch', label: '👑 Monarch', value: '', title: 'The monarch' });
+  if (game.initiative === index) {
+    chips.push({ key: 'initiative', label: 'Initiative', value: '', title: 'Has the initiative' });
+  }
+  if (state.dungeon) {
+    const dungeon = DUNGEONS[state.dungeon.dungeon];
+    chips.push({
+      key: 'dungeon',
+      label: dungeon.name,
+      value: dungeon.rooms[state.dungeon.room]?.name ?? '',
+      title: isLastRoom(state.dungeon) ? 'Dungeon completed' : 'In a dungeon',
+    });
+  }
+  if (state.ringTempts > 0) {
+    chips.push({ key: 'ring', label: 'The Ring', value: `×${state.ringTempts}`, title: 'Times the Ring tempted them' });
+  }
+  if (state.citysBlessing) {
+    chips.push({ key: 'blessing', label: "City's blessing", value: '', title: "Has the city's blessing" });
+  }
 
   for (const counter of PLAYER_COUNTERS) {
     const value = state.counters[counter];

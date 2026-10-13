@@ -12,6 +12,7 @@ import {
 import { useState } from 'react';
 import { forgetPreset, loadPresets, newCounterId, savePreset } from '../counterPresets';
 import { submitGameEvent } from '../useGame';
+import { DayNightChoice, StormStepper } from './Markers';
 
 interface CountersPanelProps {
   readonly game: GameState;
@@ -40,6 +41,12 @@ export function CountersPanel({ game, onClose }: CountersPanelProps) {
           <h2>Counters</h2>
           <button onClick={onClose}>Done</button>
         </header>
+
+        <section>
+          <h3>For the whole table</h3>
+          <DayNightChoice value={game.dayNight} />
+          <StormStepper storm={game.storm} />
+        </section>
 
         <section>
           <h3>At this table</h3>
