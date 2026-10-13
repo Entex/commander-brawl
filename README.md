@@ -63,7 +63,9 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield or Archidekt link, or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
 
-**Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, two-card combos, mass land denial and extra turns, and points out what doesn't usually fit the bracket. A seat shows its bracket, with ⚠ if something doesn't fit.
+**Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, combos, mass land denial and extra turns, lists the deck's combos, and points out what doesn't usually fit the bracket. A seat shows its bracket, with ⚠ if something doesn't fit.
+
+**Combo warnings.** During the game, when a player has all but one piece of a combo from their deck on the battlefield (as kept track of at the table), everyone sees a warning: "Alex has 2 of 3 pieces of …, missing …".
 
 **Close-ups.** Click a card on another player's video to get a sharp picture of it. Their computer takes the picture straight from their camera, without the blur of video compression; a phone takes a full-resolution photo (often 12 megapixels instead of 2). If you've flipped their video, the picture is flipped too.
 

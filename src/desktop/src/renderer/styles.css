@@ -884,6 +884,25 @@ button.swatch.selected {
   width: 4rem;
 }
 
+/* Combo warnings */
+
+.combo-warnings {
+  padding: 0.3rem 0.8rem;
+  border-bottom: 1px solid var(--warn);
+  background: #2a2210;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.combo-warnings p {
+  margin: 0.15rem 0;
+}
+
+.rule0-combos {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+}
+
 /* Planechase and Archenemy */
 
 .variants-bar {

@@ -30,6 +30,8 @@ export interface DeckAnalysis {
   readonly extraTurns: readonly string[];
   /** Combos of exactly two cards. */
   readonly twoCardCombos: readonly Combo[];
+  /** Every combo in the deck, fewest cards first. Missing in analyses from before it was kept. */
+  readonly combos?: readonly Combo[];
   /** False when the combo database couldn't be reached: then only Game Changers were checked. */
   readonly complete: boolean;
 }
@@ -70,22 +72,33 @@ export function isBracket(value: unknown): value is Bracket {
 /** Reads untrusted data as a deck analysis. Returns null if it isn't a valid one. */
 export function toDeckAnalysis(raw: unknown): DeckAnalysis | null {
   if (typeof raw !== 'object' || raw === null) return null;
-  const { gameChangers, massLandDenial, extraTurns, twoCardCombos, complete } = raw as Record<string, unknown>;
+  const { gameChangers, massLandDenial, extraTurns, twoCardCombos, combos, complete } = raw as Record<string, unknown>;
   if (!isNameList(gameChangers) || !isNameList(massLandDenial) || !isNameList(extraTurns)) return null;
-  if (typeof complete !== 'boolean' || !Array.isArray(twoCardCombos) || twoCardCombos.length > 50) return null;
-  const combos: Combo[] = [];
-  for (const combo of twoCardCombos) {
-    const { cards, produces } = (combo ?? {}) as Record<string, unknown>;
-    if (!isNameList(cards) || !isNameList(produces)) return null;
-    combos.push({ cards: [...cards], produces: [...produces] });
-  }
+  if (typeof complete !== 'boolean') return null;
+  const two = toCombos(twoCardCombos);
+  const all = combos === undefined ? undefined : toCombos(combos);
+  if (!two || all === null) return null;
   return {
     gameChangers: [...gameChangers],
     massLandDenial: [...massLandDenial],
     extraTurns: [...extraTurns],
-    twoCardCombos: combos,
+    twoCardCombos: two,
+    ...(all ? { combos: all } : {}),
     complete,
   };
+}
+
+export const MAX_COMBOS = 50;
+
+function toCombos(raw: unknown): Combo[] | null {
+  if (!Array.isArray(raw) || raw.length > MAX_COMBOS) return null;
+  const combos: Combo[] = [];
+  for (const combo of raw) {
+    const { cards, produces } = (combo ?? {}) as Record<string, unknown>;
+    if (!isNameList(cards) || !isNameList(produces)) return null;
+    combos.push({ cards: [...cards], produces: [...produces] });
+  }
+  return combos;
 }
 
 function isNameList(value: unknown): value is string[] {

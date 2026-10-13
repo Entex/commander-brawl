@@ -17,6 +17,7 @@ import { useCloseUps } from '../useCloseUps';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardsPanel } from './CardsPanel';
+import { ComboWarnings } from './ComboWarnings';
 import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
 import { PointerLayer } from './PointerLayer';
@@ -193,6 +194,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         </div>
       )}
       {game && <VariantsBar game={game} players={state.seats} />}
+      {game && <ComboWarnings game={game.state} players={state.seats} />}
       <ConnectionBanner state={state} unconfirmed={game?.unconfirmed ?? 0} onLeave={onLeave} />
       {host && <ReachabilityHelp host={host} />}
       {host?.portChanged && (

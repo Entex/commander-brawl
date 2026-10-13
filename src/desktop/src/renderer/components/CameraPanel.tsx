@@ -121,7 +121,13 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
             <div className="row straighten-row">
               {camera.straighten.corners ? (
                 <>
-                  <span className="hint">Straightened to your playmat. Moved the camera? Set the corners again.</span>
+                  {camera.straighten.error ? (
+                    <span className="status status-reconnecting">
+                      Couldn't straighten the view: {camera.straighten.error}
+                    </span>
+                  ) : (
+                    <span className="hint">Straightened to your playmat. Moved the camera? Set the corners again.</span>
+                  )}
                   <button onClick={() => setPicking(true)}>Change the corners</button>
                   <button onClick={() => camera.straighten.set(null)}>Don't straighten</button>
                 </>

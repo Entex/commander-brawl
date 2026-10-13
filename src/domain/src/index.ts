@@ -1,4 +1,11 @@
-export { BRACKET_NAMES, MAX_GAME_CHANGERS_IN_BRACKET_3, bracketConcerns, isBracket, toDeckAnalysis } from './brackets';
+export {
+  BRACKET_NAMES,
+  MAX_COMBOS,
+  MAX_GAME_CHANGERS_IN_BRACKET_3,
+  bracketConcerns,
+  isBracket,
+  toDeckAnalysis,
+} from './brackets';
 export type { Bracket, Combo, DeckAnalysis } from './brackets';
 export { normalizeCardName } from './cards';
 export { MAX_COMMANDERS, MAX_DECK_ENTRIES, MAX_DECK_NAME_LENGTH, deckSize, toDeckList } from './decks';
@@ -84,3 +91,5 @@ export {
   PERMANENT_COUNTERS,
 } from './permanents';
 export type { NewPermanent, Permanent } from './permanents';
+export { comboThreats } from './combos';
+export type { ComboThreat } from './combos';

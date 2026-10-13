@@ -5,6 +5,7 @@ import {
   PLAYER_COUNTERS,
   POISON_LIMIT,
   bracketConcerns,
+  comboThreats,
   commanderTax,
   counterValue,
   hasReachedLoss,
@@ -25,6 +26,7 @@ import { submitGameEvent } from '../useGame';
 import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
 import { SeatDetails } from './SeatDetails';
+import { describeThreat } from './ComboWarnings';
 import { permanentSummaries } from './Permanents';
 import { SeatClock } from './Turn';
 import { VideoView } from './VideoView';
@@ -197,6 +199,16 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
   }
   if (state.citysBlessing) {
     chips.push({ key: 'blessing', label: "City's blessing", value: '', title: "Has the city's blessing" });
+  }
+  const threat = comboThreats(game).find((t) => t.seat === index);
+  if (threat) {
+    chips.push({
+      key: 'combo',
+      label: '⚠ Combo',
+      value: `${threat.present.length}/${threat.combo.cards.length}`,
+      danger: threat.missing.length === 0,
+      title: describeThreat(threat, players),
+    });
   }
   const summaries = permanentSummaries(game, state.permanents);
   for (const summary of summaries.slice(0, MAX_PERMANENT_CHIPS)) {

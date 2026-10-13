@@ -48,6 +48,8 @@ export interface CameraState {
     readonly supported: boolean;
     /** The playmat's corners in the camera picture, while the camera is straightened. */
     readonly corners: Quad | null;
+    /** Why the camera isn't straightened even though there are corners. */
+    readonly error: string | null;
     /** Straightens the camera by these corners (remembered for this camera), or (null) stops. */
     set(corners: Quad | null): void;
   };
@@ -174,7 +176,7 @@ export function useCamera(): CameraState {
     },
     [cameraKey],
   );
-  const straightener = useStraightener(rawTrack, corners);
+  const { straightener, error: straightenError } = useStraightener(rawTrack, corners);
   const track = straightener?.track ?? rawTrack;
 
   const snapshot = useCallback(
@@ -204,7 +206,7 @@ export function useCamera(): CameraState {
     source,
     track,
     rawTrack,
-    straighten: { supported: Straightener.supported(), corners, set: setCorners },
+    straighten: { supported: Straightener.supported(), corners, error: straightenError, set: setCorners },
     phone: { state: phoneState, urls },
     webcam: { devices, deviceId, error: webcamError },
     selectPhone,
@@ -213,9 +215,16 @@ export function useCamera(): CameraState {
   };
 }
 
-/** The camera straightened by the corners, while there are corners and a camera. */
-function useStraightener(raw: MediaStreamTrack | null, corners: Quad | null): Straightener | null {
+/**
+ * The camera straightened by the corners, while there are corners and a camera; or why it can't be (the
+ * graphics card won't do it).
+ */
+function useStraightener(
+  raw: MediaStreamTrack | null,
+  corners: Quad | null,
+): { straightener: Straightener | null; error: string | null } {
   const [straightener, setStraightener] = useState<Straightener | null>(null);
+  const [error, setError] = useState<{ for: Quad; message: string } | null>(null);
   const size = raw && corners ? sizeFor(raw, corners) : null;
   const width = size?.width;
   const height = size?.height;
@@ -224,8 +233,9 @@ function useStraightener(raw: MediaStreamTrack | null, corners: Quad | null): St
     let made: Straightener;
     try {
       made = new Straightener(raw, corners, width, height);
-    } catch (error) {
-      console.warn('[camera] could not straighten', error);
+    } catch (failure) {
+      console.warn('[camera] could not straighten', failure);
+      queueMicrotask(() => setError({ for: corners, message: errorMessage(failure) }));
       return;
     }
     // A new object for each straightener: the state changes only when one starts or stops.
@@ -235,7 +245,10 @@ function useStraightener(raw: MediaStreamTrack | null, corners: Quad | null): St
       setStraightener((current) => (current === made ? null : current));
     };
   }, [raw, corners, width, height]);
-  return straightener && raw && corners ? straightener : null;
+  return {
+    straightener: straightener && raw && corners ? straightener : null,
+    error: error && error.for === corners ? error.message : null,
+  };
 }
 
 function sizeFor(track: MediaStreamTrack, corners: Quad): { width: number; height: number } {

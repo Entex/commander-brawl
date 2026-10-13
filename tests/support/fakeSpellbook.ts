@@ -28,8 +28,21 @@ export async function startFakeSpellbook(): Promise<FakeSpellbook> {
       const deck = JSON.parse(body) as { commanders: { card: string }[]; main: { card: string }[] };
       const names = [...deck.commanders, ...deck.main].map((e) => e.card);
       const cards = names.map((name) => ({ card: { name }, quantity: 1, banned: false, ...FLAGS[name] }));
-      const combos =
-        names.includes("Thassa's Oracle") && names.includes('Demonic Consultation')
+      const has = (...cards: string[]) => cards.every((card) => names.includes(card));
+      const combos = [
+        // A made-up three-card combo, listed first: the app sorts by size.
+        ...(has('Sol Ring', 'Rhystic Study', "Atraxa, Praetors' Voice")
+          ? [
+              {
+                definitelyTwoCard: false,
+                combo: {
+                  uses: ['Sol Ring', 'Rhystic Study', "Atraxa, Praetors' Voice"].map((name) => ({ card: { name } })),
+                  produces: [{ feature: { name: 'Infinite test mana' } }],
+                },
+              },
+            ]
+          : []),
+        ...(has("Thassa's Oracle", 'Demonic Consultation')
           ? [
               {
                 definitelyTwoCard: true,
@@ -39,7 +52,8 @@ export async function startFakeSpellbook(): Promise<FakeSpellbook> {
                 },
               },
             ]
-          : [];
+          : []),
+      ];
       response
         .writeHead(200, { 'Content-Type': 'application/json' })
         .end(JSON.stringify({ bracketTag: 'C', cards, combos }));

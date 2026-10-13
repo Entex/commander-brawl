@@ -11,6 +11,9 @@ interface TrackGenerator extends MediaStreamTrack {
 declare const MediaStreamTrackProcessor: new (init: { track: MediaStreamTrack }) => TrackProcessor;
 declare const MediaStreamTrackGenerator: new (init: { kind: 'video' }) => TrackGenerator;
 
+/** Worked out once: making a WebGL context to find out isn't free. */
+let supportedHere: boolean | undefined;
+
 const VERTEX_SHADER = `#version 300 es
 in vec2 position;
 out vec2 uv;
@@ -50,13 +53,14 @@ export class Straightener {
   private readonly warpLocation: WebGLUniformLocation;
   private stopped = false;
 
-  /** Whether this browser can straighten a camera. */
+  /** Whether this computer can straighten a camera: the browser has what it takes, and WebGL 2 works. */
   static supported(): boolean {
-    return (
+    supportedHere ??=
       'MediaStreamTrackProcessor' in globalThis &&
       'MediaStreamTrackGenerator' in globalThis &&
-      'OffscreenCanvas' in globalThis
-    );
+      'OffscreenCanvas' in globalThis &&
+      new OffscreenCanvas(1, 1).getContext('webgl2') !== null;
+    return supportedHere;
   }
 
   /** `corners` are the playmat's corners in the camera picture, as fractions of its width and height. */

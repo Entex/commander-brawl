@@ -110,11 +110,33 @@ function PlayerRow({
           </li>
           {analysis.complete ? (
             <>
-              <li>
-                {analysis.twoCardCombos.length === 0
-                  ? 'No two-card combos'
-                  : `Two-card combos: ${analysis.twoCardCombos.map((c) => c.cards.join(' + ')).join('; ')}`}
-              </li>
+              {analysis.combos ? (
+                <li>
+                  {analysis.combos.length === 0 ? (
+                    'No combos'
+                  ) : (
+                    <>
+                      Combos ({analysis.combos.length}):
+                      <ul className="rule0-combos" data-testid="combos">
+                        {analysis.combos.map((combo) => (
+                          <li key={combo.cards.join('+')}>
+                            {combo.cards.join(' + ')}
+                            {combo.produces.length > 0 && (
+                              <span className="hint"> → {combo.produces.slice(0, 2).join(', ')}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </li>
+              ) : (
+                <li>
+                  {analysis.twoCardCombos.length === 0
+                    ? 'No two-card combos'
+                    : `Two-card combos: ${analysis.twoCardCombos.map((c) => c.cards.join(' + ')).join('; ')}`}
+                </li>
+              )}
               {analysis.massLandDenial.length > 0 && <li>Mass land denial: {analysis.massLandDenial.join(', ')}</li>}
               {analysis.extraTurns.length > 0 && <li>Extra turns: {analysis.extraTurns.join(', ')}</li>}
             </>

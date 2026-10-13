@@ -61,6 +61,10 @@ async function launch(name: string, options: { userDataDir?: string; camera?: st
       appDir,
       '--use-fake-device-for-media-stream',
       '--use-fake-ui-for-media-stream',
+      // WebGL without a graphics card (CI has none): Chromium's software renderer, which it only offers for WebGL
+      // when asked. Set CB_E2E_NO_GPU=1 to test like CI on a computer that has one.
+      '--enable-unsafe-swiftshader',
+      ...(process.env.CB_E2E_NO_GPU ? ['--disable-gpu'] : []),
       // A picture for the fake camera to show, instead of its moving test pattern.
       ...(options.camera ? [`--use-file-for-fake-video-capture=${options.camera}`] : []),
     ],
@@ -792,13 +796,14 @@ test('counters on cards and groups of tokens, untapped when their turn starts', 
   await friend.page.screenshot({ path: test.info().outputPath('battlefield.png') });
   await expect(host.page.getByTestId('last-change')).toHaveText('Friend: Host tapped Goblin');
 
-  // Their tokens untap when their turn starts.
+  // Their tokens untap when their turn starts: pass turns until it's the host's (not the first one, if it's theirs).
   await host.page.getByRole('button', { name: 'Random turn order' }).click();
-  for (let pass = 0; pass < 2; pass++) {
-    const active = (await host.page.getByTestId('turn').textContent())!.includes('Your turn') ? host : friend;
-    await active.page.getByRole('button', { name: 'Pass turn' }).click();
-    if (active === friend) break;
+  await expect(host.page.getByTestId('turn')).toBeVisible();
+  if ((await host.page.getByTestId('turn').textContent())!.includes('Your turn')) {
+    await host.page.getByRole('button', { name: 'Pass turn' }).click();
+    await expect(friend.page.getByTestId('turn')).toContainText('Your turn');
   }
+  await friend.page.getByRole('button', { name: 'Pass turn' }).click();
   await expect(host.page.getByTestId('turn')).toContainText('Your turn');
   await expect(chips).toContainText('Goblin ×3');
   await expect(chips).not.toContainText('tapped');
@@ -847,6 +852,36 @@ test('straightening a camera that looks at the table at an angle', async () => {
   await expect.poll(() => shapeOf(hostVideo), { timeout: 15_000 }).not.toBeCloseTo(24 / 14, 1);
 });
 
+test('a warning for everyone when a player has most of a combo from their deck on the battlefield', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(host.page);
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Decks' }).click();
+  const decks = host.page.getByTestId('decks-panel');
+  await decks.getByLabel('Deck link or list').fill('https://moxfield.com/decks/Y8dZ7');
+  await decks.getByRole('button', { name: 'Import' }).click();
+  await decks.getByRole('button', { name: 'Save deck' }).click();
+  await decks.getByTestId('deck-Atraxa Counters').getByRole('button', { name: 'Play this deck' }).click();
+  await decks.getByRole('button', { name: 'Done' }).click();
+
+  // The host's Sol Ring and Rhystic Study are on the battlefield: two of the three pieces.
+  await host.page.getByRole('button', { name: "Host's details" }).click();
+  const battlefield = host.page.getByTestId('permanents');
+  for (const [query, name] of [
+    ['sol ring', 'Sol Ring'],
+    ['rhystic', 'Rhystic Study'],
+  ]) {
+    await battlefield.getByLabel('Card or token to keep track of').fill(query!);
+    await battlefield.getByRole('button', { name: name!, exact: true }).click();
+  }
+
+  const warnings = friend.page.getByTestId('combo-warnings');
+  await expect(warnings).toHaveText(
+    "⚠ Host has 2 of 3 pieces of Sol Ring + Rhystic Study + Atraxa, Praetors' Voice (Infinite test mana): missing Atraxa, Praetors' Voice",
+  );
+  await expect(friend.page.getByTestId('chips-0')).toContainText('⚠ Combo 2/3');
+});
+
 test('Rule 0: brackets, and the deck check pointing out what does not fit', async () => {
   const { host, friend } = await hostAndFriend();
   await cardsReady(host.page);
@@ -863,7 +898,9 @@ test('Rule 0: brackets, and the deck check pointing out what does not fit', asyn
   await host.page.getByRole('button', { name: 'Rule 0' }).click();
   const rule0 = host.page.getByTestId('rule0-panel');
   await expect(rule0.getByTestId('rule0-0')).toContainText('Game Changers (1): Rhystic Study');
-  await expect(rule0.getByTestId('rule0-0')).toContainText('No two-card combos');
+  await expect(rule0.getByTestId('combos')).toHaveText(
+    "Sol Ring + Rhystic Study + Atraxa, Praetors' Voice → Infinite test mana",
+  );
   await rule0.getByLabel('Your bracket').selectOption('2');
   await expect(rule0.getByTestId('rule0-0')).toContainText('1 Game Changer (brackets 1–2 have none): Rhystic Study');
   await rule0.getByRole('button', { name: 'Done' }).click();
