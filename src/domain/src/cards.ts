@@ -33,6 +33,8 @@ export interface Card {
    * it needs (the whole card, or just the artwork for small spaces like a seat's commander badge).
    */
   readonly image: string | null;
+  /** Who painted the art in that picture, to credit when it's shown without the card's own frame. */
+  readonly artist: string | null;
   /** Only for cards with more than one face. */
   readonly faces: readonly CardFace[];
 }

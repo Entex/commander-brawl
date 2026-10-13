@@ -1,4 +1,4 @@
-import { commanderTax, type CommanderIndex, type GameState, type SeatIndex } from '@commander-brawl/domain';
+import { commanderTax, type Card, type CommanderIndex, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
 import { useCardsByName } from '../useCards';
 import { Symbols } from './CardText';
@@ -32,7 +32,7 @@ export function CommanderBadges({ seat, game, onOpenCard }: CommanderBadgesProps
             key={index}
             className="commander-badge"
             disabled={!card}
-            title={card ? `Show ${card.name}` : name}
+            title={card ? `Show ${card.name}\n${artCredit(card)}` : name}
             onClick={() => card && onOpenCard(card.id)}
           >
             {card?.image && <img className="commander-art" src={cardImageUrl(card.image, 'art_crop')} alt="" />}
@@ -52,4 +52,9 @@ export function CommanderBadges({ seat, game, onOpenCard }: CommanderBadgesProps
       })}
     </div>
   );
+}
+
+/** The badge shows only the art, so who painted it is said here (as Scryfall asks), with the copyright. */
+function artCredit(card: Card): string {
+  return card.artist ? `Art by ${card.artist} · © Wizards of the Coast` : '© Wizards of the Coast';
 }

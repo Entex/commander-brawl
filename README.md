@@ -69,7 +69,7 @@ Every change goes into a game log kept by the host, and each player's app has a 
 
 **Cards** (or Ctrl+K) looks up any card: picture, text, both faces, official rulings, and whether it's a Game Changer or banned in Commander. Search forgives typos ("rhystc stdy"). The app downloads all cards from [Scryfall](https://scryfall.com) once (about 30 MB, in the background on first start) and refreshes them weekly, so searching is instant and works offline. Pictures load from Scryfall.
 
-**Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield or Archidekt link, or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
+**Decks** (on the start screen, or in the menu at the table) imports your decks from a Moxfield, Archidekt, TappedOut, Deckstats or Scryfall link (read by [Commander Spellbook](https://commanderspellbook.com), and named for the commander until you rename it), or a pasted list (Moxfield, Archidekt, MTGO and Arena exports all work). They're saved on your computer. At the table, _Play this deck_ shows everyone which deck you're playing, and its commander names are used for commander damage.
 
 **Rule 0** (next to the turn controls) is the talk before the game: everyone says their deck's bracket (1–5), and the app checks each deck with [Commander Spellbook](https://commanderspellbook.com) for Game Changers, combos, mass land denial and extra turns, lists the deck's combos, and points out what doesn't usually fit the bracket. A seat shows its bracket, with a warning sign if something doesn't fit.
 
@@ -145,20 +145,19 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 
 ### Settings for development and tests
 
-| Variable                              | Effect                                                                                 |
-| ------------------------------------- | -------------------------------------------------------------------------------------- |
-| `CB_USER_DATA_DIR`                    | Keep settings and certificates in this folder, so several copies can run side by side. |
-| `CB_UPNP=off`                         | Don't ask the router to open a port.                                                   |
-| `CB_LOCAL_ONLY=1`                     | Don't use the public address-lookup (STUN) servers; local network only.                |
-| `CB_TABLE_PORT`, `CB_PHONE_PORT`      | Ports for hosting and for the phone page (`0` = any free port).                        |
-| `CB_RENDERER_URL`                     | Load the UI from a dev server.                                                         |
-| `CB_SCRYFALL_API`                     | A stand-in for Scryfall's API (tests use a local fake).                                |
-| `CB_MOXFIELD_API`, `CB_ARCHIDEKT_API` | Stand-ins for the deck sites (tests use local fakes).                                  |
-| `CB_SPELLBOOK_API`                    | A stand-in for Commander Spellbook (tests use a local fake).                           |
-| `CB_SAVE_DIR`                         | Save files (like the game log) here without asking.                                    |
+| Variable                         | Effect                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------------------- |
+| `CB_USER_DATA_DIR`               | Keep settings and certificates in this folder, so several copies can run side by side. |
+| `CB_UPNP=off`                    | Don't ask the router to open a port.                                                   |
+| `CB_LOCAL_ONLY=1`                | Don't use the public address-lookup (STUN) servers; local network only.                |
+| `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port).                        |
+| `CB_RENDERER_URL`                | Load the UI from a dev server.                                                         |
+| `CB_SCRYFALL_API`                | A stand-in for Scryfall's API (tests use a local fake).                                |
+| `CB_SPELLBOOK_API`               | A stand-in for Commander Spellbook (tests use a local fake).                           |
+| `CB_SAVE_DIR`                    | Save files (like the game log) here without asking.                                    |
 
 ## Credits
 
 - Icons: [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
 - Font: [Cinzel](https://github.com/NDISCOVER/Cinzel-Typeface) by Natanael Gama, SIL Open Font License 1.1.
-- Card data and pictures: [Scryfall](https://scryfall.com). Combos: [Commander Spellbook](https://commanderspellbook.com).
+- Card data and pictures: [Scryfall](https://scryfall.com). Combos and deck links: [Commander Spellbook](https://commanderspellbook.com).

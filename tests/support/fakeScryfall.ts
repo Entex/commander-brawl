@@ -16,6 +16,7 @@ export const SCRYFALL_CARDS = [
     cmc: 3,
     legalities: { commander: 'legal' },
     game_changer: true,
+    artist: 'Rhystic Painter',
     image_uris: { normal: 'https://cards.scryfall.io/normal/front/a/b/rhystic.jpg?1' },
   },
   {
@@ -26,9 +27,12 @@ export const SCRYFALL_CARDS = [
     color_identity: ['U'],
     cmc: 1,
     legalities: { commander: 'legal' },
+    // Each face its own picture, by its own artist.
+    artist: 'Delver Painter // Aberration Painter',
     card_faces: [
       {
         name: 'Delver of Secrets',
+        artist: 'Delver Painter',
         mana_cost: '{U}',
         type_line: 'Creature — Human Wizard',
         oracle_text: 'At the beginning of your upkeep, look at the top card of your library.',
@@ -38,6 +42,7 @@ export const SCRYFALL_CARDS = [
       },
       {
         name: 'Insectile Aberration',
+        artist: 'Aberration Painter',
         mana_cost: '',
         type_line: 'Creature — Human Insect',
         oracle_text: 'Flying',
@@ -81,6 +86,7 @@ export const SCRYFALL_CARDS = [
     color_identity: ['B', 'G', 'U', 'W'],
     cmc: 4,
     legalities: { commander: 'legal' },
+    artist: 'Atraxa Painter',
     image_uris: { normal: 'https://cards.scryfall.io/normal/front/a/t/atraxa.jpg?1' },
   },
   {

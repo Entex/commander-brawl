@@ -1,12 +1,10 @@
 export { createIdentity, fingerprintOf, loadOrCreateIdentity, normalizeFingerprint } from './certificate';
 export type { TlsIdentity } from './certificate';
-export { UnsupportedDeckLinkError, fetchDeck, isDeckLink } from './deckSites';
-export type { DeckSitesOptions } from './deckSites';
 export { syncGame } from './gameConnection';
 export { globalIpv6Addresses, isCarrierGradeNat, isPrivateIpv4, lanAddresses } from './network';
 export { PhoneLinkServer } from './phoneLinkServer';
 export { ScryfallCards, toCard } from './scryfall';
-export { analyzeDeck } from './spellbook';
+export { UnsupportedDeckLinkError, analyzeDeck, fetchDeck, isDeckLink } from './spellbook';
 export type { SpellbookOptions } from './spellbook';
 export type { SavedCards, ScryfallOptions } from './scryfall';
 export type { PhoneLinkEvents, PhoneLinkServerOptions } from './phoneLinkServer';

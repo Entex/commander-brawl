@@ -36,7 +36,9 @@ interface BulkEntry {
 /** Card layouts that aren't playable cards: art cards, oversized fronts, and Vanguard avatars. */
 const SKIPPED_LAYOUTS = new Set(['art_series', 'front_card', 'vanguard']);
 const IMAGE_PREFIX = /^https:\/\/cards\.scryfall\.io\/[a-z_]+\/(.+)$/;
-const FORMAT_VERSION = 1;
+const FORMAT_VERSION = 2;
+/** Saved before artists were kept: still used, but replaced as soon as possible. */
+const OLD_FORMAT_VERSION = 1;
 
 export class ScryfallCards {
   private rulingsByCard: Promise<Map<string, Ruling[]>> | null = null;
@@ -47,7 +49,12 @@ export class ScryfallCards {
   async loadSaved(): Promise<SavedCards | null> {
     try {
       const raw = JSON.parse(await readFile(join(this.options.dir, 'cards.json'), 'utf8')) as Record<string, unknown>;
-      if (raw.version !== FORMAT_VERSION || !Array.isArray(raw.cards)) return null;
+      if (!Array.isArray(raw.cards)) return null;
+      if (raw.version === OLD_FORMAT_VERSION) {
+        const cards = (raw.cards as Card[]).map((card) => ({ ...card, artist: null }));
+        return { cards, updatedAt: String(raw.updatedAt), savedAt: 0 };
+      }
+      if (raw.version !== FORMAT_VERSION) return null;
       return { cards: raw.cards as Card[], updatedAt: String(raw.updatedAt), savedAt: Number(raw.savedAt) };
     } catch {
       return null;
@@ -179,6 +186,8 @@ export function toCard(raw: unknown): Card | null {
     commander: toLegality(c.legalities?.commander),
     gameChanger: c.game_changer === true,
     image: imagePath(c.image_uris?.normal) ?? faces[0]?.image ?? null,
+    // When each face has its own picture, the card's picture is the front's.
+    artist: (c.image_uris ? c.artist : (rawFaces[0]?.artist ?? c.artist)) ?? null,
     faces,
   };
 }
@@ -192,6 +201,7 @@ interface ScryfallFace {
   readonly toughness?: string;
   readonly loyalty?: string;
   readonly defense?: string;
+  readonly artist?: string;
   readonly image_uris?: { readonly normal?: string };
 }
 

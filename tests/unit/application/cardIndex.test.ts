@@ -16,6 +16,7 @@ function card(name: string, extra: Partial<Card> = {}): Card {
     commander: 'legal',
     gameChanger: false,
     image: null,
+    artist: null,
     faces: [],
     ...extra,
   };

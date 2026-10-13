@@ -14,7 +14,7 @@ interface DecksPanelProps {
   onClose(): void;
 }
 
-/** Your decks: import them from Moxfield, Archidekt or a pasted list, and pick the one you're playing. */
+/** Your decks: import them from a deck site's link or a pasted list, and pick the one you're playing. */
 export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
   const [decks, setDecks] = useState<readonly SavedDeck[]>([]);
   const [source, setSource] = useState('');
@@ -116,7 +116,7 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
               aria-label="Deck link or list"
               rows={6}
               placeholder={
-                "A Moxfield or Archidekt link, or the deck list:\n1 Atraxa, Praetors' Voice *CMDR*\n1 Sol Ring\n…"
+                "A Moxfield, Archidekt or other deck link, or the deck list:\n1 Atraxa, Praetors' Voice *CMDR*\n1 Sol Ring\n…"
               }
               value={source}
               onChange={(event) => setSource(event.target.value)}
@@ -125,6 +125,13 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
               {busy ? 'Importing…' : 'Import'}
             </button>
             {error && <p className="status status-reconnecting">{error}</p>}
+            <p className="hint">
+              Links from Moxfield, Archidekt, TappedOut, Deckstats and Scryfall are read by{' '}
+              <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">
+                Commander Spellbook
+              </a>
+              .
+            </p>
           </section>
         )}
       </div>

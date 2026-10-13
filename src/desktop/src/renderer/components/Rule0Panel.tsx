@@ -49,6 +49,13 @@ export function Rule0Panel({ game, players, selfSeat, onClose }: Rule0PanelProps
               self={p.player.seat === selfSeat}
             />
           ))}
+        <footer className="hint">
+          Decks are checked by{' '}
+          <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">
+            Commander Spellbook
+          </a>
+          .
+        </footer>
       </div>
     </div>
   );

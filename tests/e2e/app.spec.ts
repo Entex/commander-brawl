@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopApi } from '../../src/desktop/src/shared/api';
 import { RHYSTIC_STUDY, drawCardPicture } from '../support/cardPicture';
-import { startFakeDeckSites, type FakeDeckSites } from '../support/fakeDeckSites';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
 import { startFakeSpellbook, type FakeSpellbook } from '../support/fakeSpellbook';
 
@@ -27,18 +26,15 @@ const running: Instance[] = [];
 const temporary: string[] = [];
 // Card data comes from a stand-in, so the tests never download from the real Scryfall.
 let scryfall: FakeScryfall;
-let deckSites: FakeDeckSites;
 let spellbook: FakeSpellbook;
 
 test.beforeAll(async () => {
   scryfall = await startFakeScryfall();
-  deckSites = await startFakeDeckSites();
   spellbook = await startFakeSpellbook();
 });
 
 test.afterAll(async () => {
   await scryfall.close();
-  await deckSites.close();
   await spellbook.close();
   await Promise.all(temporary.map((dir) => rm(dir, { recursive: true, force: true })));
 });
@@ -80,8 +76,6 @@ async function launch(
       CB_PHONE_PORT: '0',
       CB_SAVE_DIR: saveDir,
       CB_SCRYFALL_API: scryfall.apiUrl,
-      CB_MOXFIELD_API: deckSites.moxfieldApi,
-      CB_ARCHIDEKT_API: deckSites.archidektApi,
       CB_SPELLBOOK_API: spellbook.apiUrl,
       ...(options.openFile ? { CB_OPEN_FILE: options.openFile } : {}),
     },
@@ -421,18 +415,19 @@ test('importing decks and playing one', async () => {
   await expect(panel.getByLabel('Imported deck')).toContainText("Commander: Atraxa, Praetors' Voice");
   await panel.getByRole('button', { name: 'Save deck' }).click();
 
-  await panel.getByTestId('deck-Atraxa Counters').getByRole('button', { name: 'Play this deck' }).click();
-  await expect(panel.getByTestId('deck-Atraxa Counters')).toContainText('Playing');
+  await panel.getByTestId('deck-Atraxa').getByRole('button', { name: 'Play this deck' }).click();
+  await expect(panel.getByTestId('deck-Atraxa')).toContainText('Playing');
   await panel.getByRole('button', { name: 'Done' }).click();
 
-  await expect(friend.page.getByTestId('last-change')).toHaveText('Host is playing Atraxa Counters');
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host is playing Atraxa');
   await friend.page.getByRole('button', { name: "Host's details" }).click();
-  await expect(friend.page.getByTestId('seat-details-0')).toContainText('Atraxa Counters · 3 cards');
+  await expect(friend.page.getByTestId('seat-details-0')).toContainText('Atraxa · 3 cards');
   await friend.page.getByTestId('seat-details-0').getByRole('button', { name: 'Close' }).click();
 
-  // The commander shows on the host's seat; clicking it shows the card.
+  // The commander's art shows on the host's seat, crediting the artist; clicking it shows the card.
   const badge = friend.page.getByTestId('commanders-0').getByRole('button', { name: "Atraxa, Praetors' Voice" });
   await expect(badge).toBeEnabled();
+  await expect(badge).toHaveAttribute('title', /Art by Atraxa Painter · © Wizards of the Coast/);
   await badge.click();
   await expect(friend.page.getByTestId('card-view')).toContainText('proliferate');
 });
@@ -918,7 +913,7 @@ test('a warning for everyone when a player has most of a combo from their deck o
   await decks.getByLabel('Deck link or list').fill('https://moxfield.com/decks/Y8dZ7');
   await decks.getByRole('button', { name: 'Import' }).click();
   await decks.getByRole('button', { name: 'Save deck' }).click();
-  await decks.getByTestId('deck-Atraxa Counters').getByRole('button', { name: 'Play this deck' }).click();
+  await decks.getByTestId('deck-Atraxa').getByRole('button', { name: 'Play this deck' }).click();
   await decks.getByRole('button', { name: 'Done' }).click();
 
   // The host's Sol Ring and Rhystic Study are on the battlefield: two of the three pieces.
@@ -1077,7 +1072,7 @@ test('Rule 0: brackets, and the deck check pointing out what does not fit', asyn
   await decks.getByLabel('Deck link or list').fill('https://moxfield.com/decks/Y8dZ7');
   await decks.getByRole('button', { name: 'Import' }).click();
   await decks.getByRole('button', { name: 'Save deck' }).click();
-  await decks.getByTestId('deck-Atraxa Counters').getByRole('button', { name: 'Play this deck' }).click();
+  await decks.getByTestId('deck-Atraxa').getByRole('button', { name: 'Play this deck' }).click();
   await decks.getByRole('button', { name: 'Done' }).click();
 
   await host.page.getByRole('button', { name: 'Rule 0' }).click();

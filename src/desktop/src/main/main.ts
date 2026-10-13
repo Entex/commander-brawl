@@ -34,10 +34,8 @@ const env = {
   openFile: process.env.CB_OPEN_FILE,
   /** A stand-in for Scryfall's API, for tests. */
   scryfallApi: process.env.CB_SCRYFALL_API,
-  /** Stand-ins for the deck sites, for tests. */
-  moxfieldApi: process.env.CB_MOXFIELD_API,
+  /** A stand-in for Commander Spellbook's API, for tests. */
   spellbookApi: process.env.CB_SPELLBOOK_API,
-  archidektApi: process.env.CB_ARCHIDEKT_API,
 };
 
 if (env.userDataDir) app.setPath('userData', env.userDataDir);
@@ -83,13 +81,6 @@ async function start(): Promise<void> {
   const decks = new DeckService({
     file: join(dataDir, 'decks.json'),
     cards,
-    sites: {
-      appVersion: app.getVersion(),
-      // Moxfield turns away Node's own fetch; Chromium's network stack gets through.
-      fetch: (url, init) => net.fetch(url, init),
-      ...(env.moxfieldApi ? { moxfieldApi: env.moxfieldApi } : {}),
-      ...(env.archidektApi ? { archidektApi: env.archidektApi } : {}),
-    },
     spellbook: {
       appVersion: app.getVersion(),
       fetch: (url, init) => net.fetch(url, init),

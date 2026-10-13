@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-/** Commander Spellbook's bracket estimate, answered from a small table of known cards. */
+/** Commander Spellbook: its bracket estimate, answered from a small table of known cards, and deck links. */
 const FLAGS: Record<string, { gameChanger?: boolean; massLandDenial?: boolean; extraTurn?: boolean }> = {
   'Rhystic Study': { gameChanger: true },
   "Thassa's Oracle": { gameChanger: true },
@@ -9,17 +9,61 @@ const FLAGS: Record<string, { gameChanger?: boolean; massLandDenial?: boolean; e
   'Time Warp': { extraTurn: true },
 };
 
+/** Decks on the deck-building sites, by where their links point. */
+const LINKED_DECKS: Record<string, { commanders: string[]; main: string[] }> = {
+  'moxfield.com/decks/Y8dZ7': { commanders: ["Atraxa, Praetors' Voice"], main: ['Sol Ring', 'Rhystic Study'] },
+  'archidekt.com/decks/42': {
+    commanders: ["Atraxa, Praetors' Voice"],
+    main: ['Delver of Secrets // Insectile Aberration'],
+  },
+};
+const SITES = ['moxfield.com', 'archidekt.com', 'tappedout.net', 'deckstats.net', 'scryfall.com'];
+
 export interface FakeSpellbook {
   readonly apiUrl: string;
   failing: boolean;
+  /** Answers 429 Too Many Requests. */
+  busy: boolean;
+  /** The User-Agent of the last request. */
+  readonly userAgent: string;
   close(): Promise<void>;
 }
 
 export async function startFakeSpellbook(): Promise<FakeSpellbook> {
-  const fake = { apiUrl: '', failing: false, close: async () => undefined } as FakeSpellbook & { apiUrl: string };
+  const fake = {
+    apiUrl: '',
+    failing: false,
+    busy: false,
+    userAgent: '',
+    close: async () => undefined,
+  } as FakeSpellbook & {
+    apiUrl: string;
+    userAgent: string;
+  };
   const server = createServer((request, response) => {
-    if (fake.failing || request.method !== 'POST' || request.url !== '/estimate-bracket') {
-      response.writeHead(fake.failing ? 503 : 404).end();
+    fake.userAgent = request.headers['user-agent'] ?? '';
+    const path = new URL(request.url ?? '/', 'http://spellbook');
+    if (fake.failing || fake.busy) {
+      response.writeHead(fake.busy ? 429 : 503).end();
+      return;
+    }
+    if (request.method === 'GET' && path.pathname === '/card-list-from-url') {
+      const link = new URL(path.searchParams.get('url') ?? '');
+      const site = link.hostname.replace(/^www\./, '');
+      const deck = Object.entries(LINKED_DECKS).find(([at]) => `${site}${link.pathname}`.startsWith(at))?.[1];
+      const json = { 'Content-Type': 'application/json' };
+      if (!SITES.includes(site)) response.writeHead(400, json).end('{"detail":"Unsupported website"}');
+      else if (!deck) response.writeHead(400, json).end('{"detail":"Decklist not available"}');
+      else {
+        const entries = (names: string[]) => names.map((card) => ({ card, quantity: 1 }));
+        response
+          .writeHead(200, json)
+          .end(JSON.stringify({ commanders: entries(deck.commanders), main: entries(deck.main) }));
+      }
+      return;
+    }
+    if (request.method !== 'POST' || path.pathname !== '/estimate-bracket') {
+      response.writeHead(404).end();
       return;
     }
     let body = '';

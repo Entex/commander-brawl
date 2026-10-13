@@ -127,7 +127,7 @@ export interface DesktopApi {
   };
   decks: {
     list(): Promise<readonly SavedDeck[]>;
-    /** A Moxfield or Archidekt link, or a pasted deck list. */
+    /** A deck site's link (Moxfield, Archidekt…), or a pasted deck list. */
     import(source: string): Promise<ImportedDeck>;
     save(deck: DeckList, id: string | null): Promise<SavedDeck>;
     /** Checks the deck for bracket concerns: Game Changers, combos, land denial, extra turns. */

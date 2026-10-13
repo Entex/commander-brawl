@@ -76,7 +76,10 @@ export function parseDeckText(text: string): RawDeck {
   return { name, commanders, cards, sideboard };
 }
 
-/** Matches the names to cards. Commanders the list didn't mark can be chosen from the legendary cards. */
+/**
+ * Matches the names to cards. Commanders the list didn't mark can be chosen from the legendary cards.
+ * A deck without a name is named for its commanders, the way players talk about decks ("Atraxa").
+ */
 export function resolveDeck(
   raw: RawDeck,
   lookup: (name: string) => Card | undefined,
@@ -115,8 +118,13 @@ export function resolveDeck(
           const card = lookup(c.name);
           return card !== undefined && couldBeCommander(card);
         });
-  const name = (raw.name?.trim() || fallbackName).slice(0, MAX_DECK_NAME_LENGTH);
+  const name = (raw.name?.trim() || commanderNames(commanders) || fallbackName).slice(0, MAX_DECK_NAME_LENGTH);
   return { deck: { name, commanders, cards }, unknown: [...new Set(unknown)], commanderCandidates };
+}
+
+/** "Atraxa" for Atraxa, Praetors' Voice; "Tymna & Thrasios" for partners. */
+function commanderNames(commanders: readonly DeckCard[]): string {
+  return commanders.map((c) => c.name.split(' // ')[0]!.split(',')[0]!.trim()).join(' & ');
 }
 
 /** Moves the chosen cards from the deck into the command zone. */

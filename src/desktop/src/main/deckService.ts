@@ -5,7 +5,6 @@ import {
   fetchDeck,
   isDeckLink,
   randomId,
-  type DeckSitesOptions,
   type SpellbookOptions,
 } from '@commander-brawl/infrastructure/node';
 import { readFile, rename, writeFile } from 'node:fs/promises';
@@ -16,7 +15,7 @@ export interface DeckServiceOptions {
   /** Where the saved decks live. */
   readonly file: string;
   readonly cards: CardService;
-  readonly sites: DeckSitesOptions;
+  /** Commander Spellbook, which checks decks and reads them from the deck sites' links. */
   readonly spellbook: SpellbookOptions;
 }
 
@@ -30,11 +29,11 @@ export class DeckService {
     return this.load();
   }
 
-  /** Reads a deck from a Moxfield or Archidekt link, or from a pasted list, and matches it to cards. */
+  /** Reads a deck from a deck site's link (Moxfield, Archidekt…) or a pasted list, and matches it to cards. */
   async import(source: string): Promise<ImportedDeck> {
     const lookup = this.options.cards.lookup();
     if (!lookup) throw new Error('The cards are still downloading. Try again in a moment.');
-    const raw = isDeckLink(source) ? await fetchDeck(source, this.options.sites) : parseDeckText(source);
+    const raw = isDeckLink(source) ? await fetchDeck(source, this.options.spellbook) : parseDeckText(source);
     const imported = resolveDeck(raw, lookup, 'Imported deck');
     if (imported.deck.commanders.length === 0 && imported.deck.cards.length === 0) {
       throw new Error('That doesn\'t look like a deck list. Put one card per line, like "1 Sol Ring".');

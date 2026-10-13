@@ -119,6 +119,7 @@ const testCard = (name: string): Card => ({
   commander: 'legal',
   gameChanger: false,
   image: null,
+  artist: null,
   faces: [],
 });
 const catalog = new CardIndex(

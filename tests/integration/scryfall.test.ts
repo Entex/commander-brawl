@@ -1,4 +1,6 @@
 import { ScryfallCards } from '@commander-brawl/infrastructure/node';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
 import { temporaryDirs } from '../support/temporaryDirs';
@@ -58,12 +60,14 @@ describe('card data from Scryfall', () => {
       gameChanger: true,
       commander: 'legal',
       image: 'front/a/b/rhystic.jpg?1',
+      artist: 'Rhystic Painter',
       faces: [],
     });
     expect(byName("Atraxa, Praetors' Voice").stats).toBe('4/4');
 
     const delver = byName('Delver of Secrets // Insectile Aberration');
     expect(delver.image).toBe('front/d/e/delver.jpg?1');
+    expect(delver.artist).toBe('Delver Painter');
     expect(delver.manaCost).toBe('{U}');
     expect(delver.faces.map((f) => [f.name, f.stats, f.image])).toEqual([
       ['Delver of Secrets', '1/1', 'front/d/e/delver.jpg?1'],
@@ -96,6 +100,17 @@ describe('card data from Scryfall', () => {
 
     await expect(cards.download()).rejects.toThrow('503');
     expect((await cards.loadSaved())?.cards).toHaveLength(12);
+  });
+
+  it('still uses cards saved before artists were kept, until new ones are in', async () => {
+    const { dir, cards } = await scryfall();
+    const card = { id: 'sol-ring', name: 'Sol Ring' };
+    const old = { version: 1, cards: [card], updatedAt: '2026-01-01', savedAt: Date.now() };
+    await writeFile(join(dir, 'cards.json'), JSON.stringify(old));
+    const saved = await cards.loadSaved();
+    expect(saved?.cards).toEqual([{ ...card, artist: null }]);
+    // As if they were old, so new ones are downloaded right away.
+    expect(saved?.savedAt).toBe(0);
   });
 
   it('has nothing saved before the first download', async () => {

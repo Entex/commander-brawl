@@ -16,6 +16,7 @@ function card(name: string, typeLine = 'Artifact', oracleText = ''): Card {
     commander: 'legal',
     gameChanger: false,
     image: null,
+    artist: null,
     faces: [],
   };
 }
@@ -93,7 +94,7 @@ SIDEBOARD:
 });
 
 describe('matching a deck list to cards', () => {
-  it('finds the cards, merges duplicates, and lists names it does not know', () => {
+  it('finds the cards, merges duplicates, lists names it does not know, and names the deck for its commander', () => {
     const imported = resolveDeck(
       parseDeckText(`Commander
 1 Atraxa, Praetors' Voice
@@ -106,7 +107,7 @@ Deck
       'My deck',
     );
     expect(imported.deck).toEqual({
-      name: 'My deck',
+      name: 'Atraxa',
       commanders: [{ id: 'atraxa-praetors-voice', name: "Atraxa, Praetors' Voice", count: 1 }],
       cards: [
         { id: 'sol-ring', name: 'Sol Ring', count: 2 },
@@ -123,6 +124,7 @@ Deck
       'D',
     );
     expect(imported.deck.commanders).toEqual([]);
+    expect(imported.deck.name).toBe('D');
     expect(imported.commanderCandidates.map((c) => c.name)).toEqual(['Tymna the Weaver', 'Winota, Joiner of Forces']);
 
     const chosen = chooseCommanders(imported.deck, ['tymna-the-weaver']);

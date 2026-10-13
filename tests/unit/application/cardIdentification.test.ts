@@ -29,6 +29,7 @@ function card(name: string, art: number): Card & { art: number } {
     commander: 'legal',
     gameChanger: false,
     image: `${name}.jpg`,
+    artist: null,
     faces: [],
     art,
   };
