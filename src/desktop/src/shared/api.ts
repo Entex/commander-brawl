@@ -1,4 +1,4 @@
-import type { GameView, SignalingEvent } from '@commander-brawl/application';
+import type { GameView, LoggedEvent, SignalingEvent } from '@commander-brawl/application';
 import type { GameAction } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
@@ -52,6 +52,10 @@ export interface DesktopApi {
     view(): Promise<GameView | null>;
     submit(event: GameAction): void;
     onView(listener: (view: GameView) => void): () => void;
+    /** The whole log, oldest first. */
+    log(): Promise<readonly LoggedEvent[]>;
+    /** Asks where to save the text, then saves it. False if the player cancelled. */
+    saveLog(text: string): Promise<boolean>;
   };
   phone: {
     info(): Promise<PhoneLinkInfo>;
@@ -71,6 +75,8 @@ export const Channels = {
   gameView: 'game:view',
   gameSubmit: 'game:submit',
   gameUpdate: 'game:update',
+  gameLog: 'game:log',
+  gameSaveLog: 'game:save-log',
   phoneInfo: 'phone:info',
   phoneSend: 'phone:send',
   phoneEvent: 'phone:event',

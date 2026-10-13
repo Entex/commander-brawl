@@ -21,6 +21,8 @@ const api: DesktopApi = {
     view: () => ipcRenderer.invoke(Channels.gameView),
     submit: (event) => ipcRenderer.send(Channels.gameSubmit, event),
     onView: (listener) => listen(Channels.gameUpdate, listener),
+    log: () => ipcRenderer.invoke(Channels.gameLog),
+    saveLog: (text) => ipcRenderer.invoke(Channels.gameSaveLog, text),
   },
   phone: {
     info: () => ipcRenderer.invoke(Channels.phoneInfo),

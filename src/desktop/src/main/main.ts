@@ -1,5 +1,15 @@
 import { lanAddresses, loadOrCreateIdentity } from '@commander-brawl/infrastructure/node';
-import { app, BrowserWindow, ipcMain, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  session,
+  shell,
+  type IpcMainEvent,
+  type IpcMainInvokeEvent,
+} from 'electron';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Channels, type RendererConfig } from '../shared/api';
 import { PhoneLinkService } from './phoneLinkService';
@@ -13,6 +23,8 @@ const env = {
   tablePort: Number(process.env.CB_TABLE_PORT ?? 47801),
   useUpnp: process.env.CB_UPNP !== 'off',
   localOnly: process.env.CB_LOCAL_ONLY === '1',
+  /** Save files here without asking, for tests. */
+  saveDir: process.env.CB_SAVE_DIR,
 };
 
 if (env.userDataDir) app.setPath('userData', env.userDataDir);
@@ -94,6 +106,8 @@ function registerIpc(table: TableService, phone: PhoneLinkService): void {
   handle(Channels.tableLeave, () => table.leave());
   handle(Channels.tableSnapshot, () => table.snapshot());
   handle(Channels.gameView, () => table.gameView());
+  handle(Channels.gameLog, () => table.gameLog());
+  handle(Channels.gameSaveLog, (text) => saveText(requireString(text)));
   handle(Channels.phoneInfo, () => phone.info());
   on(Channels.tableSend, (to, data) => {
     if (typeof to === 'string') table.send(to, data);
@@ -113,6 +127,24 @@ function on(channel: string, listener: (...args: unknown[]) => void): void {
   ipcMain.on(channel, (event: IpcMainEvent, ...args: unknown[]) => {
     if (event.sender === mainWindow?.webContents) listener(...args);
   });
+}
+
+async function saveText(text: string): Promise<boolean> {
+  const name = `commander-brawl-log-${new Date().toISOString().slice(0, 10)}.txt`;
+  let path: string | undefined;
+  if (env.saveDir) {
+    path = join(env.saveDir, name);
+  } else if (mainWindow) {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save the game log',
+      defaultPath: join(app.getPath('documents'), name),
+      filters: [{ name: 'Text', extensions: ['txt'] }],
+    });
+    path = result.canceled ? undefined : result.filePath;
+  }
+  if (!path) return false;
+  await writeFile(path, text, 'utf8');
+  return true;
 }
 
 function requireString(value: unknown): string {

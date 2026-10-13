@@ -1,6 +1,8 @@
 import {
   GameSync,
   HostGameLog,
+  replayLog,
+  type AppendResult,
   type GameSyncMessage,
   type LogBatch,
   type LoggedEvent,
@@ -12,6 +14,14 @@ const alice: Player = { id: 'alice', name: 'Alice', seat: 0 };
 const bob: Player = { id: 'bob', name: 'Bob', seat: 1 };
 const hit = (seat: 0 | 1 | 2 | 3, amount: number): GameEvent => ({ type: 'life-changed', seat, amount });
 
+const refused = { ok: false, reason: 'refused' };
+
+/** The entry the host added, failing the test if it didn't add one. */
+function added(result: AppendResult): LoggedEvent {
+  if (!result.ok) throw new Error(`expected the host to add the event, but it was ${result.reason}`);
+  return result.entry;
+}
+
 describe('HostGameLog', () => {
   let log: HostGameLog;
 
@@ -21,17 +31,17 @@ describe('HostGameLog', () => {
   });
 
   it('numbers events in the order they arrive and records who and when', () => {
-    const first = log.append(alice, 'e1', hit(1, -3));
-    const second = log.append(bob, 'e2', hit(0, -2));
+    const first = added(log.append(alice, 'e1', hit(1, -3)));
+    const second = added(log.append(bob, 'e2', hit(0, -2)));
 
     expect(first).toEqual({ seq: 0, id: 'e1', at: 1_000, by: alice, event: hit(1, -3) });
-    expect(second?.seq).toBe(1);
+    expect(second.seq).toBe(1);
     expect(log.length).toBe(2);
   });
 
   it('ignores an event it already has, so a resend is harmless', () => {
     log.append(alice, 'e1', hit(1, -3));
-    expect(log.append(alice, 'e1', hit(1, -3))).toBeNull();
+    expect(log.append(alice, 'e1', hit(1, -3))).toEqual({ ok: false, reason: 'duplicate' });
     expect(log.length).toBe(1);
   });
 
@@ -41,12 +51,31 @@ describe('HostGameLog', () => {
       () => 0,
       () => 0.999,
     );
-    const entry = shuffled.append(alice, 'e1', { type: 'randomize-turn-order', seats: [0, 1] });
-    expect(entry?.event.type).toBe('turn-order-set');
+    const entry = added(shuffled.append(alice, 'e1', { type: 'randomize-turn-order', seats: [0, 1] }));
+    expect(entry.event.type).toBe('turn-order-set');
+  });
+
+  it('lets players take back their own changes, once', () => {
+    log.append(alice, 'e1', hit(1, -3));
+    expect(added(log.append(alice, 'u1', { type: 'undo', target: 'e1' })).event).toEqual({
+      type: 'undo',
+      target: 'e1',
+    });
+    expect(log.append(alice, 'u2', { type: 'undo', target: 'e1' })).toEqual(refused);
+  });
+
+  it('does not let players take back someone else’s change, an undo, or something that never happened', () => {
+    log.append(alice, 'e1', hit(1, -3));
+    log.append(alice, 'u1', { type: 'undo', target: 'e1' });
+    expect(log.append(bob, 'x1', { type: 'undo', target: 'e1' })).toEqual(refused);
+    expect(log.append(alice, 'x2', { type: 'undo', target: 'u1' })).toEqual(refused);
+    expect(log.append(alice, 'x3', { type: 'undo', target: 'nope' })).toEqual(refused);
+    log.append(alice, 'e2', hit(0, -1));
+    expect(log.append(bob, 'x4', { type: 'undo', target: 'e2' })).toEqual(refused);
   });
 
   it('refuses invalid events', () => {
-    expect(log.append(alice, 'e1', { type: 'life-changed', seat: 9, amount: 1 })).toBeNull();
+    expect(log.append(alice, 'e1', { type: 'life-changed', seat: 9, amount: 1 })).toEqual(refused);
     expect(log.length).toBe(0);
   });
 
@@ -83,22 +112,44 @@ class Harness {
 
   /** Something another player did, as the host broadcasts it. */
   otherPlayer(id: string, event: GameEvent): LoggedEvent {
-    const entry = this.host.append(bob, id, event)!;
-    return entry;
+    return added(this.host.append(bob, id, event));
   }
 
   private deliver(message: GameSyncMessage): boolean {
     this.sent.push(message);
     if (!this.online) return false;
     if (message.kind === 'event') {
-      const entry = this.host.append(this.player, message.id, message.event);
-      if (entry) this.sync.received({ logId: this.host.logId, from: entry.seq, events: [entry] });
+      const result = this.host.append(this.player, message.id, message.event);
+      if (result.ok) this.sync.received({ logId: this.host.logId, from: result.entry.seq, events: [result.entry] });
+      else if (result.reason === 'refused') this.sync.refused(message.id);
     } else {
       this.sync.received(this.host.batchFor(message.logId, message.from));
     }
     return true;
   }
 }
+
+describe('replayLog', () => {
+  it('works out the game as if undone events never happened', () => {
+    const entries = [
+      { id: 'a', event: hit(0, -5) },
+      { id: 'b', event: hit(0, -3) },
+      { id: 'c', event: { type: 'undo', target: 'a' } as GameEvent },
+    ];
+    expect(replayLog(entries).seats[0]!.life).toBe(37);
+  });
+
+  it('can bring back a game that was reset by accident', () => {
+    const entries = [
+      { id: 'a', event: hit(2, -12) },
+      { id: 'b', event: { type: 'new-game', startingLife: 40 } as GameEvent },
+      { id: 'c', event: { type: 'undo', target: 'b' } as GameEvent },
+    ];
+    const state = replayLog(entries);
+    expect(state.number).toBe(1);
+    expect(state.seats[2]!.life).toBe(28);
+  });
+});
 
 describe('GameSync', () => {
   it('shows your change at once and keeps it once the host confirms it', () => {
@@ -152,6 +203,34 @@ describe('GameSync', () => {
     expect(h.sync.getView().state.turnOrder).toHaveLength(2);
   });
 
+  it('takes back your own change at once and keeps it taken back once the host confirms', () => {
+    const h = new Harness();
+    h.sync.connected();
+    h.sync.submit(hit(1, -4));
+    const id = h.sync.getLog()[0]!.id;
+    h.online = false;
+    h.sync.submit({ type: 'undo', target: id });
+    expect(h.life(1)).toBe(40);
+
+    h.online = true;
+    h.sync.connected();
+    expect(h.life(1)).toBe(40);
+    expect(h.sync.getView().unconfirmed).toBe(0);
+  });
+
+  it('drops an action the host turned down, so the preview stops showing it', () => {
+    const h = new Harness(bob);
+    h.sync.connected();
+    const theirs = h.host.append(alice, 'alice-0', hit(2, -6));
+    h.sync.received(h.host.batchFor('log-1', 0));
+    expect(theirs.ok && h.life(2)).toBe(34);
+
+    h.sync.submit({ type: 'undo', target: 'alice-0' });
+
+    expect(h.life(2)).toBe(34);
+    expect(h.sync.getView().unconfirmed).toBe(0);
+  });
+
   it('applies everyone’s changes in the host’s order', () => {
     const h = new Harness();
     h.sync.connected();
@@ -203,7 +282,7 @@ describe('GameSync', () => {
     h.sync.submit(hit(0, -10));
 
     const otherTable = new HostGameLog('log-2', () => 0);
-    const entry = otherTable.append(bob, 'x', hit(3, -1))!;
+    const entry = added(otherTable.append(bob, 'x', hit(3, -1)));
     h.sync.received({ logId: 'log-2', from: 0, events: [entry] });
 
     expect(h.life(0)).toBe(40);
@@ -215,7 +294,7 @@ describe('GameSync', () => {
     h.online = false;
     const otherTable = new HostGameLog('log-2', () => 0);
     otherTable.append(bob, 'x', hit(3, -1));
-    const second = otherTable.append(bob, 'y', hit(3, -1))!;
+    const second = added(otherTable.append(bob, 'y', hit(3, -1)));
     h.sync.received({ logId: 'log-2', from: 1, events: [second] });
     expect(h.sent.at(-1)).toEqual({ kind: 'sync', logId: null, from: 0 });
   });

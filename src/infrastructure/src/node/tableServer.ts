@@ -117,9 +117,15 @@ export class TableServer {
         }
         case 'event': {
           const author = this.host.members.find((m) => m.id === memberId);
-          const entry = author ? this.game.append(author, message.id, message.event) : null;
-          // Everyone gets it, the author too: that's their confirmation.
-          if (entry) this.broadcastAll({ t: 'events', logId: this.game.logId, from: entry.seq, events: [entry] });
+          if (!author) break;
+          const result = this.game.append(author, message.id, message.event);
+          if (result.ok) {
+            // Everyone gets it, the author too: that's their confirmation.
+            const { entry } = result;
+            this.broadcastAll({ t: 'events', logId: this.game.logId, from: entry.seq, events: [entry] });
+          } else if (result.reason === 'refused') {
+            send(ws, { t: 'refused', id: message.id });
+          }
           break;
         }
         case 'sync': {

@@ -8,6 +8,9 @@ export function syncGame(client: TableClient): GameSync {
   client.subscribe((event) => {
     if (event.type === 'welcome') game.connected();
   });
-  client.subscribeGame((batch) => game.received(batch));
+  client.subscribeGame((update) => {
+    if (update.type === 'batch') game.received(update.batch);
+    else game.refused(update.id);
+  });
   return game;
 }

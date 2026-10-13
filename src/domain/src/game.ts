@@ -104,7 +104,12 @@ export type GameEvent =
   | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[] }
   /** Only counts if `from` still has the turn, so a double click can't skip a player. */
   | { readonly type: 'turn-passed'; readonly from: SeatIndex }
-  | { readonly type: 'new-game'; readonly startingLife: number };
+  | { readonly type: 'new-game'; readonly startingLife: number }
+  /**
+   * Takes back an earlier event, by its id in the game log. The state is then worked out as if that
+   * event never happened, so this is handled where the whole log is known (see replayLog), not here.
+   */
+  | { readonly type: 'undo'; readonly target: string };
 
 export type LossReason =
   | { readonly kind: 'life' }
@@ -205,6 +210,8 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
       return passTurn(state, event.from);
     case 'new-game':
       return newGame(event.startingLife, state.number + 1, state);
+    case 'undo':
+      return state;
   }
 }
 
@@ -306,6 +313,8 @@ export function toGameEvent(raw: unknown): GameEvent | null {
       return isSeatList(value.order) ? { type: 'turn-order-set', order: value.order } : null;
     case 'turn-passed':
       return isSeat(value.from) ? { type: 'turn-passed', from: value.from } : null;
+    case 'undo':
+      return isEventId(value.target) ? { type: 'undo', target: value.target } : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE
         ? { type: 'new-game', startingLife: value.startingLife }
@@ -332,6 +341,11 @@ export function isSeatList(value: unknown): value is SeatIndex[] {
     value.every(isSeat) &&
     new Set(value).size === value.length
   );
+}
+
+/** The id a player gives each change when they send it. */
+export function isEventId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value);
 }
 
 function isCounterId(value: unknown): value is string {

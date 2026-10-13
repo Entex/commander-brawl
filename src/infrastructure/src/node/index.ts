@@ -8,6 +8,6 @@ export { openRouterPort } from './portMapping';
 export type { PortMappingResult } from './portMapping';
 export { nodeTimers, randomId, safeEquals, secureRandom } from './runtime';
 export { TableClient } from './tableClient';
-export type { TableClientOptions } from './tableClient';
+export type { GameUpdate, TableClientOptions } from './tableClient';
 export { TableServer } from './tableServer';
 export type { TableServerOptions } from './tableServer';

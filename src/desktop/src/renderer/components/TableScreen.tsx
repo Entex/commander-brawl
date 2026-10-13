@@ -1,4 +1,11 @@
-import { TableSession, type GameView, type SeatView, type TableSessionState } from '@commander-brawl/application';
+import {
+  TableSession,
+  undoneIds,
+  type GameView,
+  type LoggedEvent,
+  type SeatView,
+  type TableSessionState,
+} from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
 import { MAX_SEATS, STARTING_LIFE, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
@@ -9,6 +16,8 @@ import { seatName, type Players } from '../names';
 import type { CameraState } from '../useCamera';
 import { submitGameEvent, useGame } from '../useGame';
 import { CountersPanel } from './CountersPanel';
+import { LogPanel } from './LogPanel';
+import { Menu } from './Menu';
 import { EmptySeat, SeatTile } from './SeatTile';
 import { TableCounters } from './TableCounters';
 
@@ -29,6 +38,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const game = useGame();
   const [showStats, setShowStats] = useState(false);
   const [countersOpen, setCountersOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const undoTarget = useUndoTarget(game, state);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -51,7 +62,6 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     <div className="table-screen">
       <header className="toolbar">
         <div className="toolbar-group">
-          <strong>Commander Brawl</strong>
           {game && <span className="hint">Game {game.state.number}</span>}
           {host && (
             <>
@@ -62,20 +72,53 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             </>
           )}
         </div>
-        {game && <TurnControls game={game.state} players={state.seats} />}
-        <LastChange game={game} state={state} />
+        <div className="toolbar-middle">
+          {game && <TurnControls game={game.state} players={state.seats} />}
+          <LastChange game={game} state={state} />
+        </div>
         <div className="toolbar-group">
-          <NewGameButton onConfirm={() => submitGameEvent({ type: 'new-game', startingLife: STARTING_LIFE })} />
+          <button
+            disabled={!undoTarget}
+            title={
+              undoTarget && game ? `Undo “${describeEvent(undoTarget, state.seats, game.state)}” (Ctrl+Z)` : undefined
+            }
+            onClick={() => undoTarget && submitGameEvent({ type: 'undo', target: undoTarget.id })}
+          >
+            Undo
+          </button>
+          <button onClick={() => setLogOpen(!logOpen)} aria-pressed={logOpen} disabled={!game}>
+            Log
+          </button>
           <button onClick={() => setCountersOpen(true)} disabled={!game}>
             Counters
           </button>
-          <button onClick={onOpenCamera}>Camera</button>
-          <button onClick={() => setShowStats((v) => !v)} aria-pressed={showStats}>
-            Stats
-          </button>
-          <button className="danger" onClick={onLeave}>
-            {host ? 'Close table' : 'Leave'}
-          </button>
+          <Menu label="Menu">
+            {(close) => (
+              <>
+                <NewGameButton
+                  onConfirm={() => {
+                    close();
+                    submitGameEvent({ type: 'new-game', startingLife: STARTING_LIFE });
+                  }}
+                />
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
+                    onOpenCamera();
+                  }}
+                >
+                  Camera
+                </button>
+                <button role="menuitemcheckbox" aria-checked={showStats} onClick={() => setShowStats((v) => !v)}>
+                  {showStats ? 'Hide stats' : 'Show stats'}
+                </button>
+                <button role="menuitem" className="danger" onClick={onLeave}>
+                  {host ? 'Close table' : 'Leave'}
+                </button>
+              </>
+            )}
+          </Menu>
         </div>
       </header>
 
@@ -84,6 +127,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {game && <TableCounters game={game.state} />}
       {game && countersOpen && <CountersPanel game={game.state} onClose={() => setCountersOpen(false)} />}
       {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
+
+      {game && logOpen && <LogPanel game={game} players={state.seats} onClose={() => setLogOpen(false)} />}
 
       <main className="seats">
         {seats.map((seat, index) =>
@@ -109,9 +154,17 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 function ReachabilityBadge({ host }: { readonly host: HostInfo }) {
   const { reachability } = host;
   if (reachability.kind === 'internet') {
-    return <span className="badge badge-ok">Friends can join over the internet</span>;
+    return (
+      <span className="badge badge-ok" title="Friends can join over the internet">
+        Open
+      </span>
+    );
   }
-  return <span className="badge badge-warn">Only players on your network can join</span>;
+  return (
+    <span className="badge badge-warn" title="Only players on your network can join">
+      Local network only
+    </span>
+  );
 }
 
 function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
@@ -171,6 +224,31 @@ function TurnControls({ game, players }: { readonly game: GameState; readonly pl
   );
 }
 
+/** Your most recent change that hasn't been taken back yet. Ctrl+Z takes it back. */
+function useUndoTarget(game: GameView | null, state: TableSessionState<MediaStreamTrack>): LoggedEvent | null {
+  const self = state.seats.find((s) => s.isSelf)?.player.seat;
+  const recent = game?.recent ?? [];
+  const undone = undoneIds(recent);
+  const target =
+    [...recent].reverse().find((e) => e.by.seat === self && e.event.type !== 'undo' && !undone.has(e.id)) ?? null;
+
+  const targetId = target?.id;
+  useEffect(() => {
+    if (!targetId) return;
+    const onKey = (event: KeyboardEvent) => {
+      const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && !typing) {
+        event.preventDefault();
+        submitGameEvent({ type: 'undo', target: targetId });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [targetId]);
+
+  return target;
+}
+
 function LastChange({
   game,
   state,
@@ -182,7 +260,7 @@ function LastChange({
   if (!game || !last) return null;
   return (
     <span className="last-change" data-testid="last-change">
-      {describeEvent(last, state.seats, game.state)}
+      {describeEvent(last, state.seats, game.state, (id) => game.recent.find((e) => e.id === id))}
     </span>
   );
 }
@@ -197,6 +275,7 @@ function NewGameButton({ onConfirm }: { onConfirm(): void }) {
   }, [armed]);
   return (
     <button
+      role="menuitem"
       className={armed ? 'danger armed' : undefined}
       onClick={() => {
         setArmed(!armed);

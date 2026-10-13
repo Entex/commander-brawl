@@ -1,5 +1,5 @@
-export { GameSync, HostGameLog, MAX_LOG_LENGTH } from './gameLog';
-export type { GameSyncMessage, GameSyncTransport, GameView, LogBatch, LoggedEvent } from './gameLog';
+export { GameSync, HostGameLog, MAX_LOG_LENGTH, replayLog, undoneIds } from './gameLog';
+export type { AppendResult, GameSyncMessage, GameSyncTransport, GameView, LogBatch, LoggedEvent } from './gameLog';
 export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';
 export type { Invite } from './invite';
 export { TableHost } from './tableHost';

@@ -33,6 +33,8 @@ export type TableServerMessage =
   | { readonly t: 'member-left'; readonly memberId: string }
   | { readonly t: 'signal'; readonly from: string; readonly data: unknown }
   | { readonly t: 'events'; readonly logId: string; readonly from: number; readonly events: readonly LoggedEvent[] }
+  /** One of your game actions was turned down; drop it. */
+  | { readonly t: 'refused'; readonly id: string }
   | { readonly t: 'rejected'; readonly reason: TableRejection };
 
 /** Close codes the server uses so clients know whether reconnecting makes sense. */
@@ -99,6 +101,8 @@ export function parseServerMessage(raw: string): TableServerMessage | null {
         ? { t: 'events', logId: message.logId, from: message.from, events }
         : null;
     }
+    case 'refused':
+      return isShortString(message.id) ? { t: 'refused', id: message.id } : null;
     case 'rejected':
       return isRejection(message.reason) ? { t: 'rejected', reason: message.reason } : null;
     default:

@@ -158,6 +158,23 @@ describe('shared game state', () => {
     expect(latecomer.game.getView().recent.map((e) => e.by.name)).toEqual(['Alice', 'Alice']);
   });
 
+  it('players can take back their own changes, but not anyone else’s', async () => {
+    const invite = await host();
+    const alice = await join(invite, 'Alice');
+    const bob = await join(invite, 'Bob');
+    alice.game.submit(hit(2, -6));
+    await settle([alice, bob], 1);
+    const id = alice.game.getLog()[0]!.id;
+
+    bob.game.submit({ type: 'undo', target: id });
+    await waitFor(() => bob.game.getView().unconfirmed === 0, { message: 'the host to turn Bob down' });
+    expect(lives(bob)[2]).toBe(34);
+
+    alice.game.submit({ type: 'undo', target: id });
+    await settle([alice, bob], 2);
+    for (const player of [alice, bob]) expect(lives(player)[2]).toBe(40);
+  });
+
   it('the host records who made each change, so nobody can pretend to be someone else', async () => {
     const invite = await host();
     const alice = await join(invite, 'Alice');

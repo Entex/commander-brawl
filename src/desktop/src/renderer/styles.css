@@ -220,6 +220,53 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.toolbar {
+  gap: 1rem;
+}
+
+.toolbar button {
+  white-space: nowrap;
+}
+
+.toolbar-middle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu-items {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+
+.menu-items button {
+  text-align: left;
+  border-color: transparent;
+  background: transparent;
+}
+
+.menu-items button:hover {
+  background: var(--panel);
 }
 
 .banner {
@@ -328,6 +375,7 @@ button.armed {
 
 .last-change {
   flex: 1;
+  min-width: 0;
   text-align: center;
   color: var(--muted);
   font-size: 0.9rem;
@@ -639,6 +687,7 @@ button.swatch.selected {
   align-items: center;
   gap: 0.6rem;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .seat-active {
@@ -649,6 +698,62 @@ button.swatch.selected {
 .badge-turn {
   background: var(--accent);
   color: #0b0d12;
+  font-weight: 600;
+}
+
+.table-screen {
+  position: relative;
+}
+
+.log-panel {
+  position: absolute;
+  top: 49px;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 90vw);
+  z-index: 5;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 0.8rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  box-shadow: -8px 0 24px rgb(0 0 0 / 0.35);
+}
+
+.log-panel select {
+  width: auto;
+}
+
+.log-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.log-entries li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.log-entries time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.log-entries .undone span:first-of-type {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.log-entries .log-game {
   font-weight: 600;
 }
 

@@ -3,8 +3,16 @@ import type { GameState } from '@commander-brawl/domain';
 import { COUNTER_NAMES, commanderName, seatName, type Players } from './names';
 import { formatChange } from './useGroupedChange';
 
-/** One line for the game log, e.g. "Robin: Alex −3 life". */
-export function describeEvent(entry: LoggedEvent, players: Players, game: GameState): string {
+/**
+ * One line for the game log, e.g. "Robin: Alex −3 life".
+ * `find` looks up other log entries, so an undo can say what it took back.
+ */
+export function describeEvent(
+  entry: LoggedEvent,
+  players: Players,
+  game: GameState,
+  find: (id: string) => LoggedEvent | undefined = () => undefined,
+): string {
   const { event, by } = entry;
   switch (event.type) {
     case 'life-changed': {
@@ -65,5 +73,9 @@ export function describeEvent(entry: LoggedEvent, players: Players, game: GameSt
     }
     case 'new-game':
       return `${by.name} started a new game`;
+    case 'undo': {
+      const target = find(event.target);
+      return target ? `${by.name} undid “${describeEvent(target, players, game)}”` : `${by.name} undid a change`;
+    }
   }
 }

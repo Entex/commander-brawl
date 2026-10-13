@@ -106,3 +106,4 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 | `CB_LOCAL_ONLY=1`                | Don't use the public address-lookup (STUN) servers; local network only.                |
 | `CB_TABLE_PORT`, `CB_PHONE_PORT` | Ports for hosting and for the phone page (`0` = any free port).                        |
 | `CB_RENDERER_URL`                | Load the UI from a dev server.                                                         |
+| `CB_SAVE_DIR`                    | Save files (like the game log) here without asking.                                    |

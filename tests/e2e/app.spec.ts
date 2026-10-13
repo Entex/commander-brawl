@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -11,6 +11,8 @@ const appDir = resolve(import.meta.dirname, '../../build/app');
 interface Instance {
   readonly app: ElectronApplication;
   readonly page: Page;
+  /** Where the app saves files, instead of asking. */
+  readonly saveDir: string;
 }
 
 const running: Instance[] = [];
@@ -20,6 +22,7 @@ test.afterEach(async () => {
 });
 
 async function launch(name: string): Promise<Instance> {
+  const saveDir = await mkdtemp(join(tmpdir(), 'cb-e2e-save-'));
   const app = await electron.launch({
     args: [appDir, '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     env: {
@@ -29,10 +32,11 @@ async function launch(name: string): Promise<Instance> {
       CB_LOCAL_ONLY: '1',
       CB_TABLE_PORT: '0',
       CB_PHONE_PORT: '0',
+      CB_SAVE_DIR: saveDir,
     },
   });
   const page = await app.firstWindow();
-  const instance = { app, page };
+  const instance = { app, page, saveDir };
   running.push(instance);
   await page.getByTestId('name').fill(name);
   await useWebcam(page);
@@ -81,7 +85,8 @@ test('a host and a friend see each other', async () => {
   await expectVideoFrom(host.page, 'Friend');
   await expectVideoFrom(friend.page, 'Host');
 
-  await friend.page.getByRole('button', { name: 'Leave' }).click();
+  await friend.page.getByRole('button', { name: 'Menu' }).click();
+  await friend.page.getByRole('menuitem', { name: 'Leave' }).click();
   await expect(host.page.locator('.seat:not(.seat-free)')).toHaveCount(1);
 });
 
@@ -94,7 +99,8 @@ test('closing the table tells the friends', async () => {
   await friend.page.getByTestId('join').click();
   await expectVideoFrom(friend.page, 'Host');
 
-  await host.page.getByRole('button', { name: 'Close table' }).click();
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Close table' }).click();
 
   await expect(friend.page.getByText('The host closed the table.')).toBeVisible();
 });
@@ -138,8 +144,9 @@ test('life totals are shared, and everyone sees who changed what', async () => {
   await expect(friend.page.getByTestId('life-total-0')).toHaveText('37');
   await expect(host.page.getByTestId('last-change')).toHaveText('Friend: Host −3 life');
 
-  await host.page.getByRole('button', { name: 'New game' }).click();
-  await host.page.getByRole('button', { name: 'Start a new game?' }).click();
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'New game' }).click();
+  await host.page.getByRole('menuitem', { name: 'Start a new game?' }).click();
   await expect(friend.page.getByTestId('life-total-0')).toHaveText('40');
   await expect(friend.page.getByText('Game 2')).toBeVisible();
 });
@@ -244,4 +251,33 @@ test('a shuffled turn order, passed around the table', async () => {
   await expect(second.page.getByTestId('turn')).toContainText('Turn 2 · Round 1 · Your turn');
   await expect(first.page.getByRole('button', { name: 'Pass turn' })).toHaveCount(0);
   await expect(first.page.locator('.seat[data-active="true"]')).toHaveCount(1);
+});
+
+test('undo, the game log, and saving it', async () => {
+  const { host, friend } = await hostAndFriend();
+  for (let i = 0; i < 3; i++) {
+    await friend.page.getByTestId('life-0').getByRole('button', { name: 'Lose 1 life' }).click();
+  }
+  await expect(host.page.getByTestId('life-total-0')).toHaveText('37');
+
+  await friend.page.keyboard.press('Control+z');
+  await expect(host.page.getByTestId('life-total-0')).toHaveText('40');
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend undid “Friend: Host −3 life”');
+  // The host can't undo the friend's change.
+  await expect(host.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+
+  await friend.page.getByRole('button', { name: 'Log' }).click();
+  const log = friend.page.getByTestId('log-panel');
+  await expect(log.locator('li')).toHaveCount(2);
+  await expect(log.locator('li.undone')).toContainText('Friend: Host −3 life');
+
+  await log.getByLabel('Show').selectOption({ label: 'Host' });
+  await expect(log.locator('li')).toHaveCount(1);
+
+  await log.getByRole('button', { name: 'Save as text' }).click();
+  await expect(log.getByText('Saved.')).toBeVisible();
+  const [file] = await readdir(friend.saveDir);
+  const text = await readFile(join(friend.saveDir, file!), 'utf8');
+  expect(text).toContain('Friend: Host −3 life  (undone)');
+  expect(text).toContain('Players: Host, Friend');
 });

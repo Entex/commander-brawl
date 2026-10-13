@@ -4,6 +4,7 @@ import {
   type GameSync,
   type GameView,
   type Invite,
+  type LoggedEvent,
   type SignalingEvent,
 } from '@commander-brawl/application';
 import { normalizePlayerName, toGameAction } from '@commander-brawl/domain';
@@ -100,6 +101,10 @@ export class TableService {
 
   gameView(): GameView | null {
     return this.game?.getView() ?? null;
+  }
+
+  gameLog(): readonly LoggedEvent[] {
+    return this.game?.getLog() ?? [];
   }
 
   /** A change from the UI. It comes from the renderer, so check it like anything else from outside. */

@@ -32,13 +32,40 @@ export interface LogBatch {
   readonly events: readonly LoggedEvent[];
 }
 
+interface Recorded {
+  readonly id: string;
+  readonly event: GameEvent;
+}
+
+/** Ids of the events that were taken back. */
+export function undoneIds(entries: Iterable<Recorded>): Set<string> {
+  const undone = new Set<string>();
+  for (const entry of entries) if (entry.event.type === 'undo') undone.add(entry.event.target);
+  return undone;
+}
+
+/** The game as if the events that were taken back never happened. */
+export function replayLog(entries: Iterable<Recorded>): GameState {
+  const all = [...entries];
+  const undone = undoneIds(all);
+  let state = newGame();
+  for (const entry of all) {
+    if (entry.event.type !== 'undo' && !undone.has(entry.id)) state = applyEvent(state, entry.event);
+  }
+  return state;
+}
+
 /** Keeps a game session to roughly a few hours of play. Past this, the host stops taking new events. */
 export const MAX_LOG_LENGTH = 100_000;
+
+export type AppendResult =
+  { readonly ok: true; readonly entry: LoggedEvent } | { readonly ok: false; readonly reason: 'duplicate' | 'refused' };
 
 /** The host's copy of the log. It decides the order everyone applies events in. */
 export class HostGameLog {
   private readonly entries: LoggedEvent[] = [];
-  private readonly seen = new Set<string>();
+  private readonly byId = new Map<string, LoggedEvent>();
+  private readonly undone = new Set<string>();
 
   constructor(
     readonly logId: string,
@@ -51,16 +78,30 @@ export class HostGameLog {
     return this.entries.length;
   }
 
-  /** Adds a player's action. Returns null for a duplicate or invalid one. */
-  append(author: Player, id: string, raw: unknown): LoggedEvent | null {
-    if (this.seen.has(id) || this.entries.length >= MAX_LOG_LENGTH) return null;
+  /**
+   * Adds a player's action. A duplicate is one already in the log (a resend after a dropped connection);
+   * a refused one isn't valid or isn't allowed, and the player who sent it should drop it.
+   */
+  append(author: Player, id: string, raw: unknown): AppendResult {
+    if (this.byId.has(id)) return { ok: false, reason: 'duplicate' };
+    if (this.entries.length >= MAX_LOG_LENGTH) return { ok: false, reason: 'refused' };
     const action = toGameAction(raw);
-    if (!action) return null;
+    if (!action) return { ok: false, reason: 'refused' };
     const event = resolveAction(action, this.random);
+    if (event.type === 'undo' && !this.canUndo(author, event.target)) return { ok: false, reason: 'refused' };
     const entry: LoggedEvent = { seq: this.entries.length, id, at: this.now(), by: { ...author }, event };
     this.entries.push(entry);
-    this.seen.add(id);
-    return entry;
+    this.byId.set(id, entry);
+    if (event.type === 'undo') this.undone.add(event.target);
+    return { ok: true, entry };
+  }
+
+  /** Players can only take back their own changes, once. Fixing someone else's mistake is a new change. */
+  private canUndo(author: Player, target: string): boolean {
+    const entry = this.byId.get(target);
+    return (
+      entry !== undefined && entry.event.type !== 'undo' && !this.undone.has(target) && entry.by.seat === author.seat
+    );
   }
 
   /** Answers a player's request to catch up. A player with a different log (or none) gets all of it. */
@@ -114,6 +155,11 @@ export class GameSync {
     return this.view;
   }
 
+  /** The whole confirmed log, oldest first. */
+  getLog(): readonly LoggedEvent[] {
+    return [...this.log];
+  }
+
   subscribe(listener: (view: GameView) => void): Unsubscribe {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -151,17 +197,28 @@ export class GameSync {
     }
 
     let changed = false;
+    let undo = false;
     for (const entry of batch.events.slice(this.log.length - batch.from)) {
       if (entry.seq !== this.log.length) {
         this.requestFrom(this.log.length);
         break;
       }
       this.log.push(entry);
-      this.confirmed = applyEvent(this.confirmed, entry.event);
+      if (entry.event.type === 'undo') undo = true;
+      else this.confirmed = applyEvent(this.confirmed, entry.event);
       this.pending = this.pending.filter((p) => p.id !== entry.id);
       changed = true;
     }
+    // Taking something back changes what came after it, so work the game out again from the start.
+    if (undo) this.confirmed = replayLog(this.log);
     if (changed) this.publish();
+  }
+
+  /** The host turned one of our actions down. Drop it, so the preview stops showing it. */
+  refused(id: string): void {
+    const before = this.pending.length;
+    this.pending = this.pending.filter((p) => p.id !== id);
+    if (this.pending.length !== before) this.publish();
   }
 
   private requestFrom(from: number): void {
@@ -174,12 +231,16 @@ export class GameSync {
   }
 
   private buildView(): GameView {
+    // Actions that need the host (like a shuffle) only show up once the host has decided them.
+    const pending = this.pending.flatMap((p) => (isIntent(p.event) ? [] : [{ id: p.id, event: p.event }]));
+    const state = pending.some((p) => p.event.type === 'undo')
+      ? replayLog([...this.log, ...pending])
+      : applyEvents(
+          this.confirmed,
+          pending.map((p) => p.event),
+        );
     return {
-      state: applyEvents(
-        this.confirmed,
-        // Actions that need the host (like a shuffle) only show up once the host has decided them.
-        this.pending.map((p) => p.event).filter((e): e is GameEvent => !isIntent(e)),
-      ),
+      state,
       recent: this.log.slice(-RECENT_LIMIT),
       logLength: this.log.length,
       unconfirmed: this.pending.length,

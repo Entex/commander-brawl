@@ -30,6 +30,9 @@ export interface TableClientOptions {
   readonly silenceTimeoutMs?: number;
 }
 
+export type GameUpdate =
+  { readonly type: 'batch'; readonly batch: LogBatch } | { readonly type: 'refused'; readonly id: string };
+
 const RECONNECT_DELAYS_MS = [250, 1_000, 2_000, 4_000, 5_000];
 
 const REJECTION_MESSAGES: Record<TableRejection, string> = {
@@ -45,7 +48,7 @@ const REJECTION_MESSAGES: Record<TableRejection, string> = {
  */
 export class TableClient implements TableSignaling {
   private readonly listeners = new Set<(event: SignalingEvent) => void>();
-  private readonly gameListeners = new Set<(batch: LogBatch) => void>();
+  private readonly gameListeners = new Set<(update: GameUpdate) => void>();
   private readonly members = new Map<string, Player>();
   private socket: WebSocket | null = null;
   private selfId: string | null = null;
@@ -81,8 +84,8 @@ export class TableClient implements TableSignaling {
     this.write({ t: 'signal', to, data });
   }
 
-  /** Game log entries from the host. */
-  subscribeGame(listener: (batch: LogBatch) => void): Unsubscribe {
+  /** Game log entries from the host, and actions of ours it turned down. */
+  subscribeGame(listener: (update: GameUpdate) => void): Unsubscribe {
     this.gameListeners.add(listener);
     return () => this.gameListeners.delete(listener);
   }
@@ -210,9 +213,13 @@ export class TableClient implements TableSignaling {
       case 'signal':
         this.emit({ type: 'signal', from: message.from, data: message.data });
         break;
-      case 'events':
-        for (const listener of this.gameListeners)
-          listener({ logId: message.logId, from: message.from, events: message.events });
+      case 'events': {
+        const batch: LogBatch = { logId: message.logId, from: message.from, events: message.events };
+        for (const listener of this.gameListeners) listener({ type: 'batch', batch });
+        break;
+      }
+      case 'refused':
+        for (const listener of this.gameListeners) listener({ type: 'refused', id: message.id });
         break;
       case 'rejected':
         this.stop('closed', REJECTION_MESSAGES[message.reason]);

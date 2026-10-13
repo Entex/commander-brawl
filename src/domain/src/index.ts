@@ -25,6 +25,7 @@ export {
   applyEvent,
   applyEvents,
   commanderTax,
+  isEventId,
   isOut,
   isSeatList,
   lossReason,
