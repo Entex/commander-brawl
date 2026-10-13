@@ -4,20 +4,31 @@
 #
 # Or put this script next to commander-brawl-win32-x64.zip and choose "Run with PowerShell".
 # The previous version is kept; to undo an update, run it with $env:CB_ROLLBACK = '1'.
+#
+# The app runs it too, to update itself, with CB_UPDATE=1 (start the app again afterwards, and leave the shortcuts
+# alone), CB_ARCHIVE (the new version, already checked) and CB_INSTALL_DIR (where the app is, if not in the usual place).
 
 $ErrorActionPreference = 'Stop'
 # Windows PowerShell downloads very slowly while it draws a progress bar.
 $ProgressPreference = 'SilentlyContinue'
 
 $Repo = if ($env:CB_REPO) { $env:CB_REPO } else { 'Entex/commander-brawl' }
+$Update = $env:CB_UPDATE -eq '1'
 $Asset = 'commander-brawl-win32-x64.zip'
-$Root = Join-Path $env:LOCALAPPDATA 'CommanderBrawl'
+$Root = if ($env:CB_INSTALL_DIR) { $env:CB_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'CommanderBrawl' }
 $App = Join-Path $Root 'app'
 $Previous = Join-Path $Root 'previous'
 $Staging = Join-Path $Root 'staging'
 
+function Start-App {
+  $exe = Join-Path $App 'commander-brawl.exe'
+  if (Test-Path $exe) { Start-Process -FilePath $exe -WorkingDirectory $App }
+}
+
 function Stop-RunningApp {
-  $running = Get-Process -Name 'commander-brawl' -ErrorAction SilentlyContinue
+  # Only this copy of the app, not one installed somewhere else.
+  $running = Get-Process -Name 'commander-brawl' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -and $_.Path.StartsWith("$App\", [StringComparison]::OrdinalIgnoreCase) }
   if ($running) {
     Write-Host 'Closing Commander Brawl...'
     foreach ($process in $running) {
@@ -95,10 +106,23 @@ try {
   if (Test-Path $Previous) { Remove-Item $Previous -Recurse -Force }
   if (Test-Path $App) { Move-Item $App $Previous }
   Move-Item $new $App
-  New-Shortcuts (Join-Path $App 'commander-brawl.exe')
 
-  Write-Host "Installed Commander Brawl $version. Start it from the Start menu or the desktop shortcut."
-  Write-Host 'The first time, Windows asks whether it may use the network. Allow private networks.'
+  if ($Update) {
+    Write-Host "Installed Commander Brawl $version."
+    Start-App
+  } else {
+    New-Shortcuts (Join-Path $App 'commander-brawl.exe')
+    Write-Host "Installed Commander Brawl $version. Start it from the Start menu or the desktop shortcut."
+    Write-Host 'The first time, Windows asks whether it may use the network. Allow private networks.'
+  }
+} catch {
+  Write-Host "Error: $($_.Exception.Message)"
+  # The app is waiting to be started again: put the previous version back if it was moved away, and start it.
+  if ($Update) {
+    if (-not (Test-Path $App) -and (Test-Path $Previous)) { Move-Item $Previous $App }
+    Start-App
+  }
+  throw
 } finally {
   Remove-Item $Staging -Recurse -Force -ErrorAction SilentlyContinue
 }

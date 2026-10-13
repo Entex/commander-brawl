@@ -8,12 +8,24 @@
 #   sh install.sh commander-brawl-darwin-arm64.tar.gz
 #
 # The previous version is kept, so a bad update can be undone with: sh install.sh --rollback
+#
+# The app runs it too, to update itself, with CB_UPDATE=1 (start the app again afterwards, and leave the launchers
+# alone) and CB_INSTALL_DIR (where the app is, if not in the usual place).
 set -eu
 
 REPO="${CB_REPO:-Entex/commander-brawl}"
+update="${CB_UPDATE:-}"
 
 say() { printf '%s\n' "$*"; }
-fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+fail() {
+  printf 'Error: %s\n' "$*" >&2
+  # The app is waiting to be started again: put the previous version back if it was moved away, and start it.
+  if [ "$update" = 1 ] && [ -n "${app:-}" ]; then
+    if [ ! -e "$app" ] && [ -d "${previous:-}" ]; then mv "$previous" "$app" || true; fi
+    if [ -e "$app" ]; then start_app; fi
+  fi
+  exit 1
+}
 
 download() {
   if command -v curl >/dev/null 2>&1; then
@@ -47,13 +59,21 @@ fi
 asset="commander-brawl-$platform-$arch.tar.gz"
 
 if [ "$platform" = darwin ]; then
-  app="$HOME/Applications/Commander Brawl.app"
+  app="${CB_INSTALL_DIR:-$HOME/Applications}/Commander Brawl.app"
   root="$HOME/Library/Application Support/Commander Brawl Installer"
 else
-  root="${XDG_DATA_HOME:-$HOME/.local/share}/commander-brawl"
+  root="${CB_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/commander-brawl}"
   app="$root/app"
 fi
 previous="$root/previous"
+
+start_app() {
+  if [ "$platform" = darwin ]; then
+    open "$app"
+  else
+    nohup "$app/commander-brawl" >/dev/null 2>&1 &
+  fi
+}
 
 stop_running_app() {
   if pgrep -f "$app" >/dev/null 2>&1; then
@@ -108,17 +128,26 @@ if [ "$platform" = darwin ]; then
   xattr -cr "$bundle"
   codesign --force --deep --sign - "$bundle" >/dev/null 2>&1 || fail "Could not prepare the app (codesign failed)."
   stop_running_app
-  mkdir -p "$HOME/Applications"
+  mkdir -p "$(dirname "$app")"
   rm -rf "$previous"
-  [ -d "$app" ] && mv "$app" "$previous"
-  mv "$bundle" "$app"
-  say "Installed Commander Brawl $version in ~/Applications."
+  if [ -d "$app" ]; then mv "$app" "$previous"; fi
+  mv "$bundle" "$app" || fail "Could not put the new version in place."
+  say "Installed Commander Brawl $version in $(dirname "$app")."
   say "macOS asks for camera and local network access the first time; allow both."
+  if [ "$update" = 1 ]; then start_app; fi
+elif [ "$update" = 1 ]; then
+  [ -x "$new/commander-brawl" ] || fail "The archive doesn't contain the app."
+  stop_running_app
+  rm -rf "$previous"
+  if [ -d "$app" ]; then mv "$app" "$previous"; fi
+  mv "$new" "$app" || fail "Could not put the new version in place."
+  say "Installed Commander Brawl $version."
+  start_app
 else
   [ -x "$new/commander-brawl" ] || fail "The archive doesn't contain the app."
   stop_running_app
   rm -rf "$previous"
-  [ -d "$app" ] && mv "$app" "$previous"
+  if [ -d "$app" ]; then mv "$app" "$previous"; fi
   mv "$new" "$app"
 
   bin="$HOME/.local/bin"

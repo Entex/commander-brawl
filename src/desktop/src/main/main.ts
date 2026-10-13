@@ -19,6 +19,7 @@ import { CardService } from './cardService';
 import { DeckService } from './deckService';
 import { PhoneLinkService } from './phoneLinkService';
 import { TableService } from './tableService';
+import { UpdateService } from './updateService';
 
 // Settings for development and tests. Players never need these.
 const env = {
@@ -36,6 +37,8 @@ const env = {
   scryfallApi: process.env.CB_SCRYFALL_API,
   /** A stand-in for Commander Spellbook's API, for tests. */
   spellbookApi: process.env.CB_SPELLBOOK_API,
+  /** A stand-in for GitHub's API, where new versions are found. Tests set it; otherwise only installed apps look. */
+  updatesApi: process.env.CB_UPDATES_API,
 };
 
 if (env.userDataDir) app.setPath('userData', env.userDataDir);
@@ -87,15 +90,28 @@ async function start(): Promise<void> {
       ...(env.spellbookApi ? { apiUrl: env.spellbookApi } : {}),
     },
   });
+  const updates = new UpdateService({
+    appVersion: app.getVersion(),
+    dataDir,
+    executable: process.execPath,
+    platform: process.platform,
+    arch: process.arch,
+    fetch: (url, init) => net.fetch(url, init),
+    ...(env.updatesApi ? { apiUrl: env.updatesApi } : {}),
+    emit: (status) => mainWindow?.webContents.send(Channels.updatesStatusUpdate, status),
+    quit: () => app.quit(),
+  });
   cleanup = async () => {
     await Promise.all([table.shutdown(), phone.close()]);
   };
 
-  registerIpc(table, phone, cards, decks, history);
+  registerIpc(table, phone, cards, decks, history, updates);
   restrictPermissions();
   mainWindow = createWindow();
   // After the window is up: reading ~35,000 cards takes a moment, and the window shouldn't wait for it.
   void cards.start();
+  // Running from source, there's nothing to update.
+  if (app.isPackaged || env.updatesApi) void updates.start();
 }
 
 function createWindow(): BrowserWindow {
@@ -139,6 +155,7 @@ function registerIpc(
   cards: CardService,
   decks: DeckService,
   history: FileHistoryStore,
+  updates: UpdateService,
 ): void {
   const config: RendererConfig = { version: app.getVersion(), iceServers: env.localOnly ? [] : null };
   handle(Channels.config, () => config);
@@ -213,6 +230,8 @@ function registerIpc(
   handle(Channels.decksSave, (deck, id) => decks.save(deck, typeof id === 'string' ? id : null));
   handle(Channels.decksRemove, (id) => decks.remove(requireString(id)));
   handle(Channels.decksAnalyze, (deck) => decks.analyze(deck));
+  handle(Channels.updatesStatus, () => updates.status());
+  handle(Channels.updatesInstall, () => updates.install());
   handle(Channels.phoneInfo, () => phone.info());
   on(Channels.tableSend, (to, data) => {
     if (typeof to === 'string') table.send(to, data);

@@ -26,6 +26,20 @@ export {
 } from './upnp';
 export type { Discovery, UpnpConnection } from './upnp';
 export { nodeTimers, randomId, safeEquals, secureRandom } from './runtime';
+export {
+  archiveName,
+  checksumFor,
+  downloadChecked,
+  downloadText,
+  installDir,
+  installerError,
+  installerLogs,
+  installScriptName,
+  isNewerVersion,
+  latestRelease,
+  startInstaller,
+} from './updates';
+export type { InstallerOptions, Release, UpdateOptions } from './updates';
 export { TableClient } from './tableClient';
 export type { GameUpdate, TableClientOptions } from './tableClient';
 export { TableServer } from './tableServer';

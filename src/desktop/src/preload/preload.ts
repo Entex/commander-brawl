@@ -55,6 +55,11 @@ const api: DesktopApi = {
     export: () => ipcRenderer.invoke(Channels.historyExport),
     import: () => ipcRenderer.invoke(Channels.historyImport),
   },
+  updates: {
+    status: () => ipcRenderer.invoke(Channels.updatesStatus),
+    onStatus: (listener) => listen(Channels.updatesStatusUpdate, listener),
+    install: () => ipcRenderer.invoke(Channels.updatesInstall),
+  },
   phone: {
     info: () => ipcRenderer.invoke(Channels.phoneInfo),
     send: (message) => ipcRenderer.send(Channels.phoneSend, message),

@@ -5,6 +5,7 @@ import { Icon } from '../icons/Icon';
 import type { CameraState } from '../useCamera';
 import { DecksPanel } from './DecksPanel';
 import { HistoryPanel } from './HistoryPanel';
+import { UpdateNotice } from './UpdateNotice';
 import { VideoView } from './VideoView';
 
 interface StartScreenProps {
@@ -56,6 +57,8 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
             <p className="hint">Commander with friends, over cameras. No accounts, no servers.</p>
           </div>
         </header>
+
+        <UpdateNotice version={version} />
 
         {saved.table && (
           <section className="resume" data-testid="resume">

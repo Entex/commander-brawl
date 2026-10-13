@@ -18,7 +18,7 @@ irm https://github.com/Entex/commander-brawl/releases/latest/download/install.ps
 curl -fsSL https://github.com/Entex/commander-brawl/releases/latest/download/install.sh | sh
 ```
 
-Run it again to update. The previous version is kept: `sh install.sh --rollback` goes back to it (on Windows, set `$env:CB_ROLLBACK = '1'` and run the installer again). The scripts download and unpack the app themselves, so there are no "unknown publisher" warnings.
+When a new version is out, the app offers it on the start screen and updates itself in a click (or run the command again). The previous version is kept: `sh install.sh --rollback` goes back to it (on Windows, set `$env:CB_ROLLBACK = '1'` and run the installer again). The scripts download and unpack the app themselves, so there are no "unknown publisher" warnings.
 
 ## Play
 
@@ -53,6 +53,8 @@ npm run test:e2e     # the full app, two copies (needs a display; on headless Li
 npm run package      # release/: one archive per platform, the install scripts, SHA256SUMS
 ```
 
+To release a version, set it in `package.json`, then push a tag for it: `git tag v0.2.0 && git push origin v0.2.0`. The Release workflow builds every platform and publishes the release, and installed apps offer it when they start.
+
 The browser tests use Playwright's Chromium (`npx playwright install chromium`), or set `CB_CHROMIUM` to one you have. To add an icon, put its name in `scripts/game-icons.mjs` and run `npm run game-icons`.
 
 The code follows clean architecture: inner layers never depend on outer ones, which `tests/unit/architecture.test.ts` enforces.
@@ -79,6 +81,7 @@ tests/             unit/, integration/, browser/ (real WebRTC in Chromium), e2e/
 | `CB_SCRYFALL_API`                | A stand-in for Scryfall's API (tests use a local fake).                                |
 | `CB_SPELLBOOK_API`               | A stand-in for Commander Spellbook (tests use a local fake).                           |
 | `CB_SAVE_DIR`                    | Save files (like the game log) here without asking.                                    |
+| `CB_UPDATES_API`                 | A stand-in for GitHub's API, where new versions are found (tests use a local fake).    |
 
 ## Credits and license
 

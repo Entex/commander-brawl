@@ -353,7 +353,8 @@ a {
   align-items: flex-start;
 }
 
-.resume {
+.resume,
+.update-notice {
   border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 1rem;
@@ -362,12 +363,19 @@ a {
   gap: 0.6rem;
 }
 
-.resume p {
+.resume p,
+.update-notice p {
   margin: 0;
 }
 
-.resume .row {
+.resume .row,
+.update-notice .row {
   justify-content: flex-start;
+}
+
+.update-notice progress {
+  width: 100%;
+  accent-color: var(--accent);
 }
 
 /* Table */

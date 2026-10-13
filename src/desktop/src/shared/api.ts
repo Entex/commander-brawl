@@ -71,6 +71,31 @@ export type CardDataStatus =
   /** The download failed. Older cards may still be there (count > 0). */
   | { readonly state: 'error'; readonly message: string; readonly count: number };
 
+/** A newer version of the app, and updating to it. */
+export type UpdateStatus =
+  | { readonly state: 'none' }
+  | {
+      readonly state: 'available';
+      readonly version: string;
+      /** The release's page, which says what's new. */
+      readonly url: string;
+      /** Installed with the install script, so it can update itself. Otherwise it's downloaded by hand. */
+      readonly canInstall: boolean;
+    }
+  | { readonly state: 'downloading'; readonly version: string; readonly url: string; readonly progress: number }
+  /** The install script has taken over: the app closes and the new version starts. */
+  | { readonly state: 'restarting'; readonly version: string; readonly url: string }
+  | {
+      readonly state: 'failed';
+      readonly version: string;
+      readonly url: string;
+      readonly message: string;
+      /** Whether trying again from inside the app is possible. */
+      readonly canInstall: boolean;
+    }
+  /** The app was just updated to this version. */
+  | { readonly state: 'updated'; readonly version: string; readonly url: string };
+
 export interface CardDetails {
   readonly card: Card;
   readonly rulings: readonly Ruling[];
@@ -146,6 +171,12 @@ export interface DesktopApi {
     /** Asks for a history file (a friend's export) and adds its games. How many were new; null if cancelled. */
     import(): Promise<number | null>;
   };
+  updates: {
+    status(): Promise<UpdateStatus>;
+    onStatus(listener: (status: UpdateStatus) => void): () => void;
+    /** Downloads the new version and restarts into it. */
+    install(): Promise<void>;
+  };
   phone: {
     info(): Promise<PhoneLinkInfo>;
     send(message: DesktopToPhone): void;
@@ -189,6 +220,9 @@ export const Channels = {
   decksSave: 'decks:save',
   decksAnalyze: 'decks:analyze',
   decksRemove: 'decks:remove',
+  updatesStatus: 'updates:status',
+  updatesStatusUpdate: 'updates:status-update',
+  updatesInstall: 'updates:install',
   phoneInfo: 'phone:info',
   phoneSend: 'phone:send',
   phoneEvent: 'phone:event',

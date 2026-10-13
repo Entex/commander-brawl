@@ -1,9 +1,11 @@
 import { chromium, _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopApi } from '../../src/desktop/src/shared/api';
 import { RHYSTIC_STUDY, drawCardPicture } from '../support/cardPicture';
+import { startFakeGitHub } from '../support/fakeGitHub';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
 import { startFakeSpellbook, type FakeSpellbook } from '../support/fakeSpellbook';
 
@@ -51,7 +53,7 @@ test.afterEach(async () => {
 
 async function launch(
   name: string,
-  options: { userDataDir?: string; camera?: string; openFile?: string } = {},
+  options: { userDataDir?: string; camera?: string; openFile?: string; env?: Record<string, string> } = {},
 ): Promise<Instance> {
   const saveDir = await temporaryDir('cb-e2e-save-');
   const dataDir = options.userDataDir ?? (await temporaryDir('cb-e2e-'));
@@ -78,6 +80,7 @@ async function launch(
       CB_SCRYFALL_API: scryfall.apiUrl,
       CB_SPELLBOOK_API: spellbook.apiUrl,
       ...(options.openFile ? { CB_OPEN_FILE: options.openFile } : {}),
+      ...options.env,
     },
   });
   const page = await app.firstWindow();
@@ -1088,4 +1091,44 @@ test('Rule 0: brackets, and the deck check pointing out what does not fit', asyn
   await expect(friend.page.getByTestId('seat-0').locator('.badge-warn')).toHaveText('Bracket 2');
   await friend.page.getByRole('button', { name: 'Rule 0' }).click();
   await expect(friend.page.getByTestId('rule0-0')).toContainText('1 Game Changer (brackets 1–2 have none)');
+});
+
+test('a newer version on the start screen, and afterwards whether updating to it worked', async () => {
+  const github = await startFakeGitHub({ version: '9.9.9', files: { SHA256SUMS: Buffer.from('') } });
+  const noReleases = await startFakeGitHub(null);
+  try {
+    // Run from the build, not installed by the install script: it can't update itself, so it points to the release.
+    const fresh = await launch('Host', { env: { CB_UPDATES_API: github.apiUrl } });
+    const notice = fresh.page.getByTestId('update-notice');
+    await expect(notice).toContainText('Commander Brawl 9.9.9 is out');
+    await expect(notice).toContainText("This copy of the app can't update itself");
+    await expect(notice.getByRole('link', { name: "What's new" })).toHaveAttribute('href', /releases\/tag\/v9\.9\.9$/);
+    await notice.getByRole('button', { name: 'Not now' }).click();
+    await expect(notice).toHaveCount(0);
+
+    // Opened again after an update that didn't work: why, from what the install script wrote.
+    const failedDir = await temporaryDir('cb-e2e-');
+    await mkdir(join(failedDir, 'update'));
+    const url = 'https://github.com/Entex/commander-brawl/releases/tag/v9.9.9';
+    await writeFile(join(failedDir, 'update-attempt.json'), JSON.stringify({ version: '9.9.9', url }));
+    await writeFile(
+      join(failedDir, 'update', 'install.log'),
+      'Unpacking...\nError: Could not unpack the new version.\n',
+    );
+    const failed = await launch('Host', { userDataDir: failedDir, env: { CB_UPDATES_API: github.apiUrl } });
+    const failedNotice = failed.page.getByTestId('update-notice');
+    await expect(failedNotice).toContainText("Updating to 9.9.9 didn't work");
+    await expect(failedNotice).toContainText('Could not unpack the new version.');
+    // The download it no longer needs is gone.
+    expect(existsSync(join(failedDir, 'update'))).toBe(false);
+
+    // And after one that worked.
+    const { version } = JSON.parse(await readFile(join(appDir, 'package.json'), 'utf8')) as { version: string };
+    const updatedDir = await temporaryDir('cb-e2e-');
+    await writeFile(join(updatedDir, 'update-attempt.json'), JSON.stringify({ version, url }));
+    const updated = await launch('Host', { userDataDir: updatedDir, env: { CB_UPDATES_API: noReleases.apiUrl } });
+    await expect(updated.page.getByTestId('update-notice')).toContainText(`Updated to Commander Brawl ${version}`);
+  } finally {
+    await Promise.all([github.close(), noReleases.close()]);
+  }
 });
