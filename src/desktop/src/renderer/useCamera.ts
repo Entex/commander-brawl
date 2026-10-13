@@ -1,11 +1,13 @@
 import {
   captureFrame,
   dataUrlToRgba,
+  likeness,
   listCameras,
   openCamera,
   PhoneReceiver,
   rgbaToDataUrl,
   Straightener,
+  widen,
   type CameraDevice,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
@@ -183,8 +185,8 @@ export function useCamera(): CameraState {
     async (crop: CropRect) => {
       const receiver = receiverRef.current;
       // The phone can take a full-resolution photo; a webcam gives its current frame.
-      const capture = (part: CropRect, exact = false) => {
-        if (source === 'phone' && receiver?.isLive) return receiver.requestSnapshot(part, { exact });
+      const capture = async (part: CropRect, exact = false) => {
+        if (source === 'phone' && receiver?.isLive) return checkedPhonePicture(receiver, rawTrack, part, exact);
         if (rawTrack) return captureFrame(rawTrack, part);
         throw new Error('The camera is off.');
       };
@@ -213,6 +215,38 @@ export function useCamera(): CameraState {
     selectWebcam,
     refreshDevices,
   };
+}
+
+/** The margin the phone adds around the part asked for, when it needn't be exact (see PhoneReceiver). */
+const PHONE_MARGIN = 0.2;
+/** A phone picture at least this much like its part of the video is of that part, the right way up. */
+const LIKE_THE_VIDEO = 0.5;
+
+/**
+ * The phone's sharp picture of part of its view, checked against that part of its video, which is the right
+ * way up. Held sideways, some phones' pictures come out turned and of the wrong part (seen with an iPhone):
+ * then the picture is taken from the video instead, less sharp but of the right part.
+ */
+async function checkedPhonePicture(
+  receiver: PhoneReceiver,
+  video: MediaStreamTrack | null,
+  part: CropRect,
+  exact: boolean,
+): Promise<string> {
+  const picture = await receiver.requestSnapshot(part, { exact });
+  if (!video) return picture;
+  try {
+    const [taken, seen] = await Promise.all([
+      dataUrlToRgba(picture),
+      captureFrame(video, exact ? part : widen(part, PHONE_MARGIN)).then(dataUrlToRgba),
+    ]);
+    if (likeness(taken, seen) >= LIKE_THE_VIDEO) return picture;
+  } catch {
+    // Couldn't check: the phone's picture it is.
+    return picture;
+  }
+  console.warn("[camera] the phone's picture doesn't look like its video; taking it from the video");
+  return captureFrame(video, part);
 }
 
 /**

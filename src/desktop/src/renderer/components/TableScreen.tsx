@@ -7,7 +7,7 @@ import {
   type TableSessionState,
 } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
-import { MAX_SEATS, STARTING_LIFE, isUndoable, type SeatIndex } from '@commander-brawl/domain';
+import { MAX_SEATS, STARTING_LIFE, isUndoable, type Card, type SeatIndex } from '@commander-brawl/domain';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
@@ -15,9 +15,11 @@ import { describeEvent } from '../describeEvent';
 import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
 import { CLIP_SECONDS, useClips } from '../clips';
-import { useCloseUps } from '../useCloseUps';
+import { useCardLookups, type CardLookup } from '../useCardLookups';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
+import { CardOutline } from './CardOutline';
+import { CardRail } from './CardRail';
 import { CardsPanel } from './CardsPanel';
 import { ComboWarnings } from './ComboWarnings';
 import { CountersPanel } from './CountersPanel';
@@ -30,7 +32,6 @@ import { VariantsBar, VariantsPanel } from './Variants';
 import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
 import { RollBanner, RollMenu } from './Rolls';
 import { Rule0Panel } from './Rule0Panel';
-import { SnapshotView } from './SnapshotView';
 import { Spotlight } from './Spotlight';
 import { LogPanel } from './LogPanel';
 import { Menu } from './Menu';
@@ -94,7 +95,20 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     void session.setLocalTrack(spectating ? null : camera.track);
   }, [session, camera.track, spectating]);
 
-  const { closeUp, look, close: closeCloseUp } = useCloseUps(camera);
+  // Cards clicked on other players' videos: outlined there, and shown in a column beside the table.
+  const { lookups, look, choose, markTracked, clear: clearLookups } = useCardLookups(camera);
+  const [seenOpen, setSeenOpen] = useState(false);
+  /** The lookup the Cards panel is searching for (none of the guesses was it). */
+  const [correcting, setCorrecting] = useState<number | null>(null);
+  const track = (lookup: CardLookup, card: Card) => {
+    const token = card.layout === 'token' || card.typeLine.startsWith('Token');
+    submitGameEvent({
+      type: 'permanent-added',
+      seat: lookup.seat,
+      permanent: { id: crypto.randomUUID(), name: card.name, cardId: card.id, token, count: 1 },
+    });
+    markTracked(lookup.id);
+  };
 
   const status = cameraStatus(camera);
   useEffect(() => session.setCameraStatus(status), [session, status]);
@@ -155,7 +169,24 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               <Icon name="anticlockwise-rotation" /> Undo
             </button>
           )}
-          <button onClick={() => setCardsOpen(!cardsOpen)} aria-pressed={cardsOpen} title="Look up a card (Ctrl+K)">
+          {lookups.length > 0 && (
+            <button
+              onClick={() => setSeenOpen(!seenOpen)}
+              aria-pressed={seenOpen}
+              title="The cards you clicked on the videos"
+              data-testid="seen-toggle"
+            >
+              <Icon name="spyglass" /> Seen
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setCardsOpen(!cardsOpen);
+              setCorrecting(null);
+            }}
+            aria-pressed={cardsOpen}
+            title="Look up a card (Ctrl+K)"
+          >
             <Icon name="spell-book" /> Cards
           </button>
           <button onClick={() => setLogOpen(!logOpen)} aria-pressed={logOpen} disabled={!game}>
@@ -321,9 +352,19 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                   setCardsOpen(false);
                 }
           }
+          onPick={
+            correcting === null
+              ? undefined
+              : (card) => {
+                  choose(correcting, card);
+                  setCorrecting(null);
+                  setCardsOpen(false);
+                }
+          }
           onClose={() => {
             setCardsOpen(false);
             setCardFocus(null);
+            setCorrecting(null);
           }}
         />
       )}
@@ -336,34 +377,6 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
 
       {game && <Spotlight game={game} />}
-      {closeUp && (
-        <SnapshotView
-          snapshot={closeUp}
-          onOpenCard={(id) => {
-            closeCloseUp();
-            openCard(id);
-          }}
-          onTrack={
-            spectating
-              ? undefined
-              : (card, seat) => {
-                  closeCloseUp();
-                  const token = card.layout === 'token' || card.typeLine.startsWith('Token');
-                  submitGameEvent({
-                    type: 'permanent-added',
-                    seat,
-                    permanent: { id: crypto.randomUUID(), name: card.name, cardId: card.id, token, count: 1 },
-                  });
-                }
-          }
-          onSearch={() => {
-            closeCloseUp();
-            setCardFocus(null);
-            setCardsOpen(true);
-          }}
-          onClose={closeCloseUp}
-        />
-      )}
       {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
       {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
       {recap.record && recap.viewing && (
@@ -376,42 +389,64 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         <Rule0Panel game={game.state} players={state.seats} selfSeat={selfSeat} onClose={() => setRule0Open(false)} />
       )}
 
-      <PointerLayer marks={pointerMarks} onPoint={spectating ? ignore : point} selfSeat={selfSeat}>
-        <ResponseBanner calls={responseCalls} self={selfSeat} />
-        <RollBanner game={game} players={state.seats} />
-        {recap.record && recap.banner && (
-          <GameOverBanner record={recap.record} onView={recap.view} onClose={recap.close} />
+      <div className="table-body">
+        <PointerLayer marks={pointerMarks} onPoint={spectating ? ignore : point} selfSeat={selfSeat}>
+          <ResponseBanner calls={responseCalls} self={selfSeat} />
+          <RollBanner game={game} players={state.seats} />
+          {recap.record && recap.banner && (
+            <GameOverBanner record={recap.record} onView={recap.view} onClose={recap.close} />
+          )}
+          {seats.map((seat, index) =>
+            seat ? (
+              <SeatTile
+                key={seat.player.id}
+                seat={seat}
+                players={state.seats}
+                game={game?.state ?? null}
+                active={seat.player.seat === activeSeat}
+                responding={responding.has(seat.player.seat)}
+                hostClockOffset={game?.hostClockOffset ?? 0}
+                readOnly={readOnly}
+                showStats={showStats}
+                getStats={getStats}
+                onOpenCard={openCard}
+                onLook={(target, rotation) => {
+                  look(
+                    seat.player.id,
+                    seat.player.name,
+                    seat.player.seat,
+                    target,
+                    rotation,
+                    game?.state.seats[seat.player.seat]?.deck ?? null,
+                  );
+                  setSeenOpen(true);
+                }}
+              />
+            ) : (
+              <EmptySeat key={`empty-${index}`} index={index} />
+            ),
+          )}
+          <CardOutline key={lookups[0]?.id} lookup={lookups[0] ?? null} />
+        </PointerLayer>
+        {seenOpen && lookups.length > 0 && (
+          <CardRail
+            lookups={lookups}
+            onOpenCard={(id) => {
+              setCorrecting(null);
+              openCard(id);
+            }}
+            onTrack={spectating ? undefined : track}
+            onChoose={choose}
+            onSearch={(id) => {
+              setCorrecting(id);
+              setCardFocus(null);
+              setCardsOpen(true);
+            }}
+            onClear={clearLookups}
+            onClose={() => setSeenOpen(false)}
+          />
         )}
-        {seats.map((seat, index) =>
-          seat ? (
-            <SeatTile
-              key={seat.player.id}
-              seat={seat}
-              players={state.seats}
-              game={game?.state ?? null}
-              active={seat.player.seat === activeSeat}
-              responding={responding.has(seat.player.seat)}
-              hostClockOffset={game?.hostClockOffset ?? 0}
-              readOnly={readOnly}
-              showStats={showStats}
-              getStats={getStats}
-              onOpenCard={openCard}
-              onLook={(crop, rotation) =>
-                look(
-                  seat.player.id,
-                  seat.player.name,
-                  seat.player.seat,
-                  crop,
-                  rotation,
-                  game?.state.seats[seat.player.seat]?.deck ?? null,
-                )
-              }
-            />
-          ) : (
-            <EmptySeat key={`empty-${index}`} index={index} />
-          ),
-        )}
-      </PointerLayer>
+      </div>
     </div>
   );
 }

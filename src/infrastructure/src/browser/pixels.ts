@@ -1,15 +1,30 @@
 import type { RgbaImage } from '@commander-brawl/application';
 
-/** The pixels of a loaded picture. */
-export function imageToRgba(image: CanvasImageSource & { readonly width: number; readonly height: number }): RgbaImage {
+/** The pixels of a loaded picture, shrunk (if need be) so its longer side is at most maxSide. */
+export function imageToRgba(
+  image: CanvasImageSource & { readonly width: number; readonly height: number },
+  maxSide = Infinity,
+): RgbaImage {
   const width = 'naturalWidth' in image ? image.naturalWidth : image.width;
   const height = 'naturalHeight' in image ? image.naturalHeight : image.height;
-  const canvas = new OffscreenCanvas(width, height);
+  return drawn(image, width, height, maxSide);
+}
+
+/** What a video is showing right now, shrunk so its longer side is at most maxSide. Null before it shows anything. */
+export function videoFrameToRgba(video: HTMLVideoElement, maxSide: number): RgbaImage | null {
+  if (!video.videoWidth || !video.videoHeight) return null;
+  return drawn(video, video.videoWidth, video.videoHeight, maxSide);
+}
+
+function drawn(source: CanvasImageSource, width: number, height: number, maxSide: number): RgbaImage {
+  const scale = Math.min(1, maxSide / Math.max(width, height));
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const canvas = new OffscreenCanvas(w, h);
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('No canvas to draw on.');
-  context.drawImage(image, 0, 0);
-  const { data } = context.getImageData(0, 0, width, height);
-  return { width, height, data };
+  context.drawImage(source, 0, 0, w, h);
+  return { width: w, height: h, data: context.getImageData(0, 0, w, h).data };
 }
 
 /** The pixels of a picture given as a data URL (a camera snapshot). */

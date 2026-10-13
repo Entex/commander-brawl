@@ -1,4 +1,4 @@
-import { clampCrop, type CropRect, type LinkStats, type SeatView } from '@commander-brawl/application';
+import type { LinkStats, SeatView } from '@commander-brawl/application';
 import {
   COMMANDER_DAMAGE_LIMIT,
   DUNGEONS,
@@ -20,10 +20,10 @@ import {
   type SeatIndex,
 } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
+import { cardTargetAt, type CardTarget } from '../cardTarget';
 import { Icon, type GameIconName } from '../icons/Icon';
 import { COUNTER_ICONS, COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
 import { seatColorClass } from '../seatColors';
-import { pictureAt } from '../videoPoints';
 import { submitGameEvent } from '../useGame';
 import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
@@ -51,7 +51,7 @@ interface SeatTileProps {
   /** Shows a card in the Cards panel. */
   onOpenCard(cardId: string): void;
   /** Asks this player's camera for a sharp picture of the part of their table that was clicked. */
-  onLook(crop: CropRect, rotation: 0 | 180): void;
+  onLook(target: CardTarget, rotation: 0 | 180): void;
 }
 
 const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
@@ -104,8 +104,8 @@ export function SeatTile({
             seat.isSelf
               ? undefined
               : (event) => {
-                  const crop = cardCropAt(event.currentTarget, event.clientX, event.clientY);
-                  if (crop) onLook(crop, rotation);
+                  const target = cardTargetAt(event.currentTarget, event.clientX, event.clientY);
+                  if (target) onLook(target, rotation);
                 }
           }
         />
@@ -335,22 +335,6 @@ function SeatChips({ seat, game, players }: SeatChipsProps) {
 
 /** Cards and tokens listed on a seat; the rest are in the player's details. */
 const MAX_PERMANENT_CHIPS = 6;
-
-/** How big a card usually is in a camera picture, as a share of the picture's width. */
-const CARD_WIDTH_SHARE = 0.2;
-const CARD_ASPECT = 88 / 63;
-
-/**
- * The card-sized part of the camera picture around a click on the video (a point on screen). The picture may
- * be fitted inside the element with bars beside it, and turned around; a click on the bars gives null.
- */
-export function cardCropAt(video: HTMLVideoElement, clientX: number, clientY: number): CropRect | null {
-  const point = pictureAt(video, clientX, clientY);
-  if (!point) return null;
-  const width = CARD_WIDTH_SHARE;
-  const height = Math.min(1, width * (video.videoWidth / video.videoHeight) * CARD_ASPECT);
-  return clampCrop({ x: point.x - width / 2, y: point.y - height / 2, width, height });
-}
 
 function BracketBadge({ state }: { readonly state: SeatGameState }) {
   const concerns = state.bracket && state.deckAnalysis ? bracketConcerns(state.bracket, state.deckAnalysis) : [];

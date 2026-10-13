@@ -27,12 +27,14 @@ export class TesseractReader implements TextReader {
 
   /**
    * Both as a single line and as scattered text: on a card's name bar, the frame and artwork around the
-   * name throw one or the other off, and which one differs from card to card.
+   * name throw one or the other off, and which one differs from card to card. And as a single line once more
+   * with the contrast stretched, which reads dim, soft pictures that the others don't (and misses some they get).
    */
   readLine(image: RgbaImage): Promise<string[]> {
     return this.run(async (worker) => [
       ...(await recognize(worker, image, SINGLE_LINE)),
       ...(await recognize(worker, image, SPARSE_TEXT)),
+      ...(await recognize(worker, { ...image, data: stretched(image) }, SINGLE_LINE)),
     ]);
   }
 
@@ -85,4 +87,29 @@ async function recognize(worker: Worker, image: RgbaImage, mode: PSM): Promise<s
     .putImageData(new ImageData(new Uint8ClampedArray(image.data), image.width, image.height), 0, 0);
   const { data } = await worker.recognize(canvas);
   return data.text.split('\n').filter((line) => line.trim().length > 0);
+}
+
+/**
+ * The picture in gray, its brightness stretched from darkest to lightest (ignoring the odd speck): dim, soft
+ * camera pictures of a name on a colored bar read much better that way.
+ */
+function stretched(image: RgbaImage): Uint8ClampedArray<ArrayBuffer> {
+  const { data } = image;
+  const gray = new Float32Array(data.length / 4);
+  for (let i = 0; i < gray.length; i++) {
+    gray[i] = 0.299 * data[i * 4]! + 0.587 * data[i * 4 + 1]! + 0.114 * data[i * 4 + 2]!;
+  }
+  const sorted = Float32Array.from(gray).sort();
+  const low = sorted[Math.floor(sorted.length * 0.02)] ?? 0;
+  const high = sorted[Math.floor(sorted.length * 0.98)] ?? 255;
+  const scale = high > low ? 255 / (high - low) : 1;
+  const out = new Uint8ClampedArray(data.length);
+  for (let i = 0; i < gray.length; i++) {
+    const value = (gray[i]! - low) * scale;
+    out[i * 4] = value;
+    out[i * 4 + 1] = value;
+    out[i * 4 + 2] = value;
+    out[i * 4 + 3] = 255;
+  }
+  return out;
 }

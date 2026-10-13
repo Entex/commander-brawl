@@ -7,6 +7,7 @@ import {
   type ArtLibrary,
   type ArtPrint,
   type CardCatalog,
+  type Quad,
   type RgbaImage,
   type TextReader,
 } from '@commander-brawl/application';
@@ -80,6 +81,29 @@ function redness(image: RgbaImage): number {
 
 const catalogPort: CardCatalog = { closest: async (texts) => catalog.closest(texts) };
 
+/** A drawn card's corners (scaled around its middle), as fractions of the picture, clockwise from its top left. */
+function cornersOf(
+  card: { cx: number; cy: number; width: number; angle: number },
+  scale: number,
+  picture: RgbaImage,
+): Quad {
+  const height = (card.width * 88) / 63;
+  const radians = (card.angle * Math.PI) / 180;
+  return [
+    [-1, -1],
+    [1, -1],
+    [1, 1],
+    [-1, 1],
+  ].map(([u, v]) => {
+    const ox = (u! * card.width * scale) / 2;
+    const oy = (v! * height * scale) / 2;
+    return {
+      x: (card.cx + Math.cos(radians) * ox - Math.sin(radians) * oy) / picture.width,
+      y: (card.cy + Math.sin(radians) * ox + Math.cos(radians) * oy) / picture.height,
+    };
+  }) as unknown as Quad;
+}
+
 function tablePicture(art: number, angle = 4): RgbaImage {
   const picture = blank(320, 440, [52, 70, 58]);
   drawCard(picture, { cx: 160, cy: 220, width: 190, angle, art: artwork(art), nameBar: RED });
@@ -129,6 +153,31 @@ describe('working out which card is in a close-up', () => {
     }
   });
 
+  it("goes by where the video found the card, when its outline doesn't stand out from a busy background", async () => {
+    // Bold stripes behind the card: their lines outnumber the card's, so on its own the card isn't found.
+    const picture = blank(320, 440, [30, 30, 34]);
+    for (let i = -20; i < 40; i++) {
+      fillRect(picture, { cx: i * 28, cy: 220, width: 14, height: 900, angle: 30 }, [160, 160, 140]);
+    }
+    const placed = { cx: 160, cy: 220, width: 190, angle: 4 };
+    drawCard(picture, { ...placed, art: artwork(1), nameBar: RED });
+    addNoise(picture, 10);
+
+    const alone = new Reader('Rhystic Study');
+    const unhinted = await new CardIdentifier(alone, catalogPort, new Artwork()).identify(picture);
+    expect(unhinted.picture).toBeNull();
+    expect(alone.pages).toBe(1);
+
+    // The outline from the video: a bit off, from a smaller and blurrier picture.
+    const reader = new Reader('Rhystic Study');
+    const result = await new CardIdentifier(reader, catalogPort, new Artwork()).identify(picture, {
+      expected: cornersOf(placed, 0.95, picture),
+    });
+    expect(result.picture).not.toBeNull();
+    expect(reader.pages).toBe(0);
+    expect(result.guesses[0]!.card.name).toBe('Rhystic Study');
+  });
+
   it('reads all the text when no card outline stands out', async () => {
     const table = blank(320, 440, [52, 70, 58]);
     addNoise(table, 30);
@@ -137,6 +186,21 @@ describe('working out which card is in a close-up', () => {
     expect(reader.pages).toBe(1);
     expect(result.picture).toBeNull();
     expect(result.guesses[0]!.card.name).toBe('Sol Ring');
+  });
+
+  it('offers each name once: tokens of the same name are one guess', async () => {
+    const goblins = new CardIndex([
+      card('Goblin', 9),
+      { ...card('Goblin', 10), id: 'goblin-2' },
+      { ...card('Goblin', 11), id: 'goblin-3' },
+      card('Goblin Wardriver', 12),
+    ]);
+    const result = await new CardIdentifier(
+      new Reader('', ['Goblin']),
+      { closest: async (texts) => goblins.closest(texts) },
+      new Artwork(),
+    ).identify(blank(320, 440, [52, 70, 58]));
+    expect(result.guesses.map((g) => g.card.name)).toEqual(['Goblin']);
   });
 
   it('says so when nothing fits', async () => {

@@ -2,9 +2,11 @@ import {
   artOfArtCrop,
   artOfCard,
   artSimilarity,
+  cardCorners,
   dominantTilt,
   extract,
   findCard,
+  locationOfCorners,
   toGray,
 } from '@commander-brawl/application';
 import { describe, expect, it } from 'vitest';
@@ -46,6 +48,29 @@ describe('finding a card in a picture', () => {
       expect(short / 190, `${angle}°`).toBeGreaterThan(0.88);
       expect(short / 190, `${angle}°`).toBeLessThan(1.04);
       expect(long / short, `${angle}°`).toBeCloseTo(88 / 63, 0);
+    }
+  });
+
+  it('looks only for a card lying the way it was asked for', () => {
+    const upright = findCard(closeUp(0), { sideways: false });
+    expect(upright?.sideways).toBe(false);
+    const tapped = findCard(closeUp(90), { sideways: false });
+    // A tapped card isn't an upright one; whatever upright rectangle it settles on isn't the card.
+    expect(tapped === null || !tapped.sideways).toBe(true);
+    expect(findCard(closeUp(90), { sideways: true })?.sideways).toBe(true);
+  });
+
+  it("turns a card's corners back into where it is", () => {
+    for (const angle of [0, 7, -15, 90]) {
+      const picture = closeUp(angle);
+      const found = findCard(picture)!;
+      const corners = cardCorners(found, picture.width, picture.height);
+      const again = locationOfCorners(corners, picture.width, picture.height, found.clarity);
+      expect(again.angle, `${angle}°`).toBeCloseTo(found.angle, 5);
+      expect(again.sideways, `${angle}°`).toBe(found.sideways);
+      for (const side of ['x', 'y', 'width', 'height'] as const) {
+        expect(again.rect[side], `${angle}° ${side}`).toBeCloseTo(found.rect[side], 3);
+      }
     }
   });
 

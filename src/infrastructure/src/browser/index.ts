@@ -1,12 +1,12 @@
 export { ScryfallArtLibrary } from './artLibrary';
-export { captureFrame, capturePhoto, videoToPhoto, widen } from './capture';
+export { captureFrame, capturePhoto, likeness, photoTurns, videoToPhoto, widen } from './capture';
 export { ClipRecorder } from './clipRecorder';
 export type { ClipRecorderOptions } from './clipRecorder';
 export { PhoneReceiver } from './phoneReceiver';
 export type { PhoneCameraState, PhoneReceiverEvents } from './phoneReceiver';
 export { PhoneSender } from './phoneSender';
 export type { CameraControls, PhoneSenderOptions, PhoneSenderStatus } from './phoneSender';
-export { dataUrlToRgba, imageToRgba, rgbaToDataUrl } from './pixels';
+export { dataUrlToRgba, imageToRgba, rgbaToDataUrl, videoFrameToRgba } from './pixels';
 export { cardImageUrl, symbolUrl } from './scryfallImages';
 export type { CardImageSize } from './scryfallImages';
 export { LinkStatsReader } from './stats';

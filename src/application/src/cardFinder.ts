@@ -1,3 +1,4 @@
+import type { Quad } from './perspective';
 import { toGray, type GrayImage, type PixelRect, type RgbaImage } from './pixels';
 
 /** Width to height of a Magic card (63 × 88 mm). */
@@ -20,6 +21,13 @@ export interface FindCardOptions {
   readonly point?: { readonly x: number; readonly y: number };
   /** The smallest card to look for, as a share of the picture's shorter side. */
   readonly minSize?: number;
+  /**
+   * Tilts to try (see CardLocation.angle), keeping the clearest find. By default, the picture's own: the way
+   * most of its lines run, which is the card's unless something else (a striped cloth) has more lines.
+   */
+  readonly angles?: readonly number[];
+  /** Only a card lying this way: upright (false) or sideways (true). Either by default. */
+  readonly sideways?: boolean;
 }
 
 /** The picture is shrunk to this before looking: enough for card edges, quick to search. */
@@ -34,13 +42,17 @@ const SHAPE_TOLERANCES = [0.93, 1, 1.07];
 export function findCard(image: RgbaImage, options: FindCardOptions = {}): CardLocation | null {
   const gray = toGray(image, WORK_SIZE);
   const scale = image.width / gray.width;
-  const angle = -dominantTilt(gray);
-  const straight = turnGray(gray, angle);
   const point = options.point
     ? { x: options.point.x / scale, y: options.point.y / scale }
     : { x: gray.width / 2, y: gray.height / 2 };
-  const turnedPoint = turnPoint(point, angle, gray.width, gray.height);
-  const best = bestRectangle(straight, turnedPoint, options.minSize ?? 0.2);
+  let best: Rectangle | null = null;
+  let angle = 0;
+  for (const tried of options.angles ?? [-dominantTilt(gray)]) {
+    const turnedPoint = turnPoint(point, tried, gray.width, gray.height);
+    const ways = options.sideways === undefined ? [false, true] : [options.sideways];
+    const found = bestRectangle(turnGray(gray, tried), turnedPoint, options.minSize ?? 0.2, ways);
+    if (found && (!best || found.clarity > best.clarity)) [best, angle] = [found, tried];
+  }
   if (!best) return null;
   return {
     angle,
@@ -53,6 +65,47 @@ export function findCard(image: RgbaImage, options: FindCardOptions = {}): CardL
     sideways: best.rect.width > best.rect.height,
     clarity: best.clarity,
   };
+}
+
+/**
+ * The four corners of a found card in the picture it was found in, in pixels: clockwise from the top left
+ * of its rectangle in the turned picture (see CardLocation.rect).
+ */
+export function cardCorners(location: CardLocation, width: number, height: number): Quad {
+  const { rect, angle } = location;
+  const radians = (angle * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  // Out of the turned picture, the same way extract() samples it.
+  const back = (x: number, y: number) => {
+    const tx = x - width / 2;
+    const ty = y - height / 2;
+    return { x: cos * tx + sin * ty + width / 2, y: -sin * tx + cos * ty + height / 2 };
+  };
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  return [back(rect.x, rect.y), back(right, rect.y), back(right, bottom), back(rect.x, bottom)];
+}
+
+/**
+ * Where a card is, from its four corners in pixels, clockwise from its top left as it lies (as cardCorners
+ * gives them). `clarity` is what it says about how sure that is.
+ */
+export function locationOfCorners(corners: Quad, width: number, height: number, clarity: number): CardLocation {
+  const [first, second] = corners;
+  // Its top edge's tilt, folded into a quarter turn either way (which side is the top doesn't matter here).
+  const tilt = (Math.atan2(second.y - first.y, second.x - first.x) * 180) / Math.PI;
+  const angle = -((((tilt % 90) + 90 + 45) % 90) - 45);
+  const turned = corners.map((corner) => turnPoint(corner, angle, width, height));
+  const xs = turned.map((p) => p.x);
+  const ys = turned.map((p) => p.y);
+  const rect = {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+  return { angle, rect, sideways: rect.width > rect.height, clarity };
 }
 
 /**
@@ -110,7 +163,12 @@ interface Rectangle {
  * The card-shaped rectangle around the point whose edges stand out most. Every size, shape (within
  * tolerance) and position is tried; running sums make each try a handful of lookups.
  */
-function bestRectangle(gray: GrayImage, point: { x: number; y: number }, minSize: number): Rectangle | null {
+function bestRectangle(
+  gray: GrayImage,
+  point: { x: number; y: number },
+  minSize: number,
+  ways: readonly boolean[],
+): Rectangle | null {
   const { width, height } = gray;
   const { gx, gy, valid } = sobel(gray);
   // Vertical edges, summed down each column; horizontal edges, summed along each row. Spread by a pixel
@@ -143,7 +201,7 @@ function bestRectangle(gray: GrayImage, point: { x: number; y: number }, minSize
   let bestScore = 0;
   const px = Math.round(point.x);
   const py = Math.round(point.y);
-  for (const sideways of [false, true]) {
+  for (const sideways of ways) {
     // Most cards on a table are upright; a tapped card has to stand out a bit more.
     const preference = sideways ? 0.95 : 1;
     for (const tolerance of SHAPE_TOLERANCES) {
@@ -178,14 +236,86 @@ function bestRectangle(gray: GrayImage, point: { x: number; y: number }, minSize
     }
   }
   // A card's art box or text box can stand out nearly as well as the card. The card is around them.
-  let best: Rectangle | null = null;
-  for (const candidate of near) {
-    if (candidate.clarity < bestScore * NEAR_BEST) continue;
-    const area = candidate.rect.width * candidate.rect.height;
-    if (!best || area > best.rect.width * best.rect.height) best = candidate;
-  }
+  const contenders = near.filter((candidate) => candidate.clarity >= bestScore * NEAR_BEST);
+  const area = (r: Rectangle) => r.rect.width * r.rect.height;
+  let best = contenders.reduce<Rectangle | null>((a, b) => (a && area(a) >= area(b) ? a : b), null);
   if (!best) return null;
+  // But two cards side by side make the shape of a card lying the other way (two upright cards, one tapped
+  // card's shape). Then each card is about half of it, sharing three of its sides, and stands out more than
+  // the two together, whose long sides break where the cards meet (a gap, or at least their round corners):
+  // the half with the point in it is the card. A card's own art can make a half like that too, but the card's
+  // sides run on past it.
+  const whole = best;
+  const halves = contenders.filter(
+    (candidate) =>
+      candidate.clarity >= whole.clarity * HALF_STANDOUT &&
+      isHalfOf(candidate.rect, whole.rect) &&
+      breaksBeside(candidate.rect, whole.rect, columns, rows, width, height),
+  );
+  if (halves.length > 0) best = halves.reduce((a, b) => (a.clarity >= b.clarity ? a : b));
   return { rect: tighten(best.rect, columns, rows, width, height), clarity: best.clarity / (average * 2) };
+}
+
+/**
+ * Whether a rectangle is about half of another, the other way round, along three of its sides: one of two
+ * cards side by side, in the rectangle around both.
+ */
+function isHalfOf(part: PixelRect, whole: PixelRect): boolean {
+  if (part.width > part.height === whole.width > whole.height) return false;
+  const share = (part.width * part.height) / (whole.width * whole.height);
+  if (share < HALF_SHARE[0] || share > HALF_SHARE[1]) return false;
+  // Two cards (and the gap between them) are at least twice as long as one is wide. A card's top part down to
+  // the bottom of its art box shares three sides with it too, but is over half as deep as the card is long.
+  const [long, short] = [Math.max(whole.width, whole.height), Math.min(part.width, part.height)];
+  if (long < short * 2 * HALF_LENGTH) return false;
+  const tolerance = Math.max(2, Math.min(whole.width, whole.height) * HALF_SIDE_TOLERANCE);
+  const near = (a: number, b: number) => Math.abs(a - b) <= tolerance;
+  const shared = [
+    near(part.x, whole.x),
+    near(part.y, whole.y),
+    near(part.x + part.width, whole.x + whole.width),
+    near(part.y + part.height, whole.y + whole.height),
+  ].filter(Boolean).length;
+  return shared >= 3;
+}
+
+/**
+ * Whether the whole's long sides break (their edge weakens) where the half ends: where two cards meet. Each
+ * side is taken as the strongest of the lines a pixel either side, as edges can be a pixel off.
+ */
+function breaksBeside(
+  half: PixelRect,
+  whole: PixelRect,
+  columns: Float64Array,
+  rows: Float64Array,
+  width: number,
+  height: number,
+): boolean {
+  const sideways = whole.width > whole.height;
+  // Along the long sides: from, to, and where the half ends.
+  const [from, to] = sideways ? [whole.x, whole.x + whole.width] : [whole.y, whole.y + whole.height];
+  const [halfFrom, halfTo] = sideways ? [half.x, half.x + half.width] : [half.y, half.y + half.height];
+  const split = Math.abs(halfFrom - from) < Math.abs(halfTo - to) ? halfTo : halfFrom;
+  const reach = Math.max(1, Math.round(Math.min(half.width, half.height) * BREAK_REACH));
+  const a = Math.max(from, Math.round(split - reach));
+  const b = Math.min(to, Math.round(split + reach));
+  if (b - a < 2 || to - from < 4) return false;
+  // Average edge strength along a line from p to q: across columns (sideways) or down rows.
+  const strength = (line: number, p: number, q: number) => {
+    if (sideways) {
+      if (line < 0 || line >= height) return 0;
+      return (rows[line * (width + 1) + q]! - rows[line * (width + 1) + p]!) / (q - p);
+    }
+    if (line < 0 || line >= width) return 0;
+    return (columns[line * (height + 1) + q]! - columns[line * (height + 1) + p]!) / (q - p);
+  };
+  const sides = sideways ? [whole.y, whole.y + whole.height] : [whole.x, whole.x + whole.width];
+  return sides.every((side) => {
+    const lines = [side - 1, side, side + 1];
+    const along = Math.max(...lines.map((line) => strength(line, from, to)));
+    const there = Math.max(...lines.map((line) => strength(line, a, b)));
+    return along > 0 && there < along * BREAK;
+  });
 }
 
 /**
@@ -218,6 +348,21 @@ function tighten(rect: PixelRect, columns: Float64Array, rows: Float64Array, wid
 const STRETCHES = 3;
 /** Rectangles scoring at least this share of the best are in the running for being the card's outline. */
 const NEAR_BEST = 0.75;
+/** One of two cards side by side is this share of the rectangle around both (less with a gap between them). */
+const HALF_SHARE = [0.43, 0.6] as const;
+/** How near a side of the whole one of the halves' sides is, as a share of the whole's shorter side. */
+const HALF_SIDE_TOLERANCE = 0.07;
+/** Two cards side by side are at least this share of twice one card's width long (outlines aren't exact). */
+const HALF_LENGTH = 0.96;
+/**
+ * One of two cards stands out at least this much more than both together (about 1.2 to 1.3 times, in tests);
+ * a card's own half, less than the card.
+ */
+const HALF_STANDOUT = 1.15;
+/** Around where two cards would meet, as a share of a card's width: how much of the long sides is looked at. */
+const BREAK_REACH = 0.08;
+/** Long sides weaker than this share of their average there break: two cards meet. */
+const BREAK = 0.7;
 
 /** How strongly an edge runs along a side: its average strength, held back by its weakest stretch. */
 function side(sums: Float64Array, start: number, length: number): number {

@@ -11,11 +11,13 @@ interface CardsPanelProps {
   readonly initialCardId?: string | null;
   /** Puts a card in the spotlight for the whole table. Only at a table. */
   onSpotlight?: (card: Card, reason: 'cast' | 'show') => void;
+  /** Searching for which card one clicked on a video is: the player picks it. */
+  onPick?: (card: Card) => void;
   onClose(): void;
 }
 
 /** Look up any card: what it does, what it looks like, and its official rulings. */
-export function CardsPanel({ initialCardId = null, onSpotlight, onClose }: CardsPanelProps) {
+export function CardsPanel({ initialCardId = null, onSpotlight, onPick, onClose }: CardsPanelProps) {
   const status = useCardStatus();
   const [query, setQuery] = useState('');
   const results = useSearch(query, status);
@@ -35,7 +37,7 @@ export function CardsPanel({ initialCardId = null, onSpotlight, onClose }: Cards
     <aside className="side-panel cards-panel" aria-label="Cards" data-testid="cards-panel">
       <header className="panel-header">
         <h2>
-          <Icon name="spell-book" /> Cards
+          <Icon name="spell-book" /> {onPick ? 'Which card is it?' : 'Cards'}
         </h2>
         <button onClick={onClose}>Close</button>
       </header>
@@ -77,13 +79,21 @@ export function CardsPanel({ initialCardId = null, onSpotlight, onClose }: Cards
             key={details.card.id}
             details={details}
             actions={
-              onSpotlight && (
+              onPick ? (
                 <div className="row card-actions">
-                  <button className="primary" onClick={() => onSpotlight(details.card, 'cast')}>
-                    Cast it
+                  <button className="primary" onClick={() => onPick(details.card)}>
+                    It's this card
                   </button>
-                  <button onClick={() => onSpotlight(details.card, 'show')}>Show everyone</button>
                 </div>
+              ) : (
+                onSpotlight && (
+                  <div className="row card-actions">
+                    <button className="primary" onClick={() => onSpotlight(details.card, 'cast')}>
+                      Cast it
+                    </button>
+                    <button onClick={() => onSpotlight(details.card, 'show')}>Show everyone</button>
+                  </div>
+                )
               )
             }
           />

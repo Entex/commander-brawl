@@ -2016,86 +2016,468 @@ button.response-button:hover:not(:disabled) {
   cursor: zoom-in;
 }
 
-.snapshot-panel {
-  width: min(900px, 96vw);
-  max-height: 94vh;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
+/* Cards seen: clicked on the videos, outlined there and shown beside the table */
 
-.snapshot-body {
+.table-body {
+  flex: 1;
   display: flex;
-  gap: 1.2rem;
-  align-items: flex-start;
   min-height: 0;
 }
 
-.snapshot-image {
-  flex: 1 1 auto;
+.table-body > .seats {
   min-width: 0;
-  max-width: 100%;
-  max-height: 78vh;
-  object-fit: contain;
-  border-radius: 6px;
 }
 
-.snapshot-guesses {
-  flex: 0 0 240px;
+.card-rail {
+  width: 300px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin: 0;
+  gap: 1rem;
+  padding: 0.8rem 0.9rem 1rem;
+  overflow-y: auto;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--panel)), var(--panel) 40%);
+  border-left: 1px solid var(--border);
 }
 
-.snapshot-guesses h3 {
-  margin: 0;
-  font-size: 0.95rem;
+.card-rail-header,
+.card-rail-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.guess-list {
+.card-rail-header h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+}
+
+.icon-button {
+  padding: 0.15rem 0.5rem;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* Card-shaped, with a card's rounded corners, lit in the color of the player whose card it is. */
+.lookup-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 63 / 88;
+  border-radius: 4.8% / 3.4%;
+  overflow: hidden;
+  background: radial-gradient(
+    circle at 50% 38%,
+    color-mix(in srgb, var(--seat, var(--accent)) 22%, #12131a),
+    #08090c 78%
+  );
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--seat, var(--accent)) 55%, transparent),
+    0 0 26px color-mix(in srgb, var(--seat, var(--accent)) 22%, transparent),
+    0 14px 30px rgb(0 0 0 / 55%);
+}
+
+.lookup-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  animation: lookup-appear 0.35s ease-out;
+}
+
+/* Scryfall's picture of the card fades in over what their camera saw, once it has loaded. */
+.lookup-card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.lookup-card-image-shown {
+  opacity: 1;
+}
+
+.lookup-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.2rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.lookup-placeholder .icon {
+  width: 2.8rem;
+  height: 2.8rem;
+  color: var(--seat, var(--accent));
+  animation: lookup-pulse 1.2s ease-in-out infinite;
+}
+
+.lookup-placeholder-failed .icon {
+  color: var(--error);
+  animation: none;
+}
+
+/* Asking their camera: a shimmer across the empty card. */
+.lookup-asking .lookup-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 7%) 50%, transparent 65%);
+  background-size: 250% 100%;
+  animation: lookup-shimmer 1.4s linear infinite;
+}
+
+/* Reading the card: a band of light sweeps over their picture. */
+.lookup-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 22%;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 45%, transparent) 50%, transparent);
+  mix-blend-mode: screen;
+  animation: lookup-scan 1.3s ease-in-out infinite alternate;
+}
+
+/* What their camera saw, small in the corner of the card; pointing at it shows it big. */
+.lookup-peek {
+  position: absolute;
+  right: 5%;
+  bottom: 3.5%;
+  width: 30%;
+  aspect-ratio: 63 / 88;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  border: 2px solid rgb(255 255 255 / 85%);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 60%);
+  cursor: zoom-in;
+  transition: transform 0.15s;
+}
+
+.lookup-peek:hover:not(:disabled) {
+  transform: scale(1.06);
+  border-color: #fff;
+  background: #000;
+}
+
+.lookup-peek img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lookup-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lookup-name {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.2;
+}
+
+.lookup-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.confidence {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.confidence-likely {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+}
+
+.confidence-possibly {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+}
+
+.confidence-unsure {
+  color: var(--muted);
+  background: var(--panel-raised);
+}
+
+.confidence-picked {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.lookup-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lookup-actions button {
+  flex: 1;
+}
+
+.lookup-others {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lookup-others .hint {
+  margin-right: 0.15rem;
+  font-size: 0.82rem;
+}
+
+.chip-button {
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.card-rail-history h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card-rail-history ul {
   list-style: none;
-  margin: 0;
+  margin: 0.4rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-}
-
-.guess-row {
-  display: flex;
   gap: 0.3rem;
-  align-items: stretch;
 }
 
-.guess-track {
-  font-size: 0.8rem;
-}
-
-.guess {
+.lookup-row {
   display: grid;
-  grid-template-columns: 48px 1fr;
-  column-gap: 0.6rem;
+  grid-template-columns: 36px 1fr;
+  gap: 0.65rem;
   align-items: center;
+  justify-content: stretch;
   width: 100%;
-  padding: 0.35rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.4rem;
   text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-left: 3px solid var(--seat, var(--accent));
+  border-radius: 6px;
 }
 
-.guess-image {
-  grid-row: 1 / span 2;
-  width: 48px;
+.lookup-row:hover:not(:disabled) {
+  background: var(--panel-raised);
+  border-color: var(--border);
+  border-left-color: var(--seat, var(--accent));
+}
+
+.lookup-row-thumb {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  aspect-ratio: 63 / 88;
+  overflow: hidden;
   border-radius: 3px;
+  background: #000;
+  color: var(--muted);
 }
 
-.guess-name {
-  grid-column: 2;
+.lookup-row-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lookup-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lookup-row-name {
+  overflow: hidden;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.guess .hint {
-  grid-column: 2;
-  font-size: 0.8rem;
+.lookup-row .hint {
+  font-size: 0.78rem;
+}
+
+/* The card being looked up, outlined on its player's video. */
+.card-outline-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.card-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.card-outline-glow {
+  fill: color-mix(in srgb, var(--accent) 10%, transparent);
+  stroke: var(--accent);
+  stroke-width: 9;
+  stroke-opacity: 0.35;
+  stroke-linejoin: round;
+}
+
+.card-outline-line {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 8px var(--accent));
+}
+
+/* While their camera takes the picture and it's read: marching, pulsing. */
+.card-outline-asking .card-outline-line,
+.card-outline-reading .card-outline-line {
+  stroke-dasharray: 14 9;
+  animation: outline-march 0.7s linear infinite;
+}
+
+.card-outline-asking .card-outline-glow,
+.card-outline-reading .card-outline-glow {
+  animation: outline-glow 1s ease-in-out infinite alternate;
+}
+
+/* No card's outline stood out: the part of the picture asked for. */
+.card-outline-line.card-outline-guess {
+  stroke-width: 1.5;
+  stroke-dasharray: 6 6;
+}
+
+.card-outline-failed .card-outline-line {
+  stroke: var(--error);
+  filter: none;
+}
+
+.card-outline-failed .card-outline-glow {
+  stroke: var(--error);
+  fill: none;
+}
+
+.card-outline-leaving {
+  animation: outline-fade 0.6s ease-in 4.4s forwards;
+}
+
+.card-outline-tag {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 8px));
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 50%);
+  animation: tag-appear 0.25s ease-out;
+}
+
+.clean-view .card-rail,
+.clean-view .card-outline-layer {
+  display: none;
+}
+
+@keyframes lookup-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes tag-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 2px));
+  }
+}
+
+@keyframes lookup-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes lookup-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+@keyframes lookup-scan {
+  from {
+    top: -22%;
+  }
+  to {
+    top: 100%;
+  }
+}
+
+@keyframes outline-march {
+  to {
+    stroke-dashoffset: -23;
+  }
+}
+
+@keyframes outline-glow {
+  from {
+    stroke-opacity: 0.15;
+  }
+  to {
+    stroke-opacity: 0.5;
+  }
+}
+
+@keyframes outline-fade {
+  to {
+    opacity: 0;
+  }
 }
 
 /* Camera panel */

@@ -1,7 +1,8 @@
 import { normalizeCardName, type Card } from '@commander-brawl/domain';
 import { artOfCard, artSimilarity, type ArtPrint } from './artPrint';
-import { CARD_RATIO, findCard, type CardLocation } from './cardFinder';
-import { extract, type RgbaImage } from './pixels';
+import { CARD_RATIO, cardCorners, dominantTilt, findCard, locationOfCorners, type CardLocation } from './cardFinder';
+import type { Quad } from './perspective';
+import { extract, toGray, type RgbaImage } from './pixels';
 
 /** Reads text in pictures (OCR). */
 export interface TextReader {
@@ -47,17 +48,41 @@ export interface IdentifyOptions {
   readonly likely?: readonly Card[];
   /** The picture is shown turned this way; cards are tried that way up first. */
   readonly rotation?: 0 | 180;
+  /**
+   * Where the card's corners are thought to be, as fractions of the picture: found in the video before this
+   * sharper picture was taken. The outline found in the picture itself is checked against it, and it stands
+   * in when no outline stands out (a busy background behind the card).
+   */
+  readonly expected?: Quad;
 }
 
 /** Size of the straightened card the reading and comparing works on. */
 const CARD_WIDTH = 480;
 const CARD_HEIGHT = Math.round(CARD_WIDTH / CARD_RATIO);
-/** The card's name is in its top strip, left of the mana cost. Generous, whether or not the border was found. */
-const NAME_STRIP = { x: 0, y: 0, width: 0.8, height: 0.12 };
+/**
+ * The card's name is in its top strip, left of the mana cost. Just the name bar first: with the border or the
+ * top of the artwork in it, the reader often reads nothing at all. Then generous, in case the outline is off
+ * (whether or not the border was found), and that without the frame's edge, which can throw the reader off too.
+ */
+const NAME_STRIPS = [
+  { x: 0.04, y: 0.015, width: 0.7, height: 0.075 },
+  { x: 0, y: 0, width: 0.8, height: 0.12 },
+  { x: 0.05, y: 0, width: 0.75, height: 0.12 },
+];
 /** Letters about 25 pixels tall: what the reader reads best. */
 const NAME_STRIP_WIDTH = 480;
 /** How clearly a card's edges have to stand out to trust the outline. */
 const MIN_CLARITY = 0.9;
+/** Less, when it's where the card was expected (a busy background makes even a card's edges stand out less). */
+const HINTED_MIN_CLARITY = 0.5;
+/**
+ * How much smaller or bigger than expected a found outline may be. Smaller: the expected outline is from a
+ * blurrier video, may include the border, and a phone's photo can cover more than was asked for.
+ */
+const MIN_SIZE_OF_EXPECTED = 0.6;
+const MAX_SIZE_OF_EXPECTED = 1.3;
+/** How far from where it was expected a found outline's middle may be, as a share of the card's width. */
+const AGREEMENT = 0.25;
 const MAX_GUESSES = 5;
 /**
  * Artwork this alike (or less) says nothing; 0.85 and up is usually the same artwork. Unrelated artwork can
@@ -93,8 +118,7 @@ export class CardIdentifier {
 
   async identify(picture: RgbaImage, options: IdentifyOptions = {}): Promise<Identification> {
     const likely = options.likely ?? [];
-    const location = findCard(picture);
-    const found = location && location.clarity >= MIN_CLARITY ? location : null;
+    const found = locate(picture, options.expected);
     if (!found) {
       // No outline: read whatever text there is, and go by names alone.
       const upright =
@@ -126,15 +150,19 @@ export class CardIdentifier {
       });
     });
 
-    // Then the name, the likelier way up first, and the other only if that didn't read as a card.
+    // Then the name, the likelier way up first, and the other only if that didn't read as a card. The
+    // generous strip first, then just inside the card's frame: the frame's edge in the strip can throw the
+    // reader off ("pr Study" for "Rhystic Study"), or the border may have been taken for the card's edge.
     const texts: string[] = [];
     let names: readonly NameMatch[] = [];
-    for (const v of [bestView, 1 - bestView]) {
-      texts.push(
-        ...readable(await this.reader.readLine(cardPart(picture, found, turns[v]!, NAME_STRIP, NAME_STRIP_WIDTH))),
-      );
-      names = await this.catalog.closest(texts);
-      if (bestName(names, likely, texts) >= GOOD_NAME) break;
+    reading: for (const v of [bestView, 1 - bestView]) {
+      for (const strip of NAME_STRIPS) {
+        texts.push(
+          ...readable(await this.reader.readLine(cardPart(picture, found, turns[v]!, strip, NAME_STRIP_WIDTH))),
+        );
+        names = await this.catalog.closest(texts);
+        if (bestName(names, likely, texts) >= GOOD_NAME) break reading;
+      }
     }
 
     // The artwork of the best name matches too, when they aren't among the likely cards.
@@ -147,6 +175,55 @@ export class CardIdentifier {
 
     return { picture: views[bestView]!, guesses: rank(likely, names, texts, art) };
   }
+}
+
+/**
+ * The card's outline in the picture. Without a hint, only one that stands out clearly. With where it's
+ * expected (from the video), one that stands out less but agrees with that, or else the expected outline
+ * itself: the video already found the card there.
+ */
+function locate(picture: RgbaImage, expected: Quad | undefined): CardLocation | null {
+  if (!expected) {
+    const location = findCard(picture);
+    return location && location.clarity >= MIN_CLARITY ? location : null;
+  }
+  const { width, height } = picture;
+  const corners = expected.map((c) => ({ x: c.x * width, y: c.y * height })) as unknown as Quad;
+  const hint = locationOfCorners(corners, width, height, 0);
+  const tilt = -dominantTilt(toGray(picture, 200));
+  // Only a card lying the way the video showed it, about as big: not part of it (the text box lies like a
+  // sideways card), nor something bigger around it.
+  const short = Math.min(hint.rect.width, hint.rect.height);
+  const location = findCard(picture, {
+    point: centerOf(cardCorners(hint, width, height)),
+    angles: Math.abs(tilt - hint.angle) < 1 ? [hint.angle] : [hint.angle, tilt],
+    sideways: hint.sideways,
+    minSize: (short * MIN_SIZE_OF_EXPECTED) / (Math.min(width, height) * CARD_RATIO),
+  });
+  return location && location.clarity >= HINTED_MIN_CLARITY && consistent(location, hint, width, height)
+    ? location
+    : hint;
+}
+
+/** Whether a found outline is where the card was expected, about as big (see MIN/MAX_SIZE_OF_EXPECTED). */
+function consistent(location: CardLocation, hint: CardLocation, width: number, height: number): boolean {
+  const short = Math.min(hint.rect.width, hint.rect.height);
+  const size = Math.min(location.rect.width, location.rect.height) / short;
+  const a = centerOf(cardCorners(location, width, height));
+  const b = centerOf(cardCorners(hint, width, height));
+  return (
+    location.sideways === hint.sideways &&
+    size >= MIN_SIZE_OF_EXPECTED &&
+    size <= MAX_SIZE_OF_EXPECTED &&
+    Math.hypot(a.x - b.x, a.y - b.y) <= short * AGREEMENT
+  );
+}
+
+function centerOf(corners: Quad): { x: number; y: number } {
+  return {
+    x: corners.reduce((sum, c) => sum + c.x, 0) / corners.length,
+    y: corners.reduce((sum, c) => sum + c.y, 0) / corners.length,
+  };
 }
 
 /** Quarter turns that make the card upright: as shown first, then the other way up. */
@@ -224,7 +301,17 @@ function rank(
     if (score > 0 && isLikely) score = Math.min(1, score + 0.05);
     if (score > 0.05) guesses.push({ card, score });
   }
-  return guesses.sort((a, b) => b.score - a.score || a.card.name.localeCompare(b.card.name)).slice(0, MAX_GUESSES);
+  // One guess per name: tokens of the same name (a dozen "Goblin"s) are the same guess.
+  const named = new Set<string>();
+  return guesses
+    .sort((a, b) => b.score - a.score || a.card.name.localeCompare(b.card.name))
+    .filter((guess) => {
+      const name = guess.card.name.toLowerCase();
+      if (named.has(name)) return false;
+      named.add(name);
+      return true;
+    })
+    .slice(0, MAX_GUESSES);
 }
 
 /**

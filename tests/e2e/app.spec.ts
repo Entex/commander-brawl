@@ -456,7 +456,7 @@ test('casting a card puts it in the spotlight for everyone', async () => {
   await expect(spotlight).toHaveCount(0);
 });
 
-test("clicking a card on another player's video: a sharp picture of it, and which card it is", async () => {
+test("clicking a card on another player's video: outlined there, and which card it is beside the table", async () => {
   const host = await launch('Host', { camera: await cardCamera() });
   await host.page.getByTestId('host').click();
   const invite = await host.page.getByTestId('invite-code').inputValue();
@@ -466,39 +466,67 @@ test("clicking a card on another player's video: a sharp picture of it, and whic
   await expectVideoFrom(friend.page, 'Host');
   await cardsReady(friend.page);
 
-  // The card is in the middle of the host's camera picture.
-  await friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video').click();
+  // The card is in the middle of the host's camera picture. Clicked near its top right corner, it's still
+  // all of the card that's looked at, not a box around the click.
+  const video = friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video');
+  const nearCorner = await onPicture(video, 0.54, 0.36);
+  await friend.page.mouse.click(nearCorner.x, nearCorner.y);
 
-  const snapshot = friend.page.getByTestId('snapshot');
-  await expect(snapshot).toContainText("From Host's camera");
-  const image = snapshot.getByRole('img', { name: 'Close-up' });
-  await expect(image).toBeVisible({ timeout: 20_000 });
-  const size = await image.evaluate((img: HTMLImageElement) => ({
-    width: img.naturalWidth,
-    height: img.naturalHeight,
-  }));
-  // A card-sized part of the host's camera picture, portrait like a card.
-  expect(size.height).toBeGreaterThan(size.width);
-  const guesses = snapshot.getByTestId('snapshot-guesses');
-  await expect(guesses).toContainText('Rhystic Study', { timeout: 30_000 });
+  // Outlined on the video, and shown beside the table with which card it is.
+  await expect(friend.page.getByTestId('card-outline')).toBeVisible();
+  const lookup = friend.page.getByTestId('card-rail').getByTestId('lookup');
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
+  await expect(lookup).toContainText('Likely');
+  await expect(friend.page.getByTestId('card-outline')).toContainText('Rhystic Study');
+  // What their camera saw: the whole card, cut out and straightened.
+  const photo = lookup.locator('img[alt="Host\'s camera"]').first();
+  await expect
+    .poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalHeight / img.naturalWidth))
+    .toBeCloseTo(88 / 63, 1);
   await friend.page.screenshot({ path: test.info().outputPath('close-up.png') });
 
   // Keeping track of it, on the host's side.
-  await guesses.getByRole('button', { name: 'Track Rhystic Study' }).click();
-  await expect(snapshot).toHaveCount(0);
+  await lookup.getByRole('button', { name: 'Track Rhystic Study' }).click();
+  await expect(lookup.getByRole('button', { name: 'Tracking Rhystic Study' })).toBeDisabled();
   await host.page.getByRole('button', { name: "Host's details" }).click();
   await expect(host.page.getByTestId('permanent-Rhystic Study')).toBeVisible();
   await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Close' }).click();
 
-  // Picking the card shows it, with its text.
-  await friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-video').click();
-  await expect(guesses).toContainText('Rhystic Study', { timeout: 30_000 });
-  await guesses
-    .getByRole('button', { name: /Rhystic Study/ })
-    .first()
-    .click();
-  await expect(snapshot).toHaveCount(0);
+  // Its text and rulings.
+  await lookup.getByRole('button', { name: 'Details' }).click();
   await expect(friend.page.getByTestId('cards-panel')).toContainText('Whenever an opponent casts a spell');
+  await friend.page.getByTestId('cards-panel').getByRole('button', { name: 'Close' }).click();
+
+  // Saying it's another card, by searching for it; then back to the guess with its button.
+  await lookup.getByRole('button', { name: 'Search…' }).click();
+  const search = friend.page.getByTestId('cards-panel');
+  await expect(search).toContainText('Which card is it?');
+  await search.getByLabel('Search for a card').fill('sol ring');
+  await search.getByRole('button', { name: "It's this card" }).click();
+  await expect(search).toHaveCount(0);
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Sol Ring');
+  await expect(lookup).toContainText('Your pick');
+  await lookup.getByTestId('lookup-others').getByRole('button', { name: 'Rhystic Study' }).click();
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+
+  // Another look: the newest is shown, the earlier ones are listed below and can be shown again.
+  const lower = await onPicture(video, 0.5, 0.6);
+  await friend.page.mouse.click(lower.x, lower.y);
+  const rail = friend.page.getByTestId('card-rail');
+  await expect(rail.getByRole('region', { name: 'Earlier' })).toContainText('Rhystic Study');
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
+  await expect(lookup.getByRole('button', { name: 'Track Rhystic Study' })).toBeEnabled();
+  await rail
+    .getByRole('region', { name: 'Earlier' })
+    .getByRole('button', { name: /Rhystic Study/ })
+    .click();
+  await expect(lookup.getByRole('button', { name: 'Tracking Rhystic Study' })).toBeDisabled();
+
+  // Out of the way and back.
+  await rail.getByRole('button', { name: 'Hide cards seen' }).click();
+  await expect(rail).toHaveCount(0);
+  await friend.page.getByTestId('seen-toggle').click();
+  await expect(friend.page.getByTestId('card-rail')).toBeVisible();
   // Your own video isn't for looking at close up.
   await expect(host.page.locator('.seat-video-look')).toHaveCount(1);
 });
@@ -587,7 +615,7 @@ test('pings and arrows on the videos, in the same spot for everyone, also on a f
   await friend.page.mouse.move(a.x + 60, a.y + 20, { steps: 5 });
   await friend.page.mouse.up();
   await expect(host.page.getByTestId('arrow')).toHaveCount(2);
-  await expect(friend.page.getByTestId('snapshot')).toHaveCount(0);
+  await expect(friend.page.getByTestId('card-rail')).toHaveCount(0);
 
   // They go away after a few seconds.
   await expect(friend.page.getByTestId('ping')).toHaveCount(0, { timeout: 10_000 });
@@ -847,10 +875,9 @@ test('straightening a camera that looks at the table at an angle', async () => {
 
   // A close-up of the straight picture comes from the camera, straightened the same way.
   await hostVideo.click();
-  await expect(friend.page.getByTestId('snapshot').getByRole('img', { name: 'Close-up' })).toBeVisible({
+  await expect(friend.page.getByTestId('lookup').locator('img[alt="Host\'s camera"]').first()).toBeVisible({
     timeout: 20_000,
   });
-  await friend.page.getByTestId('snapshot').getByRole('button', { name: 'Close' }).click();
 
   // Not straightening any more: back to the camera's own shape.
   await host.page.getByRole('button', { name: 'Menu' }).click();
