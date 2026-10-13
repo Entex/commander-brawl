@@ -488,7 +488,7 @@ function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
   if (reachability.kind === 'forward') {
     return (
       <p className="banner">
-        Your router didn't open the port by itself (UPnP). If TCP port {reachability.port} is forwarded to this computer
+        {reachability.reason} If TCP port {reachability.port} is forwarded to this computer
         {reachability.localAddress ? ` (${reachability.localAddress})` : ''}, friends can join with the invite: it has
         your internet address ({reachability.address}). Your router doesn't let this computer check that itself.
       </p>

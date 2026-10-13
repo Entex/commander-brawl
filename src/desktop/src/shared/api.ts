@@ -13,10 +13,16 @@ import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastruc
 export type Reachability =
   | { readonly kind: 'internet'; readonly address: string; readonly port: number }
   /**
-   * The router didn't open the port itself, and it couldn't be checked from here whether it's forwarded by hand
-   * (to `localAddress`). The invite has the public `address` in case it is.
+   * The router didn't open the port itself (`reason`: why), and it couldn't be checked from here whether it's
+   * forwarded by hand (to `localAddress`). The invite has the public `address` in case it is.
    */
-  | { readonly kind: 'forward'; readonly address: string; readonly localAddress: string | null; readonly port: number }
+  | {
+      readonly kind: 'forward';
+      readonly reason: string;
+      readonly address: string;
+      readonly localAddress: string | null;
+      readonly port: number;
+    }
   | { readonly kind: 'blocked'; readonly reason: string; readonly port: number };
 
 export interface HostInfo {

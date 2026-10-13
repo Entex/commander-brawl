@@ -283,7 +283,10 @@ function describeReachability(mapping: PortMappingResult, forwarded: ForwardedPo
   }
   if (forwarded?.checked) return { kind: 'internet', address: forwarded.address, port };
   if (forwarded) {
-    return { kind: 'forward', address: forwarded.address, localAddress: forwarded.localAddress, port };
+    const reason = mapping.ok
+      ? `Your router opened the port, but its internet address (${mapping.externalIp}) isn't the one friends see: another router or your internet provider is in front of it.`
+      : mapping.reason;
+    return { kind: 'forward', reason, address: forwarded.address, localAddress: forwarded.localAddress, port };
   }
   if (mapping.ok) {
     return {
