@@ -1,4 +1,12 @@
-import { applyEvent, isOut, lossReason, newGame, type GameState, type SeatIndex } from '@commander-brawl/domain';
+import {
+  applyEvent,
+  comboThreats,
+  isOut,
+  lossReason,
+  newGame,
+  type GameState,
+  type SeatIndex,
+} from '@commander-brawl/domain';
 import { undoneIds, type LoggedEvent } from './gameLog';
 
 /** How a player went out. */
@@ -19,6 +27,25 @@ export interface RecordedPlayer {
   } | null;
 }
 
+/** Something worth retelling about a game. */
+export type Moment =
+  | {
+      readonly kind: 'out';
+      readonly turn: number;
+      readonly seat: SeatIndex;
+      readonly reason: OutReason;
+      readonly by: SeatIndex | null;
+    }
+  /** A player's life went up or down a lot in one turn. */
+  | { readonly kind: 'life'; readonly turn: number; readonly seat: SeatIndex; readonly amount: number }
+  /** A player had every piece of a combo on the battlefield. */
+  | { readonly kind: 'combo'; readonly turn: number; readonly seat: SeatIndex; readonly cards: readonly string[] };
+
+const MOMENT_ORDER: Record<Moment['kind'], number> = { life: 0, combo: 1, out: 2 };
+
+/** Life won or lost in one turn that's worth a mention. */
+export const BIG_LIFE_SWING = 10;
+
 /** A game that was played to the end (or until the table started a new one). */
 export interface GameRecord {
   /** The table's log and the game's number in it: the same on every player's computer. */
@@ -29,6 +56,8 @@ export interface GameRecord {
   readonly turns: number;
   readonly players: readonly RecordedPlayer[];
   readonly winner: SeatIndex | null;
+  /** In the order they happened. Missing in records from before they were kept. */
+  readonly moments?: readonly Moment[];
 }
 
 /**
@@ -65,7 +94,9 @@ export function gamesInLog(
     const before = state;
     state = applyEvent(state, entry.event, entry.at);
     game.endedAt = entry.at;
+    noteLife(game, before, state);
     noteEliminations(game, before, state);
+    noteCombos(game, state);
   }
   finish(game.endedAt, false);
   return records;
@@ -76,10 +107,52 @@ interface GameInProgress {
   readonly startedAt: number;
   endedAt: number;
   readonly outs: Map<SeatIndex, NonNullable<RecordedPlayer['out']> & { order: number }>;
+  moments: Moment[];
+  /** Life won or lost this turn so far, by seat. */
+  readonly swings: Map<SeatIndex, number>;
+  swingTurn: number;
+  /** Combos already completed (by seat and cards), so each is told once. */
+  readonly combos: Set<string>;
 }
 
 function startGame(state: GameState, at: number): GameInProgress {
-  return { number: state.number, startedAt: at, endedAt: at, outs: new Map() };
+  return {
+    number: state.number,
+    startedAt: at,
+    endedAt: at,
+    outs: new Map(),
+    moments: [],
+    swings: new Map(),
+    swingTurn: state.turn,
+    combos: new Set(),
+  };
+}
+
+function noteLife(game: GameInProgress, before: GameState, after: GameState): void {
+  if (after.turn !== game.swingTurn) flushSwings(game);
+  game.swingTurn = after.turn;
+  after.seats.forEach((seat, index) => {
+    const change = seat.life - (before.seats[index]?.life ?? seat.life);
+    if (change !== 0) game.swings.set(index as SeatIndex, (game.swings.get(index as SeatIndex) ?? 0) + change);
+  });
+}
+
+/** The turn is over: its big life swings are moments. */
+function flushSwings(game: GameInProgress): void {
+  for (const [seat, amount] of game.swings) {
+    if (Math.abs(amount) >= BIG_LIFE_SWING) game.moments.push({ kind: 'life', turn: game.swingTurn, seat, amount });
+  }
+  game.swings.clear();
+}
+
+function noteCombos(game: GameInProgress, state: GameState): void {
+  for (const threat of comboThreats(state)) {
+    if (threat.missing.length > 0) continue;
+    const key = `${threat.seat}:${threat.combo.cards.join('+')}`;
+    if (game.combos.has(key)) continue;
+    game.combos.add(key);
+    game.moments.push({ kind: 'combo', turn: state.turn, seat: threat.seat, cards: threat.combo.cards });
+  }
 }
 
 function noteEliminations(game: GameInProgress, before: GameState, after: GameState): void {
@@ -95,10 +168,13 @@ function noteEliminations(game: GameInProgress, before: GameState, after: GameSt
           : loss && after.activeSeat !== null && after.activeSeat !== seat
             ? after.activeSeat
             : null;
-      game.outs.set(seat, { turn: after.turn, reason: loss?.kind ?? 'conceded', by, order: game.outs.size });
+      const reason = loss?.kind ?? 'conceded';
+      game.outs.set(seat, { turn: after.turn, reason, by, order: game.outs.size });
+      game.moments.push({ kind: 'out', turn: after.turn, seat, reason, by });
     } else if (!nowOut && wasOut) {
       // Back in (they said they're still in, or a change was taken back).
       game.outs.delete(seat);
+      game.moments = game.moments.filter((m) => !(m.kind === 'out' && m.seat === seat));
     }
   }
 }
@@ -110,6 +186,7 @@ function toRecord(
   endedAt: number,
   name: (seat: SeatIndex) => string | null,
 ): GameRecord | null {
+  flushSwings(game);
   const seated = (state.turnOrder ?? ([0, 1, 2, 3] as SeatIndex[])).filter((seat) => name(seat) !== null);
   if (seated.length < 2 || (state.turnOrder === null && game.outs.size === 0)) return null;
   const standing = seated.filter((seat) => !game.outs.has(seat));
@@ -135,7 +212,62 @@ function toRecord(
     turns: state.turn,
     players,
     winner,
+    // Within a turn, what happened (life, combos) before who went out because of it.
+    moments: [...game.moments]
+      .filter((m) => seated.includes(m.seat))
+      .sort((a, b) => a.turn - b.turn || MOMENT_ORDER[a.kind] - MOMENT_ORDER[b.kind]),
   };
+}
+
+/** The recap of a game as text, for Discord or a file. */
+export function recapText(record: GameRecord, number?: number): string {
+  const nameAt = (seat: SeatIndex | null) =>
+    seat === null ? null : (record.players.find((p) => p.seat === seat)?.name ?? `Seat ${seat + 1}`);
+  const minutes = Math.round((record.endedAt - record.startedAt) / 60_000);
+  const lines = [`**${number ? `Game ${number} recap` : 'Game recap'}** · ${turns(record.turns)} · ${minutes} min`];
+  const standings = [...record.players].sort((a, b) => (a.place ?? 9) - (b.place ?? 9));
+  standings.forEach((p, i) => {
+    const deck = [p.commanders.join(' & '), p.deck].filter(Boolean).join(', ');
+    const how = p.out
+      ? `out on turn ${p.out.turn}, ${OUT_WORDS[p.out.reason]}${p.out.by !== null ? ` (${nameAt(p.out.by)})` : ''}`
+      : record.winner === p.seat
+        ? 'winner'
+        : 'still in';
+    lines.push(`${p.place ?? i + 1}. ${p.name}${deck ? ` (${deck})` : ''}: ${how}`);
+  });
+  const moments = record.moments ?? [];
+  if (moments.length > 0) {
+    lines.push('', 'Key moments:');
+    for (const moment of moments) lines.push(`- Turn ${moment.turn}: ${describeMoment(moment, nameAt)}`);
+  }
+  return lines.join('\n');
+}
+
+/** "1 turn", "7 turns". */
+export function turns(count: number): string {
+  return `${count} turn${count === 1 ? '' : 's'}`;
+}
+
+const OUT_WORDS: Record<OutReason, string> = {
+  life: 'no life left',
+  poison: 'poison',
+  'commander-damage': 'commander damage',
+  'custom-counter': 'a counter',
+  conceded: 'conceded',
+};
+
+export function describeMoment(moment: Moment, nameAt: (seat: SeatIndex | null) => string | null): string {
+  const who = nameAt(moment.seat);
+  switch (moment.kind) {
+    case 'out':
+      return moment.by !== null
+        ? `${nameAt(moment.by)} knocked out ${who} (${OUT_WORDS[moment.reason]})`
+        : `${who} was out (${OUT_WORDS[moment.reason]})`;
+    case 'life':
+      return moment.amount > 0 ? `${who} gained ${moment.amount} life` : `${who} lost ${-moment.amount} life`;
+    case 'combo':
+      return `${who} had a whole combo: ${moment.cards.join(' + ')}`;
+  }
 }
 
 export interface PlayerStats {
@@ -228,10 +360,33 @@ export function historyStats(records: readonly GameRecord[]): HistoryStats {
   };
 }
 
-/** Reads untrusted data (an imported file) as game records, leaving out any that aren't. */
+/** Reads untrusted data (an imported file) as game records, leaving out any that aren't, and any odd moments. */
 export function toGameRecords(raw: unknown): GameRecord[] {
   if (!Array.isArray(raw)) return [];
-  return raw.filter(isGameRecord);
+  return raw.filter(isGameRecord).map((record) => {
+    const moments: unknown = record.moments;
+    if (moments === undefined) return record;
+    return { ...record, moments: Array.isArray(moments) ? moments.filter(isMoment) : [] };
+  });
+}
+
+function isMoment(value: unknown): value is Moment {
+  if (typeof value !== 'object' || value === null) return false;
+  const m = value as Record<string, unknown>;
+  const isSeat = (s: unknown) => s === 0 || s === 1 || s === 2 || s === 3;
+  if (typeof m.turn !== 'number' || !isSeat(m.seat)) return false;
+  switch (m.kind) {
+    case 'out':
+      return typeof m.reason === 'string' && m.reason in OUT_WORDS && (m.by === null || isSeat(m.by));
+    case 'life':
+      return typeof m.amount === 'number';
+    case 'combo':
+      return (
+        Array.isArray(m.cards) && m.cards.length <= 10 && m.cards.every((c) => typeof c === 'string' && c.length <= 160)
+      );
+    default:
+      return false;
+  }
 }
 
 function isGameRecord(value: unknown): value is GameRecord {

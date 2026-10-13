@@ -56,6 +56,8 @@ The app recovers from these problems by itself:
 
 Every change goes into a game log kept by the host, and each player's app has a full copy of it.
 
+**Recap.** When a game is decided, everyone sees who won, and the recap is a click away: the standings with each deck's commander, the turn count, and key moments (big life swings, knockouts, combos). _Copy as text_ for Discord, or save it as a file; it's also in _History_ for every game.
+
 **History** (on the start screen, or in the menu) keeps every finished game on your computer: who won, in how many turns, and who knocked out whom and how. Stats per player (win rate, average game length, knockouts, commander-damage kills) and per deck. _Export_ saves it as a file to share; _Import_ adds a friend's, without counting a game twice. A game counts once it's decided and the table starts a new one or closes.
 
 - If your connection drops, your changes wait and are sent when it's back.

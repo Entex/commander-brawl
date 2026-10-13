@@ -94,6 +94,8 @@ export interface DesktopApi {
     log(): Promise<readonly LoggedEvent[]>;
     /** Asks where to save the text, then saves it. False if the player cancelled. */
     saveLog(text: string): Promise<boolean>;
+    /** The same, for a game's recap. */
+    saveRecap(text: string): Promise<boolean>;
   };
   cards: {
     status(): Promise<CardDataStatus>;
@@ -150,6 +152,7 @@ export const Channels = {
   gameUpdate: 'game:update',
   gameLog: 'game:log',
   gameSaveLog: 'game:save-log',
+  gameSaveRecap: 'game:save-recap',
   cardsStatus: 'cards:status',
   cardsStatusUpdate: 'cards:status-update',
   cardsSearch: 'cards:search',

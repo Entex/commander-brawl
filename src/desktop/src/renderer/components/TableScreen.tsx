@@ -22,6 +22,7 @@ import { CountersPanel } from './CountersPanel';
 import { DecksPanel } from './DecksPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { PointerLayer } from './PointerLayer';
+import { GameOverBanner, RecapView, useLiveRecap } from './RecapView';
 import { ClockPanel, TurnControls } from './Turn';
 import { VariantsBar, VariantsPanel } from './Variants';
 import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
@@ -69,6 +70,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const undoTarget = useUndoTarget(game, state);
   const responseCalls = useResponseCalls(game);
   const { marks: pointerMarks, point } = usePointers(session);
+  const recap = useLiveRecap(game, state.seats);
   const responding = new Set(responseCalls.map((call) => call.by.seat));
   const [copied, setCopied] = useState(false);
 
@@ -198,6 +200,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {game && (
         <div className="status-bar">
           <ResponseButton />
+          {recap.record && !recap.banner && !recap.viewing && <button onClick={recap.view}>Recap</button>}
           <RollMenu game={game.state} players={state.seats} />
           <button onClick={() => setRule0Open(true)}>Rule 0</button>
           <TurnControls game={game.state} players={state.seats} hostClockOffset={game.hostClockOffset} />
@@ -267,6 +270,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
       {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
       {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
+      {recap.record && recap.viewing && (
+        <RecapView record={recap.record} number={recap.number ?? undefined} onClose={recap.close} />
+      )}
       {game && variantsOpen && (
         <VariantsPanel game={game.state} players={state.seats} onClose={() => setVariantsOpen(false)} />
       )}
@@ -277,6 +283,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       <PointerLayer marks={pointerMarks} onPoint={point} selfSeat={selfSeat}>
         <ResponseBanner calls={responseCalls} self={selfSeat} />
         <RollBanner game={game} players={state.seats} />
+        {recap.record && recap.banner && (
+          <GameOverBanner record={recap.record} onView={recap.view} onClose={recap.close} />
+        )}
         {seats.map((seat, index) =>
           seat ? (
             <SeatTile

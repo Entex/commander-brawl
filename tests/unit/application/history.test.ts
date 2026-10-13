@@ -1,4 +1,4 @@
-import { gamesInLog, historyStats, toGameRecords, type LoggedEvent } from '@commander-brawl/application';
+import { gamesInLog, historyStats, recapText, toGameRecords, type LoggedEvent } from '@commander-brawl/application';
 import type { GameEvent, Player, SeatIndex } from '@commander-brawl/domain';
 import { describe, expect, it } from 'vitest';
 
@@ -112,5 +112,52 @@ describe('stats', () => {
     expect(record!.players[1]!.out).toEqual({ turn: 1, reason: 'conceded', by: null });
     expect(toGameRecords([record, { id: 'x' }, null, 'nope'])).toEqual([record]);
     expect(toGameRecords({ not: 'a list' })).toEqual([]);
+  });
+});
+
+describe('the recap', () => {
+  it('has the standings, the big moments, and reads well as text', () => {
+    const entries = log(
+      [alex, { type: 'commanders-named', seat: 0, names: ['Atraxa'] }],
+      [alex, { type: 'turn-order-set', order: [0, 1, 2] }],
+      // A big turn for Alex: Robin takes 12 in one turn, in two hits.
+      [alex, { type: 'life-changed', seat: 1, amount: -7 }],
+      [alex, { type: 'life-changed', seat: 1, amount: -5 }],
+      [alex, { type: 'life-changed', seat: 2, amount: -3 }],
+      [alex, { type: 'turn-passed', from: 0 }],
+      [robin, { type: 'out-set', seat: 2, out: true }],
+      [robin, { type: 'commander-damage', from: 0, commander: 0, to: 1, amount: 21 }],
+    );
+    const [record] = gamesInLog(entries, 't', names);
+    expect(record!.moments).toEqual([
+      { kind: 'life', turn: 1, seat: 1, amount: -12 },
+      { kind: 'life', turn: 2, seat: 1, amount: -21 },
+      { kind: 'out', turn: 2, seat: 2, reason: 'conceded', by: null },
+      { kind: 'out', turn: 2, seat: 1, reason: 'commander-damage', by: 0 },
+    ]);
+    expect(recapText(record!, 1)).toBe(
+      [
+        '**Game 1 recap** · 2 turns · 7 min',
+        '1. Alex (Atraxa): winner',
+        '2. Robin: out on turn 2, commander damage (Alex)',
+        '3. Sam: out on turn 2, conceded',
+        '',
+        'Key moments:',
+        '- Turn 1: Robin lost 12 life',
+        '- Turn 2: Robin lost 21 life',
+        '- Turn 2: Sam was out (conceded)',
+        '- Turn 2: Alex knocked out Robin (commander damage)',
+      ].join('\n'),
+    );
+  });
+
+  it('drops odd moments from an imported file', () => {
+    const [record] = gamesInLog(
+      log([alex, { type: 'turn-order-set', order: [0, 1] }], [alex, { type: 'out-set', seat: 1, out: true }]),
+      't',
+      names,
+    );
+    const [read] = toGameRecords([{ ...record, moments: [...record!.moments!, { kind: 'meteor', turn: 1, seat: 0 }] }]);
+    expect(read!.moments).toEqual(record!.moments);
   });
 });

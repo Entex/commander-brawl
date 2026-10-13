@@ -886,7 +886,7 @@ test('a warning for everyone when a player has most of a combo from their deck o
   await expect(friend.page.getByTestId('chips-0')).toContainText('⚠ Combo 2/3');
 });
 
-test('finished games are kept on each computer: stats, the games, and sharing them as a file', async () => {
+test('a recap when a game is decided, and finished games kept: stats, the games, sharing them as a file', async () => {
   const host = await launch('Host');
   await host.page.getByTestId('host').click();
   const invite = await host.page.getByTestId('invite-code').inputValue();
@@ -905,10 +905,35 @@ test('finished games are kept on each computer: stats, the games, and sharing th
     await details.getByRole('button', { name: "Add 5 damage from Friend's commander" }).click();
   await details.getByRole('button', { name: "Add 1 damage from Friend's commander" }).click();
   await expect(host.page.getByTestId('out-0')).toBeVisible();
+
+  // Decided: everyone hears who won, and the recap is a click away.
+  await expect(friend.page.getByTestId('game-over')).toContainText('🏆 Friend won');
+  await host.page.getByTestId('game-over').getByRole('button', { name: 'Recap' }).click();
+  await friend.page.getByTestId('game-over').getByRole('button', { name: 'Recap' }).click();
+  const recap = host.page.getByTestId('recap');
+  await expect(recap.getByRole('heading', { level: 2 })).toHaveText('Friend won');
+  await expect(recap).toContainText('Turn 1: Host lost 21 life');
+  await expect(recap).toContainText('Turn 1: Friend knocked out Host (commander damage)');
+  await expect(friend.page.getByTestId('recap')).toContainText('Friend won');
+  await host.page.screenshot({ path: test.info().outputPath('recap.png') });
+  await recap.getByRole('button', { name: 'Save as file' }).click();
+  await expect(recap).toContainText('Saved.');
+  const saved = await readFile(
+    join(host.saveDir, `commander-brawl-recap-${new Date().toISOString().slice(0, 10)}.txt`),
+    'utf8',
+  );
+  expect(saved).toContain('1. Friend: winner');
+  expect(saved).toContain('2. Host: out on turn 1, commander damage (Friend)');
+  await recap.getByRole('button', { name: 'Close' }).click();
+  await friend.page.getByTestId('recap').getByRole('button', { name: 'Close' }).click();
+  // Until the next game, it's a click away.
+  await expect(host.page.getByRole('button', { name: 'Recap' })).toBeVisible();
+
   await host.page.getByRole('button', { name: 'Menu' }).click();
   await host.page.getByRole('menuitem', { name: 'New game' }).click();
   await host.page.getByRole('menuitem', { name: 'Start a new game?' }).click();
   await expect(friend.page.getByText('Game 2')).toBeVisible();
+  await expect(host.page.getByRole('button', { name: 'Recap' })).toHaveCount(0);
 
   await friend.page.getByRole('button', { name: 'Menu' }).click();
   await friend.page.getByRole('menuitem', { name: 'History' }).click();

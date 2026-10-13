@@ -164,6 +164,13 @@ function registerIpc(
       filter: { name: 'Text', extensions: ['txt'] },
     }),
   );
+  handle(Channels.gameSaveRecap, (text) =>
+    saveFile(requireString(text), {
+      name: `commander-brawl-recap-${today()}.txt`,
+      title: 'Save the recap',
+      filter: { name: 'Text', extensions: ['txt'] },
+    }),
+  );
   handle(Channels.historyList, () => history.list());
   handle(Channels.historyExport, async () =>
     saveFile(JSON.stringify({ app: 'commander-brawl', version: 1, games: await history.list() }, null, 1), {

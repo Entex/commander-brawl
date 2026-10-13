@@ -17,8 +17,8 @@ export { chooseCommanders, couldBeCommander, parseDeckText, resolveDeck } from '
 export type { ImportedDeck, RawDeck, RawDeckEntry } from './deckImport';
 export { GameSync, HostGameLog, MAX_LOG_LENGTH, replayLog, undoneIds } from './gameLog';
 export type { AppendResult, GameSyncMessage, GameSyncTransport, GameView, LogBatch, LoggedEvent } from './gameLog';
-export { gamesInLog, historyStats, toGameRecords } from './history';
-export type { DeckStats, GameRecord, HistoryStats, OutReason, PlayerStats, RecordedPlayer } from './history';
+export { BIG_LIFE_SWING, describeMoment, gamesInLog, historyStats, recapText, toGameRecords, turns } from './history';
+export type { DeckStats, GameRecord, HistoryStats, Moment, OutReason, PlayerStats, RecordedPlayer } from './history';
 export { InvalidInviteError, decodeInvite, encodeInvite } from './invite';
 export { crop, extract, toGray } from './pixels';
 export type { GrayImage, PixelRect, RgbaImage } from './pixels';

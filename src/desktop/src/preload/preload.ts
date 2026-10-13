@@ -26,6 +26,7 @@ const api: DesktopApi = {
     onView: (listener) => listen(Channels.gameUpdate, listener),
     log: () => ipcRenderer.invoke(Channels.gameLog),
     saveLog: (text) => ipcRenderer.invoke(Channels.gameSaveLog, text),
+    saveRecap: (text) => ipcRenderer.invoke(Channels.gameSaveRecap, text),
   },
   cards: {
     status: () => ipcRenderer.invoke(Channels.cardsStatus),
