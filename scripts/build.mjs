@@ -3,6 +3,7 @@ import { build as esbuild } from 'esbuild';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build as viteBuild } from 'vite';
+import { writeThirdPartyLicenses } from './licenses.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const out = resolve(root, 'build/app');
@@ -14,6 +15,7 @@ export async function buildApp() {
   await buildPhone();
   await buildMain();
   await copyFile(resolve(root, 'assets/icon.png'), resolve(out, 'icon.png'));
+  await writeThirdPartyLicenses(resolve(out, 'THIRD_PARTY_LICENSES.txt'));
   return { out, version: await writeAppPackageJson() };
 }
 

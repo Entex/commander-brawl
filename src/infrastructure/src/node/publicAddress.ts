@@ -3,11 +3,11 @@ import { createSocket } from 'node:dgram';
 import { connect } from 'node:tls';
 import { normalizeFingerprint } from './certificate';
 
-/** STUN servers, which tell a computer the address the internet sees it at: the ones the video links use. */
-export const STUN_SERVERS: readonly (readonly [host: string, port: number])[] = [
-  ['stun.l.google.com', 19302],
-  ['stun.cloudflare.com', 3478],
-];
+/**
+ * STUN servers, which tell a computer the address the internet sees it at. The same one the video links use:
+ * Cloudflare's, which they offer free to anyone (Google's are widely used, but not offered for apps like this one).
+ */
+export const STUN_SERVERS: readonly (readonly [host: string, port: number])[] = [['stun.cloudflare.com', 3478]];
 
 const BINDING_REQUEST = 0x0001;
 const BINDING_SUCCESS = 0x0101;

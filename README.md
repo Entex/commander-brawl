@@ -161,3 +161,11 @@ phone ──Wi-Fi──▶ your computer ──direct (WebRTC)──▶ each oth
 - Icons: [game-icons.net](https://game-icons.net) by Lorc, Delapouite and contributors, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
 - Font: [Cinzel](https://github.com/NDISCOVER/Cinzel-Typeface) by Natanael Gama, SIL Open Font License 1.1.
 - Card data and pictures: [Scryfall](https://scryfall.com). Combos and deck links: [Commander Spellbook](https://commanderspellbook.com).
+- Finding your internet address: [Cloudflare's STUN server](https://developers.cloudflare.com/realtime/turn/).
+- Libraries: the app comes with their licenses, in `THIRD_PARTY_LICENSES.txt` (in the app's resources folder; `npm run build` writes it to `build/app`).
+
+Commander Brawl is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
+
+## License
+
+[MIT](LICENSE), for Commander Brawl's own code. Magic: The Gathering, its cards and their pictures belong to Wizards of the Coast, and the libraries keep their own licenses.

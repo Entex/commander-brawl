@@ -50,6 +50,8 @@ for (const target of targets) {
     darwinDarkModeSupport: true,
     // The packager adds .ico or .icns for the platform.
     icon: resolve(root, 'assets/icon'),
+    // In the app's resources folder, where they can be read: the app's license and the libraries'.
+    extraResource: [resolve(root, 'LICENSE'), join(appDir, 'THIRD_PARTY_LICENSES.txt')],
     win32metadata: {
       CompanyName: 'Commander Brawl',
       ProductName: 'Commander Brawl',
@@ -68,6 +70,11 @@ for (const target of targets) {
   await mkdir(folder, { recursive: true });
   if (platform === 'darwin') {
     await mkdir(content);
+    // Only the app bundle is installed, so Chromium's licenses (beside it) go inside it.
+    await copyFile(
+      join(packaged, 'LICENSES.chromium.html'),
+      join(packaged, 'Commander Brawl.app', 'Contents', 'Resources', 'LICENSES.chromium.html'),
+    );
     await rename(join(packaged, 'Commander Brawl.app'), join(content, 'Commander Brawl.app'));
   } else {
     await rename(packaged, content);

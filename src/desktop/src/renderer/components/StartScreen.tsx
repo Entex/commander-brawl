@@ -160,6 +160,14 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
             game-icons.net
           </a>{' '}
           (CC BY 3.0)
+          <br />
+          {/* The notice Wizards of the Coast's Fan Content Policy asks for, word for word. */}
+          Commander Brawl is unofficial Fan Content permitted under the{' '}
+          <a href="https://company.wizards.com/en/legal/fancontentpolicy" target="_blank" rel="noreferrer">
+            Fan Content Policy
+          </a>
+          . Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast.
+          ©Wizards of the Coast LLC.
         </footer>
       </div>
       {decksOpen && <DecksPanel seat={null} playing={null} onClose={() => setDecksOpen(false)} />}

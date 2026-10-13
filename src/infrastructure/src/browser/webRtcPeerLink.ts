@@ -15,11 +15,11 @@ export interface WebRtcConfig {
   readonly disconnectGraceMs?: number;
 }
 
-/** Public STUN servers. They only tell a computer its own public address; no video goes through them. */
-export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-  { urls: 'stun:stun.cloudflare.com:3478' },
-];
+/**
+ * A public STUN server: Cloudflare's, which they offer free to anyone. It only tells a computer its own public
+ * address; no video goes through it.
+ */
+export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.cloudflare.com:3478' }];
 
 type LinkSignal = { readonly description: RTCSessionDescriptionInit } | { readonly candidate: RTCIceCandidateInit };
 
