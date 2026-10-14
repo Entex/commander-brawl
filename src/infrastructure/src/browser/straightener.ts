@@ -11,6 +11,9 @@ interface TrackGenerator extends MediaStreamTrack {
 declare const MediaStreamTrackProcessor: new (init: { track: MediaStreamTrack }) => TrackProcessor;
 declare const MediaStreamTrackGenerator: new (init: { kind: 'video' }) => TrackGenerator;
 
+/** The size of the picture to make from a camera picture of the given size. */
+export type OutputSize = (width: number, height: number) => { readonly width: number; readonly height: number };
+
 /** Worked out once: making a WebGL context to find out isn't free. */
 let supportedHere: boolean | undefined;
 
@@ -44,7 +47,8 @@ void main() {
  * Turns a camera that looks at the playmat at an angle into a straight, top-down view: each frame, the four
  * corners of the playmat are stretched back into a rectangle (on the graphics card). `track` is the result,
  * for the other players. Works frame by frame as the camera delivers them, so it keeps going when the window
- * is in the background.
+ * is in the background. The result's size is worked out from each frame's, so it follows the camera when its
+ * resolution changes, or only becomes known once its video arrives (a phone's).
  */
 export class Straightener {
   readonly track: MediaStreamTrack;
@@ -67,10 +71,12 @@ export class Straightener {
   constructor(
     private readonly source: MediaStreamTrack,
     corners: Quad,
-    readonly width: number,
-    readonly height: number,
+    private readonly sizeFor: OutputSize,
   ) {
-    this.canvas = new OffscreenCanvas(width, height);
+    // Until the first frame says otherwise.
+    const { width = 1280, height = 720 } = source.getSettings();
+    const size = sizeFor(width, height);
+    this.canvas = new OffscreenCanvas(size.width, size.height);
     const gl = this.canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: false });
     if (!gl) throw new Error('This computer can’t straighten the camera (no WebGL 2).');
     this.gl = gl;
@@ -87,7 +93,7 @@ export class Straightener {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.viewport(0, 0, width, height);
+    gl.viewport(0, 0, size.width, size.height);
     this.warpLocation = gl.getUniformLocation(program, 'warp')!;
     this.setCorners(corners);
 
@@ -96,6 +102,15 @@ export class Straightener {
     generator.contentHint = 'detail';
     this.track = generator;
     void this.run(new MediaStreamTrackProcessor({ track: source }).readable, generator.writable);
+  }
+
+  /** The straight picture's size, as of the latest frame. */
+  get width(): number {
+    return this.canvas.width;
+  }
+
+  get height(): number {
+    return this.canvas.height;
   }
 
   setCorners(corners: Quad): void {
@@ -108,6 +123,15 @@ export class Straightener {
     this.track.stop();
   }
 
+  /** Makes the straight picture the size for a camera picture of this size, if it isn't already. */
+  private fit(width: number, height: number): void {
+    const size = this.sizeFor(width, height);
+    if (size.width === this.canvas.width && size.height === this.canvas.height) return;
+    this.canvas.width = size.width;
+    this.canvas.height = size.height;
+    this.gl.viewport(0, 0, size.width, size.height);
+  }
+
   private async run(frames: ReadableStream<VideoFrame>, out: WritableStream<VideoFrame>): Promise<void> {
     const reader = frames.getReader();
     const writer = out.getWriter();
@@ -117,6 +141,7 @@ export class Straightener {
         if (done) break;
         const { timestamp } = frame;
         try {
+          this.fit(frame.displayWidth, frame.displayHeight);
           this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, frame);
         } finally {
           frame.close();

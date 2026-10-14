@@ -97,6 +97,25 @@ test('the computer gets a sharp picture of part of the phone view', async ({ bro
   await tearDown();
 });
 
+test('the phone films at the resolution picked on the computer', async ({ browser }) => {
+  const { table, openPhone, tearDown } = await setUp(browser);
+  const phone = await openPhone();
+  await expect(phone.locator('#status')).toHaveText('Live', { timeout: 20_000 });
+  const desktop = table.page('p1');
+  const filming = () => phone.evaluate(() => (document.getElementById('preview') as HTMLVideoElement).videoHeight);
+  await expect.poll(filming, { timeout: 10_000 }).toBe(1080);
+
+  await desktop.evaluate(() => window.harness.phoneResolution(720));
+
+  await expect.poll(filming, { timeout: 10_000 }).toBe(720);
+  await expect
+    .poll(() => desktop.evaluate(() => window.harness.phoneVideoSize()), { timeout: 10_000 })
+    .toBe('1280x720');
+  // Still live for the others.
+  await table.expectLiveVideo('p2', ['p1']);
+  await tearDown();
+});
+
 test('the phone recovers from a Wi-Fi drop and the others get its video back', async ({ browser }) => {
   const { table, wifi, openPhone, tearDown } = await setUp(browser);
   const phone = await openPhone();

@@ -3,6 +3,7 @@ import {
   applyHomography,
   cropInCamera,
   orderCorners,
+  shrunkSize,
   squareToQuad,
   straightenedSize,
   warpCrop,
@@ -53,6 +54,16 @@ describe('straightening a picture taken at an angle', () => {
     ];
     const size = straightenedSize(upright, 1920, 1080);
     expect(size.width / size.height).toBeCloseTo(1 / PLAYMAT_RATIO, 1);
+
+    // A 4K camera: no longer than 1080p's width either way, for the others.
+    expect(straightenedSize(mat, 3840, 2160)).toEqual({ width: 1920, height: 1120 });
+    expect(straightenedSize(upright, 3840, 2160)).toEqual({ width: 1120, height: 1920 });
+  });
+
+  it('shrinks a picture larger than the others get, keeping its shape, and never grows one', () => {
+    expect(shrunkSize(3840, 2160)).toEqual({ width: 1920, height: 1080 });
+    expect(shrunkSize(2160, 3840)).toEqual({ width: 1080, height: 1920 });
+    expect(shrunkSize(1280, 720)).toEqual({ width: 1280, height: 720 });
   });
 
   it('finds the part of the camera picture behind a crop, and straightens it', () => {

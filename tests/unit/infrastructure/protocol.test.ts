@@ -88,6 +88,12 @@ describe('phone protocol', () => {
     ).toEqual({ t: 'candidate', session: 1, candidate: { candidate: 'c', sdpMid: '0', sdpMLineIndex: 0 } });
   });
 
+  it('accepts a resolution the phone can film at, and no other', () => {
+    expect(parseDesktopToPhone('{"t":"resolution","height":2160}')).toEqual({ t: 'resolution', height: 2160 });
+    expect(parseDesktopToPhone('{"t":"resolution","height":1000}')).toBeNull();
+    expect(parseDesktopToPhone('{"t":"resolution","height":"720"}')).toBeNull();
+  });
+
   it.each([
     '{"t":"offer","session":-1,"sdp":"v=0"}',
     '{"t":"offer","session":1}',

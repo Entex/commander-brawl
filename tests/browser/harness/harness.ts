@@ -4,6 +4,7 @@ import {
   CardIdentifier,
   CardIndex,
   TableSession,
+  WHOLE_PICTURE,
   type Quad,
   type SignalingEvent,
   type TableSignaling,
@@ -23,7 +24,7 @@ import {
 import languageUrl from '@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz?url';
 import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url';
 import workerUrl from 'tesseract.js/dist/worker.min.js?url';
-import type { DesktopToPhone, PhoneCrop, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
+import type { CameraHeight, DesktopToPhone, PhoneCrop, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 export type HarnessOutbound =
   | { readonly kind: 'signal'; readonly to: string; readonly data: unknown }
@@ -136,6 +137,7 @@ const identifier = new CardIdentifier(
 );
 
 let phoneReceiver: PhoneReceiver | null = null;
+let phoneTrack: MediaStreamTrack | null = null;
 let phoneState: PhoneCameraState = 'waiting';
 
 const harness = {
@@ -151,13 +153,27 @@ const harness = {
   startPhoneReceiver(): void {
     phoneReceiver = new PhoneReceiver({
       send: (message) => void window.toNode({ kind: 'phone', message }),
-      track: (track) => void session.setLocalTrack(track),
+      track: (track) => {
+        phoneTrack = track;
+        void session.setLocalTrack(track);
+      },
       state: (state) => {
         phoneState = state;
         // What the desktop app tells the other players (see cameraStatus in the desktop app).
         session.setCameraStatus(state === 'live' ? 'live' : state === 'waiting' ? 'off' : 'reconnecting');
       },
     });
+  },
+
+  /** Picks the resolution the linked phone films at, as in the desktop app's camera panel. */
+  phoneResolution(height: CameraHeight): void {
+    phoneReceiver?.setResolution(height);
+  },
+
+  /** The size of the linked phone's video as it arrives, once known. */
+  phoneVideoSize(): string | null {
+    const { width, height } = phoneTrack?.getSettings() ?? {};
+    return width && height ? `${width}x${height}` : null;
   },
 
   deliverPhone(message: PhoneToDesktop): void {
@@ -207,7 +223,10 @@ const harness = {
     };
     draw();
     const painter = setInterval(draw, 30);
-    const straightener = new Straightener(source.captureStream(30).getVideoTracks()[0]!, corners, 320, 180);
+    const straightener = new Straightener(source.captureStream(30).getVideoTracks()[0]!, corners, () => ({
+      width: 320,
+      height: 180,
+    }));
     const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true });
     document.body.append(video);
     video.srcObject = new MediaStream([straightener.track]);
@@ -229,6 +248,42 @@ const harness = {
     straightener.stop();
     video.remove();
     return result;
+  },
+
+  /**
+   * Straightens a picture that changes size halfway (straight pictures half its size): the straight picture's
+   * size before and after, as it arrives and as the straightener tells it.
+   */
+  async straightenResizing(): Promise<string[]> {
+    const source = Object.assign(document.createElement('canvas'), { width: 640, height: 480 });
+    const paint = () => {
+      const g = source.getContext('2d')!;
+      g.fillStyle = '#08f';
+      g.fillRect(0, 0, source.width, source.height);
+    };
+    paint();
+    const painter = setInterval(paint, 30);
+    const straightener = new Straightener(
+      source.captureStream(30).getVideoTracks()[0]!,
+      WHOLE_PICTURE,
+      (width, height) => ({ width: width / 2, height: height / 2 }),
+    );
+    const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true });
+    document.body.append(video);
+    video.srcObject = new MediaStream([straightener.track]);
+    await video.play();
+    const sizes: string[] = [];
+    const settle = async (width: number) => {
+      for (let i = 0; i < 100 && video.videoWidth !== width; i++) await new Promise((r) => setTimeout(r, 50));
+      sizes.push(`${video.videoWidth}x${video.videoHeight}`, `${straightener.width}x${straightener.height}`);
+    };
+    await settle(320);
+    Object.assign(source, { width: 1280, height: 720 });
+    await settle(640);
+    clearInterval(painter);
+    straightener.stop();
+    video.remove();
+    return sizes;
   },
 
   /**

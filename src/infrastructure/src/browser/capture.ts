@@ -7,11 +7,12 @@ const JPEG_QUALITY = 0.9;
 
 interface ImageCaptureLike {
   takePhoto(): Promise<Blob>;
-  grabFrame(): Promise<ImageBitmap>;
+  /** Safari had takePhoto (18.4) before grabFrame (26). */
+  grabFrame?(): Promise<ImageBitmap>;
 }
 type ImageCaptureConstructor = new (track: MediaStreamTrack) => ImageCaptureLike;
 
-/** Chrome on Android (and desktop) has ImageCapture; Safari doesn't. */
+/** Chrome has ImageCapture, and so has Safari since 18.4 (which every browser on an iPhone is underneath). */
 function imageCapture(track: MediaStreamTrack): ImageCaptureLike | null {
   const Constructor = (globalThis as { ImageCapture?: ImageCaptureConstructor }).ImageCapture;
   return Constructor ? new Constructor(track) : null;
@@ -42,8 +43,11 @@ export async function captureFrame(track: MediaStreamTrack, crop: CropRect): Pro
  * middle band; the crop is mapped onto the photo that way, with some margin (a share of the crop on each side)
  * in case a phone does it differently. Falls back to a video frame, which is exactly the crop.
  *
- * A phone held sideways can take the photo the other way up from its video (Chrome on Android does), so the
- * photo is first turned whichever way makes it look like the video's current frame.
+ * A phone held sideways can take the photo the other way up from its video (Chrome on Android and iPhones do), so
+ * the photo is first turned whichever way makes it look like the video's current frame.
+ *
+ * No size is asked for. An iPhone then takes the photo as large as its video: a larger one makes Safari switch the
+ * camera to another mode for it, which pauses the video, and on iOS 27 fails and breaks every later photo.
  */
 export async function capturePhoto(track: MediaStreamTrack, crop: CropRect, margin = 0.2): Promise<string> {
   const capture = imageCapture(track);
@@ -57,7 +61,12 @@ export async function capturePhoto(track: MediaStreamTrack, crop: CropRect, marg
   const video = await frameFromVideo(track);
   try {
     const frame = videoFrameToRgba(video, MATCH_SIZE);
-    const turns = frame ? photoTurns(frame, imageToRgba(photo, MATCH_SIZE)) : 0;
+    const { turns, likeness } = frame ? photoTurns(frame, imageToRgba(photo, MATCH_SIZE)) : { turns: 0, likeness: 1 };
+    if (likeness < LIKE_ITS_VIDEO) {
+      // Not a photo of what the video shows (a black one, or one framed differently): the video's own frame then.
+      photo.close();
+      return await captureFrame(track, crop);
+    }
     const turnedAspect = turns % 2 === 1 ? photo.height / photo.width : photo.width / photo.height;
     const videoAspect = video.videoWidth / video.videoHeight;
     return cropTurned(photo, widen(videoToPhoto(crop, turnedAspect, videoAspect), margin), turns);
@@ -65,6 +74,20 @@ export async function capturePhoto(track: MediaStreamTrack, crop: CropRect, marg
     video.srcObject = null;
   }
 }
+
+/**
+ * Safari's first photo after the camera starts (or changes resolution) often comes out dark (WebKit bug 313854).
+ * On Safari, which is every browser on an iPhone, one is taken and thrown away, for the first close-up to be good.
+ */
+export function warmUpPhotos(track: MediaStreamTrack): void {
+  if (navigator.vendor !== 'Apple Computer, Inc.') return;
+  void imageCapture(track)
+    ?.takePhoto()
+    .catch(() => undefined);
+}
+
+/** A photo at least this much like its camera's video, turned the right way (see photoTurns), is of that view. */
+const LIKE_ITS_VIDEO = 0.7;
 
 /** Pictures are shrunk to this to tell which way up a photo is: enough to see what's where. */
 const MATCH_SIZE = 96;
@@ -74,9 +97,10 @@ const WHOLE = { x: 0, y: 0, width: 1, height: 1 };
 
 /**
  * How many quarter turns clockwise make a photo the way up its camera's video is: the turn whose middle band
- * (see videoToPhoto) looks most like the video's picture.
+ * (see videoToPhoto) looks most like the video's picture. With how alike they look then, from -1 to 1: a photo
+ * that isn't of what the video shows looks unlike it whichever way it's turned.
  */
-export function photoTurns(video: RgbaImage, photo: RgbaImage): number {
+export function photoTurns(video: RgbaImage, photo: RgbaImage): { readonly turns: number; readonly likeness: number } {
   const seen = samples(video, (u, v) => ({ x: u, y: v }));
   let best = 0;
   let bestLikeness = -Infinity;
@@ -89,7 +113,7 @@ export function photoTurns(video: RgbaImage, photo: RgbaImage): number {
     );
     if (likeness > bestLikeness) [best, bestLikeness] = [turns, likeness];
   }
-  return best;
+  return { turns: best, likeness: bestLikeness };
 }
 
 /**
@@ -226,7 +250,8 @@ async function cropToJpeg(image: ImageBitmap | HTMLVideoElement, crop: CropRect)
 
 /** The next frame from ImageCapture, or null if it fails or doesn't come in time. */
 async function grabFrameWithin(capture: ImageCaptureLike, ms: number): Promise<ImageBitmap | null> {
-  const grab = capture.grabFrame();
+  const grab = capture.grabFrame?.();
+  if (!grab) return null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), ms);

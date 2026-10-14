@@ -35,10 +35,12 @@ export type { GrayImage, PixelRect, RgbaImage } from './pixels';
 export type { Invite } from './invite';
 export {
   PLAYMAT_RATIO,
+  WHOLE_PICTURE,
   applyHomography,
   cropInCamera,
   homography,
   orderCorners,
+  shrunkSize,
   squareToQuad,
   straightenedSize,
   warpCrop,

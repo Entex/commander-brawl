@@ -20,6 +20,17 @@ export type Homography = readonly number[];
 /** A standard playmat: 24 by 14 inches. */
 export const PLAYMAT_RATIO = 24 / 14;
 
+/** The longest side of the picture the other players get: 1080p's width. */
+export const MAX_SENT_SIDE = 1920;
+
+/** The corners of the whole picture: straightening by them changes nothing. */
+export const WHOLE_PICTURE: Quad = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+];
+
 /** The homography that takes each of the four `from` points to the matching `to` point. */
 export function homography(from: Quad, to: Quad): Homography {
   // Eight equations (two per point) for the eight unknowns, the last entry being 1.
@@ -67,19 +78,19 @@ export function orderCorners(points: readonly Point[]): Quad {
 
 /**
  * The size of the straightened picture: a playmat's shape (on its side or upright, as the corners suggest),
- * as wide as the camera picture at most.
+ * as wide as the camera picture at most, and no longer than `maxSide` either way.
  */
 export function straightenedSize(
   quad: Quad,
   pictureWidth: number,
   pictureHeight: number,
-  maxWidth = 1920,
+  maxSide = MAX_SENT_SIDE,
 ): { width: number; height: number } {
   const length = (a: Point, b: Point) => Math.hypot((a.x - b.x) * pictureWidth, (a.y - b.y) * pictureHeight);
   const across = Math.max(length(quad[0], quad[1]), length(quad[3], quad[2]));
   const down = Math.max(length(quad[0], quad[3]), length(quad[1], quad[2]));
   const ratio = across >= down ? PLAYMAT_RATIO : 1 / PLAYMAT_RATIO;
-  const width = Math.min(maxWidth, pictureWidth, Math.round(pictureHeight * ratio));
+  const width = Math.min(pictureWidth, Math.round(pictureHeight * ratio), maxSide, Math.round(maxSide * ratio));
   return { width: even(width), height: even(width / ratio) };
 }
 
@@ -168,6 +179,12 @@ function solve(rows: number[][]): number[] {
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+/** A picture's size shrunk (never grown) to be no longer than `maxSide` either way, keeping its shape. */
+export function shrunkSize(width: number, height: number, maxSide = MAX_SENT_SIDE): { width: number; height: number } {
+  const scale = Math.min(1, maxSide / Math.max(width, height));
+  return { width: even(width * scale), height: even(height * scale) };
 }
 
 function even(value: number): number {

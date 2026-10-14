@@ -2649,6 +2649,20 @@ button.response-button:hover:not(:disabled) {
   align-items: flex-start;
 }
 
+.camera-resolution {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.camera-resolution .field {
+  align-self: flex-start;
+}
+
+.camera-resolution .hint {
+  margin: 0;
+}
+
 .qr {
   width: 220px;
   height: 220px;

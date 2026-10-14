@@ -1,4 +1,4 @@
-import type { DesktopToPhone, PhoneCrop, PhoneToDesktop } from '../protocol';
+import type { CameraHeight, DesktopToPhone, PhoneCrop, PhoneToDesktop } from '../protocol';
 
 export type PhoneCameraState = 'waiting' | 'connecting' | 'live' | 'reconnecting';
 
@@ -17,12 +17,19 @@ export class PhoneReceiver {
   private session = -1;
   private state: PhoneCameraState = 'waiting';
   private nextSnapshot = 0;
+  private resolution: CameraHeight = 1080;
   private readonly snapshots = new Map<string, { resolve(image: string): void; reject(error: Error): void }>();
 
   constructor(private readonly events: PhoneReceiverEvents) {}
 
   get isLive(): boolean {
     return this.state === 'live';
+  }
+
+  /** The resolution the phone should film at. It's told now if it's connected, and whenever it connects. */
+  setResolution(height: CameraHeight): void {
+    this.resolution = height;
+    if (this.pc) this.events.send({ t: 'resolution', height });
   }
 
   /**
@@ -127,6 +134,7 @@ export class PhoneReceiver {
     await pc.setLocalDescription();
     if (this.pc === pc && pc.localDescription) {
       this.events.send({ t: 'answer', session, sdp: pc.localDescription.sdp });
+      this.events.send({ t: 'resolution', height: this.resolution });
     }
   }
 

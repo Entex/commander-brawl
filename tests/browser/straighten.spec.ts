@@ -39,3 +39,10 @@ test('straightens a camera picture on the graphics card, frame by frame', async 
   );
   expect(slanted.colors).toEqual(['r', 'b', 'g', 'rg']);
 });
+
+test("the straight picture follows the camera's size as it changes", async ({ page }) => {
+  // Its size is worked out from each frame: a phone's video size is only known once it arrives, and changes
+  // with the resolution picked.
+  const sizes = await page.evaluate(() => window.harness.straightenResizing());
+  expect(sizes).toEqual(['320x240', '320x240', '640x360', '640x360']);
+});

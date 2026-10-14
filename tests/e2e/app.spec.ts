@@ -105,7 +105,7 @@ async function launch(
 
 async function useWebcam(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Set up camera' }).click();
-  await page.getByRole('combobox').selectOption({ index: 1 });
+  await page.getByRole('combobox', { name: 'Webcam' }).selectOption({ index: 1 });
   await expect(page.getByTestId('camera-preview')).toBeVisible();
   await page.getByRole('button', { name: 'Done' }).click();
 }
@@ -938,6 +938,30 @@ test('straightening a camera that looks at the table at an angle', async () => {
   await host.page.getByRole('menuitem', { name: 'Camera' }).click();
   await host.page.getByRole('button', { name: "Don't straighten" }).click();
   await expect.poll(() => shapeOf(hostVideo), { timeout: 15_000 }).not.toBeCloseTo(24 / 14, 1);
+});
+
+test('picking the camera resolution', async () => {
+  const host = await launch('Host');
+  await host.page.getByRole('button', { name: 'Set up camera' }).click();
+  const preview = host.page.getByTestId('camera-preview');
+  const hint = host.page.getByTestId('camera-resolution-hint');
+  const shown = () => preview.evaluate((v: HTMLVideoElement) => `${v.videoWidth}x${v.videoHeight}`);
+  await expect.poll(shown).toBe('1920x1080');
+  await expect(hint).toContainText('filming at 1920×1080');
+
+  await host.page.getByLabel('Resolution').selectOption('720');
+  await expect.poll(shown).toBe('1280x720');
+  await expect(hint).toContainText('filming at 1280×720');
+
+  // At 4K, the others still get 1080p: the picture is shrunk for them.
+  await host.page.getByLabel('Resolution').selectOption('2160');
+  await expect(hint).toContainText('filming at 3840×2160');
+  await expect.poll(shown).toBe('1920x1080');
+  await host.page.getByRole('button', { name: 'Done' }).click();
+
+  // Remembered.
+  await host.page.getByRole('button', { name: 'Set up camera' }).click();
+  await expect(host.page.getByLabel('Resolution')).toHaveValue('2160');
 });
 
 test('a warning for everyone when a player has most of a combo from their deck on the battlefield', async () => {

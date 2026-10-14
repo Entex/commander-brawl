@@ -56,7 +56,16 @@ describe('turning a phone photo the way up its video is', () => {
   const video = crop(table, { x: 0, y: 22, width: 240, height: 135 });
 
   it.each([0, 1, 2, 3])('turns back a photo taken %i quarter turns off', (off) => {
-    expect(photoTurns(video, turn(table, off))).toBe((4 - off) % 4);
+    const { turns, likeness } = photoTurns(video, turn(table, off));
+    expect(turns).toBe((4 - off) % 4);
+    expect(likeness).toBeGreaterThan(0.7);
+  });
+
+  it("finds a black photo, or one of something else, unlike the video whichever way it's turned", () => {
+    expect(photoTurns(video, blank(240, 180, [0, 0, 0])).likeness).toBeLessThan(0.7);
+    const elsewhere = blank(240, 180, [40, 58, 50]);
+    drawCard(elsewhere, { cx: 190, cy: 120, width: 70, angle: 30, art: artwork(3) });
+    expect(photoTurns(video, elsewhere).likeness).toBeLessThan(0.7);
   });
 });
 

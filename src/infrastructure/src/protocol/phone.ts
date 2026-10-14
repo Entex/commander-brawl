@@ -9,6 +9,14 @@ export const PHONE_LINK_PATH = '/link';
 /** The desktop closes the phone's connection with this code when another phone takes over. */
 export const PHONE_REPLACED_CLOSE_CODE = 4001;
 
+/** How sharp a camera films, as the height of its picture: 720p, 1080p or 4K. */
+export const CAMERA_HEIGHTS = [720, 1080, 2160] as const;
+export type CameraHeight = (typeof CAMERA_HEIGHTS)[number];
+
+export function isCameraHeight(value: unknown): value is CameraHeight {
+  return CAMERA_HEIGHTS.includes(value as CameraHeight);
+}
+
 export interface IceCandidate {
   readonly candidate: string;
   readonly sdpMid: string | null;
@@ -38,6 +46,8 @@ export type DesktopToPhone =
    * on each side, 0.2 if not given) when the photo may not line up exactly with the video.
    */
   | { readonly t: 'snapshot'; readonly id: string; readonly crop: PhoneCrop; readonly margin?: number }
+  /** Film at this resolution, as picked on the computer. */
+  | { readonly t: 'resolution'; readonly height: CameraHeight }
   | { readonly t: 'pong' };
 
 export function parsePhoneToDesktop(raw: string): PhoneToDesktop | null {
@@ -90,6 +100,8 @@ export function parseDesktopToPhone(raw: string): DesktopToPhone | null {
         ? { t: 'snapshot', id: message.id, crop: message.crop, margin }
         : null;
     }
+    case 'resolution':
+      return isCameraHeight(message.height) ? { t: 'resolution', height: message.height } : null;
     case 'pong':
       return { t: 'pong' };
     default:

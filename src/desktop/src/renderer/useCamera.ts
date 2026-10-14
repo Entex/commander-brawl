@@ -1,4 +1,5 @@
 import {
+  cameraConstraints,
   captureFrame,
   dataUrlToRgba,
   likeness,
@@ -11,11 +12,14 @@ import {
   type CameraDevice,
   type PhoneCameraState,
 } from '@commander-brawl/infrastructure/browser';
+import { isCameraHeight, type CameraHeight } from '@commander-brawl/infrastructure/protocol';
 import {
   cropInCamera,
+  shrunkSize,
   squareToQuad,
   straightenedSize,
   warpCrop,
+  WHOLE_PICTURE,
   type CameraStatus,
   type CropRect,
   type Quad,
@@ -64,6 +68,12 @@ export interface CameraState {
     readonly deviceId: string | null;
     readonly error: string | null;
   };
+  /**
+   * How sharp the camera films (remembered). The others get at most 1080p either way: more makes close-ups
+   * sharper, and a straightened view too.
+   */
+  readonly resolution: CameraHeight;
+  setResolution(resolution: CameraHeight): void;
   selectPhone(): void;
   selectWebcam(deviceId: string): Promise<void>;
   refreshDevices(): Promise<void>;
@@ -82,6 +92,7 @@ export function useCamera(): CameraState {
   const [webcamTrack, setWebcamTrack] = useState<MediaStreamTrack | null>(null);
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const webcamTrackRef = useRef<MediaStreamTrack | null>(null);
+  const [resolution, setResolutionState] = useState(loadResolution);
 
   const receiverRef = useRef<PhoneReceiver | null>(null);
 
@@ -108,6 +119,19 @@ export function useCamera(): CameraState {
     };
   }, []);
 
+  const setResolution = useCallback((next: CameraHeight) => {
+    localStorage.setItem(RESOLUTION_KEY, String(next));
+    setResolutionState(next);
+  }, []);
+
+  // The phone films at it; a webcam that's on changes to it.
+  useEffect(() => {
+    receiverRef.current?.setResolution(resolution);
+    webcamTrackRef.current
+      ?.applyConstraints(cameraConstraints(resolution))
+      .catch((error: unknown) => setWebcamError(errorMessage(error)));
+  }, [resolution]);
+
   const stopWebcam = useCallback(() => {
     webcamTrackRef.current?.stop();
     webcamTrackRef.current = null;
@@ -126,7 +150,7 @@ export function useCamera(): CameraState {
     async (id: string) => {
       setWebcamError(null);
       try {
-        const track = await openCamera(id || undefined);
+        const track = await openCamera(id || undefined, resolution);
         stopWebcam();
         webcamTrackRef.current = track;
         setWebcamTrack(track);
@@ -138,7 +162,7 @@ export function useCamera(): CameraState {
         setWebcamError(errorMessage(error));
       }
     },
-    [refreshDevices, stopWebcam],
+    [refreshDevices, stopWebcam, resolution],
   );
 
   const selectPhone = useCallback(() => {
@@ -178,7 +202,8 @@ export function useCamera(): CameraState {
     },
     [cameraKey],
   );
-  const { straightener, error: straightenError } = useStraightener(rawTrack, corners);
+  // Not straightened, a camera filming at more than the others get is shrunk for them all the same.
+  const { straightener, error: straightenError } = useStraightener(rawTrack, corners, resolution > 1080);
   const track = straightener?.track ?? rawTrack;
 
   const snapshot = useCallback(
@@ -211,6 +236,8 @@ export function useCamera(): CameraState {
     straighten: { supported: Straightener.supported(), corners, error: straightenError, set: setCorners },
     phone: { state: phoneState, urls },
     webcam: { devices, deviceId, error: webcamError },
+    resolution,
+    setResolution,
     selectPhone,
     selectWebcam,
     refreshDevices,
@@ -251,25 +278,26 @@ async function checkedPhonePicture(
 
 /**
  * The camera straightened by the corners, while there are corners and a camera; or why it can't be (the
- * graphics card won't do it).
+ * graphics card won't do it). Without corners but with `shrink`, the whole picture, at most as large as the
+ * others get.
  */
 function useStraightener(
   raw: MediaStreamTrack | null,
   corners: Quad | null,
+  shrink: boolean,
 ): { straightener: Straightener | null; error: string | null } {
   const [straightener, setStraightener] = useState<Straightener | null>(null);
   const [error, setError] = useState<{ for: Quad; message: string } | null>(null);
-  const size = raw && corners ? sizeFor(raw, corners) : null;
-  const width = size?.width;
-  const height = size?.height;
   useEffect(() => {
-    if (!raw || !corners || !width || !height || !Straightener.supported()) return;
+    if (!raw || !(corners || shrink) || !Straightener.supported()) return;
     let made: Straightener;
     try {
-      made = new Straightener(raw, corners, width, height);
+      made = corners
+        ? new Straightener(raw, corners, (width, height) => straightenedSize(corners, width, height))
+        : new Straightener(raw, WHOLE_PICTURE, (width, height) => shrunkSize(width, height));
     } catch (failure) {
       console.warn('[camera] could not straighten', failure);
-      queueMicrotask(() => setError({ for: corners, message: errorMessage(failure) }));
+      if (corners) queueMicrotask(() => setError({ for: corners, message: errorMessage(failure) }));
       return;
     }
     // A new object for each straightener: the state changes only when one starts or stops.
@@ -278,16 +306,19 @@ function useStraightener(
       made.stop();
       setStraightener((current) => (current === made ? null : current));
     };
-  }, [raw, corners, width, height]);
+  }, [raw, corners, shrink]);
   return {
-    straightener: straightener && raw && corners ? straightener : null,
+    straightener: straightener && raw && (corners || shrink) ? straightener : null,
     error: error && error.for === corners ? error.message : null,
   };
 }
 
-function sizeFor(track: MediaStreamTrack, corners: Quad): { width: number; height: number } {
-  const { width = 1280, height = 720 } = track.getSettings();
-  return straightenedSize(corners, width, height);
+const RESOLUTION_KEY = 'cb.resolution';
+
+/** The resolution picked before; 4K only where it can be shrunk for the others (see useStraightener). */
+function loadResolution(): CameraHeight {
+  const saved = Number(localStorage.getItem(RESOLUTION_KEY));
+  return isCameraHeight(saved) && (saved <= 1080 || Straightener.supported()) ? saved : 1080;
 }
 
 const CORNERS_KEY = 'cb.corners.';

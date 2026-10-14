@@ -1,3 +1,4 @@
+import { isCameraHeight } from '@commander-brawl/infrastructure/protocol';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { Icon } from '../icons/Icon';
@@ -22,6 +23,7 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
   const [showOtherLinks, setShowOtherLinks] = useState(false);
   const [picking, setPicking] = useState(false);
   const phoneUrl = camera.phone.urls[0];
+  const filming = useTrackSize(camera.rawTrack);
 
   useEffect(() => {
     if (!phoneUrl) return;
@@ -86,6 +88,7 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
               Any camera this computer sees, including an iPhone through Continuity Camera on a Mac.
             </p>
             <select
+              aria-label="Webcam"
               value={camera.source === 'webcam' ? (camera.webcam.deviceId ?? '') : ''}
               onFocus={() => void camera.refreshDevices()}
               onChange={(event) => void camera.selectWebcam(event.target.value)}
@@ -102,6 +105,29 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
             {camera.webcam.error && <p className="status status-reconnecting">{camera.webcam.error}</p>}
           </section>
         </div>
+
+        <section className="camera-resolution">
+          <label className="field">
+            <span>Resolution</span>
+            <select
+              value={camera.resolution}
+              onChange={(event) => {
+                const height = Number(event.target.value);
+                if (isCameraHeight(height)) camera.setResolution(height);
+              }}
+            >
+              <option value={720}>720p: easiest on the phone, the Wi-Fi and this computer</option>
+              <option value={1080}>1080p (recommended)</option>
+              {/* Shrinking 4K for the others takes the graphics card, as straightening does. */}
+              {camera.straighten.supported && <option value={2160}>4K: the sharpest close-ups</option>}
+            </select>
+          </label>
+          <p className="hint" data-testid="camera-resolution-hint">
+            The others get at most 1080p either way: a higher resolution makes close-ups of your cards sharper. 4K warms
+            a phone up and uses more of its battery.
+            {filming && ` Your camera is filming at ${filming.width}×${filming.height}.`}
+          </p>
+        </section>
 
         <section className="camera-preview">
           <h3>What the others see</h3>
@@ -148,4 +174,29 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
       </div>
     </div>
   );
+}
+
+/**
+ * The size of the camera's picture as it comes, checked every half second: a phone's is only known once its video
+ * arrives, and changes when it's asked for another resolution.
+ */
+function useTrackSize(track: MediaStreamTrack | null): { width: number; height: number } | null {
+  const [size, setSize] = useState<{ track: MediaStreamTrack; width: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!track) return;
+    const read = () => {
+      const { width, height } = track.getSettings();
+      setSize((current) =>
+        current?.track === track && current.width === width && current.height === height
+          ? current
+          : width && height
+            ? { track, width, height }
+            : null,
+      );
+    };
+    queueMicrotask(read);
+    const timer = setInterval(read, 500);
+    return () => clearInterval(timer);
+  }, [track]);
+  return size && size.track === track ? size : null;
 }

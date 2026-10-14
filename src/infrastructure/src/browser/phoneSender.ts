@@ -1,11 +1,13 @@
 import {
   PHONE_REPLACED_CLOSE_CODE,
   parseDesktopToPhone,
+  type CameraHeight,
   type DesktopToPhone,
   type PhoneCrop,
   type PhoneToDesktop,
 } from '../protocol';
-import { capturePhoto } from './capture';
+import { capturePhoto, warmUpPhotos } from './capture';
+import { cameraConstraints } from './webcam';
 
 export type PhoneSenderStatus =
   | { readonly kind: 'starting' }
@@ -23,12 +25,13 @@ export interface CameraControls {
 export interface PhoneSenderOptions {
   /** wss:// address of the desktop app, including the link token. */
   readonly signalingUrl: string;
-  /** Bitrate over the local Wi-Fi. High, so the desktop gets a sharp picture to pass on. */
-  readonly maxBitrateBps?: number;
   onStatus(status: PhoneSenderStatus): void;
   onPreview(stream: MediaStream | null): void;
   onControls(controls: CameraControls): void;
 }
+
+/** Bitrate over the local Wi-Fi, by resolution. High, so the desktop gets a sharp picture to pass on. */
+const BITRATES_BPS: Record<CameraHeight, number> = { 720: 4_000_000, 1080: 8_000_000, 2160: 20_000_000 };
 
 const RECONNECT_DELAYS_MS = [500, 1_000, 2_000, 3_000];
 const PING_INTERVAL_MS = 4_000;
@@ -46,6 +49,8 @@ export class PhoneSender {
   private sender: RTCRtpSender | null = null;
   private track: MediaStreamTrack | null = null;
   private facingMode: FacingMode = 'environment';
+  /** Until the desktop says otherwise. */
+  private height: CameraHeight = 1080;
   private session = 0;
   private attempt = 0;
   private stopped = false;
@@ -104,12 +109,7 @@ export class PhoneSender {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: {
-          facingMode: { ideal: this.facingMode },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 24, max: 30 },
-        },
+        video: { facingMode: { ideal: this.facingMode }, ...cameraConstraints(this.height) },
       });
       track = stream.getVideoTracks()[0];
     } catch (error) {
@@ -135,8 +135,24 @@ export class PhoneSender {
     previous?.stop();
     this.options.onPreview(new MediaStream([track]));
     this.options.onControls(readControls(track));
+    warmUpPhotos(track);
     await this.sender?.replaceTrack(track).catch(() => this.startPeer());
     return true;
+  }
+
+  /** Films at this resolution from now on, as picked on the computer. */
+  private async setResolution(height: CameraHeight): Promise<void> {
+    if (height === this.height) return;
+    this.height = height;
+    // Started over rather than changed: changed in place, an iPhone's photos come out black or of the wrong part.
+    // Stopped first, so that nothing of the old camera is kept.
+    this.track?.stop();
+    await this.acquireCamera();
+    const params = this.sender?.getParameters();
+    const encoding = params?.encodings?.[0];
+    if (!this.sender || !params || !encoding) return;
+    encoding.maxBitrate = BITRATES_BPS[height];
+    await this.sender.setParameters(params).catch((error: unknown) => console.warn('[phone] bitrate', error));
   }
 
   private connect(): void {
@@ -187,7 +203,7 @@ export class PhoneSender {
     this.pc = pc;
     const transceiver = pc.addTransceiver(this.track, {
       direction: 'sendonly',
-      sendEncodings: [{ maxBitrate: this.options.maxBitrateBps ?? 8_000_000 }],
+      sendEncodings: [{ maxBitrate: BITRATES_BPS[this.height] }],
     });
     this.sender = transceiver.sender;
 
@@ -216,6 +232,10 @@ export class PhoneSender {
   private async handle(message: DesktopToPhone): Promise<void> {
     if (message.t === 'snapshot') {
       await this.takeSnapshot(message.id, message.crop, message.margin);
+      return;
+    }
+    if (message.t === 'resolution') {
+      await this.setResolution(message.height);
       return;
     }
     if (message.t === 'pong' || message.session !== this.session || !this.pc) return;
