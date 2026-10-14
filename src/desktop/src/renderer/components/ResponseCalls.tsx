@@ -2,6 +2,7 @@ import type { GameView, LoggedEvent } from '@commander-brawl/application';
 import type { SeatIndex } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
 import { Icon } from '../icons/Icon';
+import { isTyping } from '../keys';
 import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 
@@ -99,15 +100,5 @@ export function ResponseButton() {
     >
       <Icon name="hand" /> Wait!
     </button>
-  );
-}
-
-function isTyping(event: KeyboardEvent): boolean {
-  const target = event.target;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
   );
 }

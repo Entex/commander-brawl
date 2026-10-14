@@ -2,6 +2,7 @@ import {
   applyEvent,
   applyEvents,
   newGame,
+  nextPhase,
   resolveAction,
   toGameAction,
   type GameEvent,
@@ -44,6 +45,16 @@ describe('turns', () => {
     const state = applyEvents(newGame(), [order(0, 1), pass(0), { type: 'new-game', startingLife: 40 }]);
     expect(state.turnOrder).toBeNull();
     expect(turnOf(state)).toEqual({ active: null, turn: 0, round: 0 });
+  });
+});
+
+describe('moving to the next phase', () => {
+  it('goes through the turn in order, each step of combat too, and stops at the end', () => {
+    expect(nextPhase('upkeep')).toBe('draw');
+    expect(nextPhase('main1')).toBe('combat');
+    expect(nextPhase('combat')).toBe('attackers');
+    expect(nextPhase('damage')).toBe('main2');
+    expect(nextPhase('end')).toBeNull();
   });
 });
 

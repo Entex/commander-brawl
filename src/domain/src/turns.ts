@@ -14,6 +14,11 @@ export function isPhase(value: unknown): value is Phase {
   return typeof value === 'string' && (PHASES as readonly string[]).includes(value);
 }
 
+/** The phase after this one, through each step of combat. Null at the end: what comes next is passing the turn. */
+export function nextPhase(phase: Phase): Phase | null {
+  return PHASES[PHASES.indexOf(phase) + 1] ?? null;
+}
+
 /**
  * A turn timer gives every turn the same time; a chess clock gives each player a time bank for the whole game.
  * Neither stops anyone: running out just shows.

@@ -30,7 +30,7 @@ A dropped connection, a phone that locks, or a host app that crashes doesn't end
 
 ## What's in it
 
-- **Turns:** random turn order, phases, and a turn timer or chess clock. **Wait!** (W) flashes "I have a response!" on every screen.
+- **Turns:** random turn order, phases, and a turn timer or chess clock. On your turn, Space passes it and Ctrl+Space goes to the next phase. **Wait!** (W) flashes "I have a response!" on every screen.
 - **Pointing:** right-click a video to ping a card, or drag to draw an arrow, in your color.
 - **Life and counters:** life totals, commander damage, poison, counters on cards, tokens, the monarch, the initiative, dungeons, the Ring, day and night, storm.
 - **Close-ups:** click a card on any video, or Ctrl+drag (⌘+drag) a box around it. You get a sharp picture straight from that player's camera, and which card it is (read on your computer, offline).

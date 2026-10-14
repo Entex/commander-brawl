@@ -681,9 +681,14 @@ test('phases of the turn, a turn timer that a response pauses, and a chess clock
     await expect(page.getByTestId('phases').locator('.phase-current')).toHaveText('Upkeep');
   }
 
-  // The active player moves on; everyone sees where they are.
-  await active.page.getByTestId('phases').getByRole('button', { name: 'Draw' }).click();
+  // The active player moves on (Ctrl+Space: the next phase); everyone sees where they are.
+  await active.page.keyboard.press('Control+Space');
   await expect(other.page.getByTestId('phases').locator('.phase-current')).toHaveText('Draw');
+  // Space and Ctrl+Space do nothing on someone else's turn.
+  await other.page.keyboard.press('Space');
+  await other.page.keyboard.press('Control+Space');
+  await expect(active.page.getByTestId('turn')).toContainText('Your turn');
+  await expect(active.page.getByTestId('phases').locator('.phase-current')).toHaveText('Draw');
   // Only the active player moves the turn along.
   await expect(other.page.getByTestId('phases').getByRole('button')).toHaveCount(0);
 
@@ -698,11 +703,15 @@ test('phases of the turn, a turn timer that a response pauses, and a chess clock
   await expect(other.page.getByTestId('phases')).toContainText('Attackers');
   await other.page.screenshot({ path: test.info().outputPath('turn.png') });
 
-  // Next turn: the other player's, from the upkeep, with a fresh two minutes.
-  await active.page.getByRole('button', { name: 'Pass turn' }).click();
+  // Next turn (Space passes it): the other player's, from the upkeep, with a fresh two minutes. Space doesn't
+  // also press the button clicked last.
+  const activeSeat = hostFirst ? 0 : 1;
+  await active.page.getByTestId(`life-${activeSeat}`).getByRole('button', { name: 'Lose 1 life' }).click();
+  await active.page.keyboard.press('Space');
   await expect(other.page.getByTestId('turn')).toContainText('Your turn');
   await expect(other.page.getByTestId('phases').locator('.phase-current')).toHaveText('Upkeep');
   await expect(other.page.getByTestId('clock')).toContainText(/(2:00|1:5\d)/);
+  await expect(other.page.getByTestId(`life-total-${activeSeat}`)).toHaveText('39');
 
   // A chess clock instead: everyone's time bank on their seat.
   await other.page.getByRole('button', { name: 'Menu' }).click();

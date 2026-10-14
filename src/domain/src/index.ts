@@ -64,6 +64,7 @@ export {
   clockForTurn,
   isPhase,
   newClock,
+  nextPhase,
   pauseClock,
   runClock,
   stopClock,

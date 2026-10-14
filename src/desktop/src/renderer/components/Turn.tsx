@@ -1,5 +1,6 @@
 import {
   COMBAT_STEPS,
+  nextPhase,
   timeLeft,
   type Clock,
   type ClockKind,
@@ -7,9 +8,10 @@ import {
   type Phase,
   type SeatIndex,
 } from '@commander-brawl/domain';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PHASE_LABELS, formatClock, seatName, type Players } from '../names';
 import { Icon, type GameIconName } from '../icons/Icon';
+import { isTyping, panelOpen } from '../keys';
 import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 
@@ -40,6 +42,7 @@ interface TurnControlsProps {
 /** Whose turn it is, where they are in it, the clock, and passing the turn. Before the first turn: deciding the order. */
 export function TurnControls({ game, players, hostClockOffset, readOnly = false }: TurnControlsProps) {
   const self = players.find((p) => p.isSelf)?.player.seat;
+  useTurnKeys(game, self ?? null, !readOnly);
   if (game.turnOrder === null || game.activeSeat === null) {
     if (readOnly) return <span className="hint">The game hasn't started yet.</span>;
     return (
@@ -70,7 +73,11 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
         <ClockControl clock={game.clock} seat={game.activeSeat} hostClockOffset={hostClockOffset} readOnly={readOnly} />
       )}
       {yours && (
-        <button className="primary" onClick={() => submitGameEvent({ type: 'turn-passed', from: game.activeSeat! })}>
+        <button
+          className="primary"
+          title="Pass the turn (Space)"
+          onClick={() => submitGameEvent({ type: 'turn-passed', from: game.activeSeat! })}
+        >
           Pass turn <Icon name="next-button" />
         </button>
       )}
@@ -78,12 +85,62 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
   );
 }
 
+/**
+ * On your turn, Space passes the turn and Ctrl+Space moves to the next phase (Ctrl on a Mac too: ⌘+Space is
+ * Spotlight). Not while typing, or with a panel open. At the table Space does nothing else, or it would press the
+ * button clicked last (like "Lose 1 life") again.
+ */
+function useTurnKeys(game: GameState, self: SeatIndex | null, enabled: boolean): void {
+  const latest = useRef({ game, self });
+  useEffect(() => {
+    latest.current = { game, self };
+  });
+  useEffect(() => {
+    if (!enabled) return;
+    let pressed = false;
+    const isSpace = (event: KeyboardEvent) => event.code === 'Space' || event.key === ' ';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isSpace(event) || event.altKey || event.shiftKey || event.metaKey || isTyping(event) || panelOpen()) return;
+      event.preventDefault();
+      pressed = true;
+      if (event.repeat) return;
+      const { game, self } = latest.current;
+      if (game.activeSeat === null || game.activeSeat !== self) return;
+      if (!event.ctrlKey) {
+        submitGameEvent({ type: 'turn-passed', from: game.activeSeat });
+      } else {
+        const next = game.phase && nextPhase(game.phase);
+        if (next) submitGameEvent({ type: 'phase-set', phase: next });
+      }
+    };
+    // A button presses itself when Space is let go.
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (pressed && isSpace(event)) {
+        event.preventDefault();
+        pressed = false;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [enabled]);
+}
+
 /** Where the active player is in their turn. They can click ahead (or back); everyone else just sees it. */
 function PhaseStrip({ phase, canChange }: { readonly phase: Phase; readonly canChange: boolean }) {
   const inCombat = COMBAT_STEPS.includes(phase);
   const shown = STRIP.flatMap((p) => (p === 'combat' && inCombat ? COMBAT_STEPS : [p]));
   return (
-    <div className="phases" role="group" aria-label="Phase of the turn" data-testid="phases">
+    <div
+      className="phases"
+      role="group"
+      aria-label="Phase of the turn"
+      title={canChange ? 'Click a phase to go there, or Ctrl+Space for the next one' : undefined}
+      data-testid="phases"
+    >
       {shown.map((p) => {
         const className = `phase${p === phase ? ' phase-current' : ''}${COMBAT_STEPS.includes(p) ? ' phase-combat' : ''}`;
         return canChange ? (
