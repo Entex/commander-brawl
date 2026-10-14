@@ -873,17 +873,28 @@ test('straightening a camera that looks at the table at an angle', async () => {
   await host.page.getByRole('button', { name: 'Menu' }).click();
   await host.page.getByRole('menuitem', { name: 'Camera' }).click();
   await host.page.getByRole('button', { name: 'Straighten the view' }).click();
-  // The playmat's corners, as the camera sees it from an angle, clicked in no particular order.
+  // The playmat's corners, as the camera sees it from an angle: the corners are dragged there, one is clicked
+  // near (the nearest corner moves there), and one is fine-tuned with the arrow keys.
   const frame = host.page.getByTestId('corner-frame');
+  await expect(frame).toBeInViewport({ ratio: 1 });
   const box = (await frame.boundingBox())!;
-  for (const [x, y] of [
-    [0.85, 0.9],
-    [0.2, 0.2],
-    [0.1, 0.85],
-    [0.75, 0.15],
-  ] as const) {
-    await frame.click({ position: { x: x * box.width, y: y * box.height } });
-  }
+  const at = (x: number, y: number) => [box.x + x * box.width, box.y + y * box.height] as const;
+  const drag = async (corner: string, x: number, y: number) => {
+    const handle = (await frame.getByRole('button', { name: corner }).boundingBox())!;
+    await host.page.mouse.move(handle.x + handle.width / 2 + 2, handle.y + handle.height / 2 + 2);
+    await host.page.mouse.down();
+    await host.page.mouse.move(...at(x, y), { steps: 8 });
+    // A magnifier shows the picture around the corner while it's dragged.
+    await expect(frame.locator('.corner-loupe')).toBeVisible();
+    await host.page.mouse.up();
+  };
+  await drag('Top left corner', 0.2, 0.2);
+  await drag('Bottom left corner', 0.1, 0.85);
+  await frame.click({ position: { x: 0.85 * box.width, y: 0.9 * box.height } });
+  await drag('Top right corner', 0.74, 0.15);
+  await frame.getByRole('button', { name: 'Top right corner' }).focus();
+  for (let i = 0; i < 5; i++) await host.page.keyboard.press('ArrowRight');
+  await expect(frame.locator('.corner-loupe')).toHaveCount(0);
   await host.page.getByRole('button', { name: 'Straighten', exact: true }).click();
   await expect(host.page.getByText('Straightened to your playmat.')).toBeVisible();
   await host.page.getByRole('button', { name: 'Done' }).click();

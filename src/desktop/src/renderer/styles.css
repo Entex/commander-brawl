@@ -1427,6 +1427,14 @@ button.swatch.selected {
   align-self: center;
   cursor: crosshair;
   background: #000;
+  /* Dragging a corner with a finger moves the corner, not the page. */
+  touch-action: none;
+  user-select: none;
+}
+
+.corner-frame-dragging,
+.corner-frame-dragging .corner-handle {
+  cursor: grabbing;
 }
 
 .corner-video {
@@ -1450,15 +1458,70 @@ button.swatch.selected {
   stroke-width: 2;
 }
 
-.corner-dot {
+/* A corner to drag: a ring with the exact spot in its middle, so the playmat's corner shows through. */
+button.corner-handle {
   position: absolute;
-  width: 14px;
-  height: 14px;
-  margin: -7px 0 0 -7px;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  padding: 0;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: var(--accent);
+  background: radial-gradient(circle, var(--accent) 0 2px, transparent 3px);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 1px 6px rgb(0 0 0 / 60%);
+  cursor: grab;
+  translate: none;
+}
+
+button.corner-handle:hover:not(:disabled) {
+  border-color: #fff;
+  background: radial-gradient(circle, var(--accent) 0 2px, rgb(167 139 250 / 25%) 3px);
+}
+
+button.corner-handle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.corner-loupe {
+  position: absolute;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: #000;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 60%);
   pointer-events: none;
+}
+
+.corner-loupe canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Crosshairs on the spot the corner goes. */
+.corner-loupe::before,
+.corner-loupe::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  background: var(--accent);
+}
+
+.corner-loupe::before {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.corner-loupe::after {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
 }
 
 .straighten-row {

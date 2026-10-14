@@ -17,10 +17,17 @@ function imageCapture(track: MediaStreamTrack): ImageCaptureLike | null {
   return Constructor ? new Constructor(track) : null;
 }
 
+/**
+ * Chromium's grabFrame now and then never answers (seen after the camera had been shown in a second video that was
+ * then removed). After this long, the frame comes from a video instead.
+ */
+const GRAB_FRAME_TIMEOUT_MS = 2_000;
+
 /** The current camera frame at the camera's own resolution, without the blur of video compression. */
 export async function captureFrame(track: MediaStreamTrack, crop: CropRect): Promise<string> {
   const capture = imageCapture(track);
-  if (capture) return cropToJpeg(await capture.grabFrame(), crop);
+  const frame = capture ? await grabFrameWithin(capture, GRAB_FRAME_TIMEOUT_MS) : null;
+  if (frame) return cropToJpeg(frame, crop);
   const video = await frameFromVideo(track);
   try {
     return await cropToJpeg(video, crop);
@@ -217,7 +224,21 @@ async function cropToJpeg(image: ImageBitmap | HTMLVideoElement, crop: CropRect)
   return canvas.toDataURL('image/jpeg', JPEG_QUALITY);
 }
 
-/** For browsers without ImageCapture: play the track in a hidden video and use its current frame. */
+/** The next frame from ImageCapture, or null if it fails or doesn't come in time. */
+async function grabFrameWithin(capture: ImageCaptureLike, ms: number): Promise<ImageBitmap | null> {
+  const grab = capture.grabFrame();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  const frame = await Promise.race([grab.catch(() => null), late]);
+  clearTimeout(timer);
+  // Too late to use: let it go if it does come.
+  if (!frame) void grab.then((bitmap) => bitmap.close()).catch(() => undefined);
+  return frame;
+}
+
+/** For browsers without ImageCapture (or when it doesn't answer): play the track in a hidden video and use its current frame. */
 async function frameFromVideo(track: MediaStreamTrack): Promise<HTMLVideoElement> {
   const video = document.createElement('video');
   video.muted = true;
