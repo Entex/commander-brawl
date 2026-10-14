@@ -40,7 +40,7 @@ export type GameUpdate =
 const RECONNECT_DELAYS_MS = [250, 1_000, 2_000, 4_000, 5_000];
 
 const REJECTION_MESSAGES: Record<TableRejection, string> = {
-  'bad-secret': 'The invite code is wrong or out of date.',
+  'bad-secret': 'The invite is wrong or out of date.',
   'table-full': 'The table is full.',
   'bad-name': 'Pick a name between 1 and 24 characters.',
   'bad-version': 'You and the host are on different versions of the app. Both of you should update.',
@@ -167,7 +167,7 @@ export class TableClient implements TableSignaling {
     const timeoutMs = this.options.connectTimeoutMs ?? 6_000;
     return new Promise((resolve, reject) => {
       if (hosts.length === 0) {
-        reject(new Error('The invite code has no host address.'));
+        reject(new Error('The invite has no host address.'));
         return;
       }
       const pending = new Set<WebSocket>();
@@ -190,7 +190,7 @@ export class TableClient implements TableSignaling {
           ws.on('upgrade', (response: IncomingMessage) => {
             const certificate = (response.socket as TLSSocket).getPeerCertificate();
             if (!certificate.fingerprint256 || normalizeFingerprint(certificate.fingerprint256) !== fingerprint) {
-              lastError = 'Reached a computer that is not the host. Check the invite code.';
+              lastError = 'Reached a computer that is not the host. Check the invite.';
               ws.terminate();
             }
           });

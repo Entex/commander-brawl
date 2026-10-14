@@ -23,8 +23,8 @@ When a new version is out, the app offers it on the start screen and updates its
 ## Play
 
 1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, on the same Wi-Fi. The phone warns that the connection isn't private, because the page comes from your own computer: tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Any webcam works too. _Straighten the view_ turns an angled view of your playmat into a top-down one.
-2. **Host.** One player clicks _Host_ and shares the invite code. The app asks the router to open TCP port 47801 (UPnP or NAT-PMP). If it can't, it says why, and you can forward the port by hand. On a Mac, the app needs Local Network access (System Settings → Privacy & Security → Local Network).
-3. **Join.** Everyone else pastes the invite code and clicks _Join_, or _Watch_ to spectate (up to 8).
+2. **Host.** One player clicks _Host_ and shares the invite link, for example in Discord. The app asks the router to open TCP port 47801 (UPnP or NAT-PMP). If it can't, it says why, and you can forward the port by hand. On a Mac, the app needs Local Network access (System Settings → Privacy & Security → Local Network).
+3. **Join.** Everyone else clicks the link, which opens the app with the invite filled in (or pastes it into the app), and clicks _Join_, or _Watch_ to spectate (up to 8).
 
 A dropped connection, a phone that locks, or a host app that crashes doesn't end the game: the app reconnects and holds your seat, and the host clicks _Resume table_.
 
@@ -67,6 +67,7 @@ src/
   desktop/         The Electron app: main process, preload bridge, React UI.
   phone/           The camera page that phones open.
 tests/             unit/, integration/, browser/ (real WebRTC in Chromium), e2e/ (the packaged app).
+site/              The page invite links go to, which opens the app (GitHub Pages, published by the Pages workflow).
 ```
 
 **How it works.** The phone sends its video only to its own player's computer, which sends it on directly to each other player (WebRTC), encoded separately for each. The host introduces the players and keeps the game log in order; video doesn't pass through it. Every change is an event ("Alex −3 life") that the host puts in order and sends to everyone. Changes are relative, so two at the same moment both count, and each has an id, so resending one after a dropped connection never applies it twice.

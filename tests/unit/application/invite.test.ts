@@ -1,4 +1,11 @@
-import { InvalidInviteError, decodeInvite, encodeInvite, type Invite } from '@commander-brawl/application';
+import {
+  InvalidInviteError,
+  decodeInvite,
+  encodeInvite,
+  findInviteCode,
+  inviteLink,
+  type Invite,
+} from '@commander-brawl/application';
 import { describe, expect, it } from 'vitest';
 
 const invite: Invite = {
@@ -17,6 +24,15 @@ describe('invite codes', () => {
     const code = encodeInvite(invite);
     const mangled = `  ${code.slice(0, 20)}\n${code.slice(20, 40)} ${code.slice(40)}  `;
     expect(decodeInvite(mangled)).toEqual(invite);
+  });
+
+  it('is shared as a link to a page that opens the app, and read back from it, or from the app\x27s own link', () => {
+    const code = encodeInvite(invite);
+    expect(inviteLink(code)).toBe(`https://entex.github.io/commander-brawl/join/#${code}`);
+    expect(decodeInvite(inviteLink(code))).toEqual(invite);
+    expect(decodeInvite(`commander-brawl://join/${code}`)).toEqual(invite);
+    expect(findInviteCode(`Join us! ${inviteLink(code)}`)).toBe(code);
+    expect(findInviteCode('https://example.com/')).toBeNull();
   });
 
   it.each([

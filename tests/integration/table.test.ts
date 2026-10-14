@@ -127,7 +127,7 @@ describe('hosting and joining a table', () => {
     const { invite } = await host();
     const mallory = join({ ...invite, secret: randomId() }, 'Mallory');
     const closed = await waitFor(() => (mallory.connection?.state === 'closed' ? mallory.connection : null));
-    expect(closed.reason).toMatch(/invite code is wrong/);
+    expect(closed.reason).toMatch(/invite is wrong/);
   });
 
   it('refuses to talk to a computer whose certificate does not match the invite', async () => {

@@ -55,6 +55,10 @@ const api: DesktopApi = {
     export: () => ipcRenderer.invoke(Channels.historyExport),
     import: () => ipcRenderer.invoke(Channels.historyImport),
   },
+  invites: {
+    take: () => ipcRenderer.invoke(Channels.invitesTake),
+    onOpened: (listener) => listen(Channels.invitesOpened, listener),
+  },
   updates: {
     status: () => ipcRenderer.invoke(Channels.updatesStatus),
     onStatus: (listener) => listen(Channels.updatesStatusUpdate, listener),

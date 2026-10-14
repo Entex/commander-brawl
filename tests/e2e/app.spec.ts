@@ -1,5 +1,7 @@
 import { chromium, _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,6 +15,8 @@ import { startFakeSpellbook, type FakeSpellbook } from '../support/fakeSpellbook
 // Needs a display. On a Linux machine without one, run it with `xvfb-run -a npm run test:e2e`.
 
 const appDir = resolve(import.meta.dirname, '../../build/app');
+/** Electron itself, to start a second copy the way the system does when a link is opened. */
+const electronPath = createRequire(import.meta.url)('electron') as string;
 
 interface Instance {
   readonly app: ElectronApplication;
@@ -53,7 +57,14 @@ test.afterEach(async () => {
 
 async function launch(
   name: string,
-  options: { userDataDir?: string; camera?: string; openFile?: string; env?: Record<string, string> } = {},
+  options: {
+    userDataDir?: string;
+    camera?: string;
+    openFile?: string;
+    env?: Record<string, string>;
+    /** More arguments, like an invite link the app is opened with. */
+    args?: string[];
+  } = {},
 ): Promise<Instance> {
   const saveDir = await temporaryDir('cb-e2e-save-');
   const dataDir = options.userDataDir ?? (await temporaryDir('cb-e2e-'));
@@ -68,6 +79,7 @@ async function launch(
       ...(process.env.CB_E2E_NO_GPU ? ['--disable-gpu'] : []),
       // A picture for the fake camera to show, instead of its moving test pattern.
       ...(options.camera ? [`--use-file-for-fake-video-capture=${options.camera}`] : []),
+      ...(options.args ?? []),
     ],
     env: {
       ...process.env,
@@ -135,8 +147,9 @@ async function expectVideoFrom(page: Page, name: string): Promise<void> {
 test('a host and a friend see each other', async () => {
   const host = await launch('Host');
   await host.page.getByTestId('host').click();
+  // The invite link, pasted (not opened) on the friend's side.
   const invite = await host.page.getByTestId('invite-code').inputValue();
-  expect(invite).toMatch(/^CB1-/);
+  expect(invite).toMatch(/^https:\/\/entex\.github\.io\/commander-brawl\/join\/#CB1-/);
 
   const friend = await launch('Friend');
   await friend.page.getByTestId('invite-input').fill(invite);
@@ -165,11 +178,11 @@ test('closing the table tells the friends', async () => {
   await expect(friend.page.getByText('The host closed the table.')).toBeVisible();
 });
 
-test('a wrong invite code is explained', async () => {
+test('a wrong invite is explained', async () => {
   const friend = await launch('Friend');
   await friend.page.getByTestId('invite-input').fill('not an invite');
   await friend.page.getByTestId('join').click();
-  await expect(friend.page.getByText('That invite code is not valid.', { exact: false })).toBeVisible();
+  await expect(friend.page.getByText('That invite is not valid.', { exact: false })).toBeVisible();
 });
 
 test('a player who joined can quit right away', async () => {
@@ -1151,4 +1164,33 @@ test('a newer version on the start screen, and afterwards whether updating to it
   } finally {
     await Promise.all([github.close(), noReleases.close()]);
   }
+});
+
+test("an invite link opens the app with the invite filled in, or goes to the app that's running", async () => {
+  const host = await launch('Host');
+  await host.page.getByTestId('host').click();
+  // What the host copies: a link to the page that opens the app.
+  const link = await host.page.getByTestId('invite-code').inputValue();
+  expect(link).toMatch(/^https:\/\/entex\.github\.io\/commander-brawl\/join\/#CB1-/);
+  const code = link.split('#')[1]!;
+  const appLink = `commander-brawl://join/${code}`;
+
+  // The page opens the app's own link, which starts the app with the invite, ready to join.
+  const friendDir = await temporaryDir('cb-e2e-');
+  const friend = await launch('Friend', { userDataDir: friendDir, args: [appLink] });
+  await expect(friend.page.getByTestId('invite-input')).toHaveValue(code);
+  await friend.page.getByTestId('join').click();
+  await expectVideoFrom(friend.page, 'Host');
+
+  // Another invite while the app runs: the system starts a second copy, which hands it over and closes. At a
+  // table, the app offers to leave it for the other one.
+  const second = spawn(electronPath, [appDir, appLink], {
+    env: { ...process.env, CB_USER_DATA_DIR: friendDir, CB_UPNP: 'off', CB_LOCAL_ONLY: '1' },
+    stdio: 'ignore',
+  });
+  expect(await new Promise((resolve) => second.once('exit', resolve))).toBe(0);
+  const banner = friend.page.getByTestId('invite-banner');
+  await expect(banner).toContainText('You opened an invite to another table');
+  await banner.getByRole('button', { name: 'Leave and join' }).click();
+  await expect(friend.page.getByTestId('invite-input')).toHaveValue(code);
 });

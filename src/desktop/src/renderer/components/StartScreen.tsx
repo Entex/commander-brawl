@@ -11,6 +11,9 @@ import { VideoView } from './VideoView';
 interface StartScreenProps {
   readonly version: string;
   readonly camera: CameraState;
+  /** The invite to join with: pasted, or filled in by an invite link that opened the app. */
+  readonly invite: string;
+  onInviteChange(invite: string): void;
   onOpenCamera(): void;
   onHosted(info: HostInfo): void;
   onJoined(): void;
@@ -18,9 +21,16 @@ interface StartScreenProps {
 
 const NAME_KEY = 'cb.name';
 
-export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined }: StartScreenProps) {
+export function StartScreen({
+  version,
+  camera,
+  invite,
+  onInviteChange,
+  onOpenCamera,
+  onHosted,
+  onJoined,
+}: StartScreenProps) {
   const [name, setName] = useState(() => localStorage.getItem(NAME_KEY) ?? '');
-  const [invite, setInvite] = useState('');
   const [busy, setBusy] = useState<'host' | 'join' | 'watch' | 'resume' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const saved = useSavedTable();
@@ -114,7 +124,7 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
             <h2>
               <Icon name="castle" /> Host a table
             </h2>
-            <p className="hint">You'll get an invite code to share with your friends.</p>
+            <p className="hint">You'll get an invite link to share with your friends.</p>
             <button
               className="primary"
               disabled={busy !== null || !name.trim()}
@@ -131,8 +141,8 @@ export function StartScreen({ version, camera, onOpenCamera, onHosted, onJoined 
             <textarea
               value={invite}
               rows={3}
-              placeholder="Paste the invite code from the host"
-              onChange={(event) => setInvite(event.target.value)}
+              placeholder="Paste the invite link from the host"
+              onChange={(event) => onInviteChange(event.target.value)}
               data-testid="invite-input"
             />
             <div className="start-buttons">

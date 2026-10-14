@@ -1,6 +1,7 @@
 import {
   TableSession,
   cardInArea,
+  inviteLink,
   undoneIds,
   type GameView,
   type LoggedEvent,
@@ -127,7 +128,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
   const copyInvite = async () => {
     if (!host) return;
-    await navigator.clipboard.writeText(host.invite);
+    await navigator.clipboard.writeText(inviteLink(host.invite));
     setCopied(true);
     setTimeout(() => setCopied(false), 2_000);
   };
@@ -161,7 +162,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           {host && (
             <>
               <button onClick={() => void copyInvite()} data-testid="copy-invite">
-                <Icon name="wax-seal" /> {copied ? 'Copied!' : 'Copy invite'}
+                <Icon name="wax-seal" /> {copied ? 'Copied!' : 'Copy invite link'}
               </button>
               <ReachabilityBadge host={host} />
             </>
@@ -347,7 +348,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       )}
       {game && <TableCounters game={game.state} readOnly={readOnly} />}
       {game && countersOpen && <CountersPanel game={game.state} onClose={() => setCountersOpen(false)} />}
-      {host && <input className="invite-code" readOnly value={host.invite} data-testid="invite-code" />}
+      {host && <input className="invite-code" readOnly value={inviteLink(host.invite)} data-testid="invite-code" />}
 
       {game && logOpen && <LogPanel game={game} players={state.seats} onClose={() => setLogOpen(false)} />}
       {cardsOpen && (

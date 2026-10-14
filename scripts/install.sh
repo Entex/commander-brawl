@@ -169,7 +169,15 @@ Exec="$app/commander-brawl" %U
 Icon=$app/icon.png
 Categories=Game;CardGame;
 Terminal=false
+MimeType=x-scheme-handler/commander-brawl;
 EOF
+  # Invite links (commander-brawl://join/…) open the app.
+  if command -v xdg-mime >/dev/null 2>&1; then
+    xdg-mime default commander-brawl.desktop x-scheme-handler/commander-brawl || true
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$applications" >/dev/null 2>&1 || true
+  fi
 
   say "Installed Commander Brawl $version. Start it from your app menu or run: commander-brawl"
   case ":$PATH:" in *":$bin:"*) ;; *) say "(Add $bin to your PATH to start it from a terminal.)" ;; esac

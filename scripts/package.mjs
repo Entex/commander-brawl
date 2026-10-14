@@ -57,6 +57,8 @@ for (const target of targets) {
       ProductName: 'Commander Brawl',
       FileDescription: 'Commander Brawl',
     },
+    // Invite links (commander-brawl://join/…) open the app on a Mac.
+    protocols: [{ name: 'Commander Brawl invite', schemes: ['commander-brawl'] }],
     extendInfo: {
       NSCameraUsageDescription: 'Commander Brawl shows your play area to the other players.',
       NSLocalNetworkUsageDescription: 'Commander Brawl connects to your phone camera and to players on your network.',

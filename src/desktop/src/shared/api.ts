@@ -171,6 +171,12 @@ export interface DesktopApi {
     /** Asks for a history file (a friend's export) and adds its games. How many were new; null if cancelled. */
     import(): Promise<number | null>;
   };
+  invites: {
+    /** An invite link that opened the app, once: the next call gives null. */
+    take(): Promise<string | null>;
+    /** An invite link opened while the app is running. */
+    onOpened(listener: (code: string) => void): () => void;
+  };
   updates: {
     status(): Promise<UpdateStatus>;
     onStatus(listener: (status: UpdateStatus) => void): () => void;
@@ -220,6 +226,8 @@ export const Channels = {
   decksSave: 'decks:save',
   decksAnalyze: 'decks:analyze',
   decksRemove: 'decks:remove',
+  invitesTake: 'invites:take',
+  invitesOpened: 'invites:opened',
   updatesStatus: 'updates:status',
   updatesStatusUpdate: 'updates:status-update',
   updatesInstall: 'updates:install',

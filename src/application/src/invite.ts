@@ -2,6 +2,25 @@ const PREFIX = 'CB1-';
 const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 const MAX_HOSTS = 8;
 
+/**
+ * The web page an invite link points to. It opens the app with the invite (or says how to get the app). Chat apps
+ * like Discord only make http(s) links clickable, not the app's own. The invite goes after the #, which browsers
+ * never send to the server.
+ */
+export const INVITE_PAGE = 'https://entex.github.io/commander-brawl/join/';
+/** The app's own links, which the page opens: commander-brawl://join/CB1-… */
+export const INVITE_PROTOCOL = 'commander-brawl';
+
+/** A link to the table, to share instead of the bare code. */
+export function inviteLink(code: string): string {
+  return `${INVITE_PAGE}#${code}`;
+}
+
+/** The invite code in some text: a link to the table, the app's own link, or the code itself (spaces and all). */
+export function findInviteCode(text: string): string | null {
+  return /CB1-[A-Za-z0-9_-]+/.exec(text.replace(/\s+/g, ''))?.[0] ?? null;
+}
+
 /** Everything a player needs to reach the host's table. Shared as a text code, e.g. pasted in Discord. */
 export interface Invite {
   /** Addresses to try, in order of preference. */
@@ -15,7 +34,7 @@ export interface Invite {
 
 export class InvalidInviteError extends Error {
   constructor() {
-    super('That invite code is not valid. Ask the host to copy it again.');
+    super('That invite is not valid. Ask the host to copy it again.');
     this.name = 'InvalidInviteError';
   }
 }
@@ -25,9 +44,10 @@ export function encodeInvite(invite: Invite): string {
   return PREFIX + toBase64Url(json);
 }
 
+/** Reads an invite from its code, or from a link to the table. */
 export function decodeInvite(code: string): Invite {
-  const compact = code.replace(/\s+/g, '');
-  if (!compact.startsWith(PREFIX)) {
+  const compact = findInviteCode(code);
+  if (!compact) {
     throw new InvalidInviteError();
   }
   let raw: unknown;

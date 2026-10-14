@@ -1,5 +1,5 @@
 import { FileHistoryStore, lanAddresses, loadOrCreateIdentity } from '@commander-brawl/infrastructure/node';
-import { toGameRecords } from '@commander-brawl/application';
+import { INVITE_PROTOCOL, findInviteCode, toGameRecords } from '@commander-brawl/application';
 import {
   app,
   BrowserWindow,
@@ -50,7 +50,48 @@ app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns');
 let mainWindow: BrowserWindow | null = null;
 let cleanup: (() => Promise<void>) | null = null;
 
-void start();
+/**
+ * An invite link (commander-brawl://join/CB1-…) starts the app with it, or goes to the app that's already running:
+ * one app per settings folder. The invite waits here until the start screen takes it, and fills it in there.
+ */
+let pendingInvite: string | null = inviteIn(process.argv);
+
+if (app.requestSingleInstanceLock()) {
+  void start();
+} else {
+  app.quit();
+}
+
+app.on('second-instance', (_event, argv) => {
+  const invite = inviteIn(argv);
+  if (invite) openInvite(invite);
+  else showWindow();
+});
+
+// macOS hands links over this way, before the app is ready too.
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  const invite = inviteIn([url]);
+  if (invite) openInvite(invite);
+});
+
+/** An invite from the app's own link among the arguments, not from just any text that looks like one. */
+function inviteIn(argv: readonly string[]): string | null {
+  const link = argv.find((arg) => arg.startsWith(`${INVITE_PROTOCOL}:`));
+  return link ? findInviteCode(link) : null;
+}
+
+function openInvite(invite: string): void {
+  pendingInvite = invite;
+  mainWindow?.webContents.send(Channels.invitesOpened, invite);
+  showWindow();
+}
+
+function showWindow(): void {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
 
 async function start(): Promise<void> {
   await app.whenReady();
@@ -107,6 +148,8 @@ async function start(): Promise<void> {
 
   registerIpc(table, phone, cards, decks, history, updates);
   restrictPermissions();
+  // Invite links open this app. (On Linux, the install script registers them; Electron can't there.)
+  if (app.isPackaged && process.platform !== 'linux') app.setAsDefaultProtocolClient(INVITE_PROTOCOL);
   mainWindow = createWindow();
   // After the window is up: reading ~35,000 cards takes a moment, and the window shouldn't wait for it.
   void cards.start();
@@ -230,6 +273,11 @@ function registerIpc(
   handle(Channels.decksSave, (deck, id) => decks.save(deck, typeof id === 'string' ? id : null));
   handle(Channels.decksRemove, (id) => decks.remove(requireString(id)));
   handle(Channels.decksAnalyze, (deck) => decks.analyze(deck));
+  handle(Channels.invitesTake, () => {
+    const invite = pendingInvite;
+    pendingInvite = null;
+    return invite;
+  });
   handle(Channels.updatesStatus, () => updates.status());
   handle(Channels.updatesInstall, () => updates.install());
   handle(Channels.phoneInfo, () => phone.info());

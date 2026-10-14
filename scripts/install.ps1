@@ -38,6 +38,15 @@ function Stop-RunningApp {
   }
 }
 
+function Register-InviteLinks([string] $Exe) {
+  # Invite links (commander-brawl://join/...) open the app, even before it has been started once.
+  $key = 'HKCU:\Software\Classes\commander-brawl'
+  New-Item -Path "$key\shell\open\command" -Force | Out-Null
+  Set-Item -Path $key -Value 'URL:Commander Brawl invite'
+  New-ItemProperty -Path $key -Name 'URL Protocol' -Value '' -Force | Out-Null
+  Set-Item -Path "$key\shell\open\command" -Value "`"$Exe`" `"%1`""
+}
+
 function New-Shortcuts([string] $Exe) {
   $shell = New-Object -ComObject WScript.Shell
   foreach ($folder in @([Environment]::GetFolderPath('Programs'), [Environment]::GetFolderPath('Desktop'))) {
@@ -112,6 +121,7 @@ try {
     Start-App
   } else {
     New-Shortcuts (Join-Path $App 'commander-brawl.exe')
+    Register-InviteLinks (Join-Path $App 'commander-brawl.exe')
     Write-Host "Installed Commander Brawl $version. Start it from the Start menu or the desktop shortcut."
     Write-Host 'The first time, Windows asks whether it may use the network. Allow private networks.'
   }

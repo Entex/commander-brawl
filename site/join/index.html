@@ -1,0 +1,154 @@
+<!doctype html>
+<!--
+  Where an invite link goes: https://entex.github.io/commander-brawl/join/#CB1-…
+  It opens the app with the invite (commander-brawl://join/CB1-…). Chat apps only make http(s) links clickable,
+  not the app's own. The invite is after the #, which the browser never sends to the server.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Join a Commander Brawl table</title>
+    <meta property="og:title" content="Join my Commander Brawl table" />
+    <meta property="og:description" content="Click to open the table in Commander Brawl: Commander over webcams." />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101217;
+        --panel: #181a22;
+        --border: #2b2f3d;
+        --text: #e8e9ee;
+        --muted: #9a9db0;
+        --accent: #a78bfa;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--text);
+      }
+      main {
+        max-width: 36rem;
+        margin: 2rem 1rem;
+        padding: 2rem;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 1.5rem;
+      }
+      p,
+      li {
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .open {
+        display: inline-block;
+        padding: 0.6rem 1.2rem;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #bba6ff, #8f6ff2);
+        color: #160b2e;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      code,
+      input {
+        font-family: ui-monospace, Consolas, monospace;
+        font-size: 0.85rem;
+      }
+      code {
+        display: block;
+        padding: 0.5rem;
+        background: var(--bg);
+        border-radius: 6px;
+        overflow-wrap: anywhere;
+        color: var(--text);
+      }
+      .copy {
+        display: flex;
+        gap: 0.5rem;
+      }
+      input {
+        flex: 1;
+        min-width: 0;
+        padding: 0.4rem;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      button {
+        padding: 0.4rem 0.8rem;
+        background: var(--border);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      a {
+        color: var(--accent);
+      }
+      [hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Join a Commander Brawl table</h1>
+      <div id="invite" hidden>
+        <p>Your browser asks to open Commander Brawl. Allow it, and the invite is filled in: click <b>Join</b>.</p>
+        <p><a class="open" id="open" href="#">Open in Commander Brawl</a></p>
+        <h2>Don't have it yet?</h2>
+        <p>Install it (one command, no account needed), then click the link again.</p>
+        <ul>
+          <li>
+            Windows, in PowerShell:
+            <code>irm https://github.com/Entex/commander-brawl/releases/latest/download/install.ps1 | iex</code>
+          </li>
+          <li>
+            macOS and Linux, in a terminal:
+            <code>curl -fsSL https://github.com/Entex/commander-brawl/releases/latest/download/install.sh | sh</code>
+          </li>
+        </ul>
+        <p>Or paste the invite into the app yourself:</p>
+        <div class="copy">
+          <input id="code" readonly aria-label="Invite" />
+          <button id="copy" type="button">Copy</button>
+        </div>
+      </div>
+      <p id="missing" hidden>This link has no invite in it. Ask the host to copy the invite link again.</p>
+      <p>
+        <a href="https://github.com/Entex/commander-brawl">About Commander Brawl</a>: play Magic: The Gathering
+        Commander over webcams, with your phone as the camera.
+      </p>
+    </main>
+    <script>
+      const code = (/CB1-[A-Za-z0-9_-]+/.exec(location.hash) || [])[0];
+      if (code) {
+        const link = 'commander-brawl://join/' + code;
+        document.getElementById('invite').hidden = false;
+        document.getElementById('open').href = link;
+        document.getElementById('code').value = code;
+        document.getElementById('copy').addEventListener('click', async () => {
+          await navigator.clipboard.writeText(code);
+          document.getElementById('copy').textContent = 'Copied!';
+        });
+        location.href = link;
+      } else {
+        document.getElementById('missing').hidden = false;
+      }
+    </script>
+  </body>
+</html>

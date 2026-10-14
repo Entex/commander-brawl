@@ -484,6 +484,21 @@ a {
   color: var(--error);
 }
 
+/* Over the table, where it's seen: an invite link was opened while at another table. */
+.invite-banner {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 50%);
+}
+
 .invite-code {
   position: absolute;
   left: -9999px;
