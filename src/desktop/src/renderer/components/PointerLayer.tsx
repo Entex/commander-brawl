@@ -18,6 +18,8 @@ import { pictureAt, pictureNear, screenAt } from '../videoPoints';
 const DRAG_DISTANCE = 10;
 
 interface PointerLayerProps {
+  /** One seat has most of the room, and the others share this many rows beside it. Null: four equal seats. */
+  readonly focusRows?: number | null;
   readonly marks: readonly Mark[];
   /** The player pointed at something: right-click for a ping, a drag for an arrow. */
   onPoint(pointer: Pointer): void;
@@ -47,7 +49,7 @@ const MIN_AREA = 0.02;
  * spot to another (on the same video or another) to draw an arrow; Ctrl+drag around a card on a video to pick it
  * out. A plain click still goes to the video.
  */
-export function PointerLayer({ marks, onPoint, onArea, selfSeat, children }: PointerLayerProps) {
+export function PointerLayer({ focusRows = null, marks, onPoint, onArea, selfSeat, children }: PointerLayerProps) {
   const ref = useRef<HTMLElement>(null);
   const [drag, setDrag] = useState<{ from: TablePoint; x: number; y: number } | null>(null);
   const [area, setArea] = useState<Area | null>(null);
@@ -142,7 +144,8 @@ export function PointerLayer({ marks, onPoint, onArea, selfSeat, children }: Poi
 
   return (
     <main
-      className="seats"
+      className={`seats${focusRows === null ? '' : ' seats-focus'}`}
+      style={focusRows === null ? undefined : { gridTemplateRows: `repeat(${focusRows}, minmax(0, 1fr))` }}
       ref={ref}
       onPointerDown={onPointerDown}
       onContextMenu={onContextMenu}

@@ -525,6 +525,20 @@ a {
   min-height: 0;
 }
 
+/* "Enlarge the active player": their seat on the left, the others in a column beside it (rows set inline). */
+.seats-focus {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+}
+
+.seats-focus > .seat {
+  grid-column: 2;
+}
+
+.seats-focus > .seat-focused {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
 .seat {
   position: relative;
   background: radial-gradient(

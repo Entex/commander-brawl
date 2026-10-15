@@ -40,6 +40,8 @@ interface SeatTileProps {
   readonly game: GameState | null;
   /** It's this player's turn. */
   readonly active: boolean;
+  /** This seat gets most of the screen (see "Enlarge the active player"). */
+  readonly focused?: boolean;
   /** This player just asked everyone to wait: they have a response. */
   readonly responding: boolean;
   /** See GameView.hostClockOffset. For a chess clock's time. */
@@ -66,6 +68,7 @@ export function SeatTile({
   players,
   game,
   active,
+  focused = false,
   responding,
   hostClockOffset,
   readOnly = false,
@@ -96,7 +99,10 @@ export function SeatTile({
 
   return (
     <div
-      className={`seat ${seatColorClass(index)}${active ? ' seat-active' : ''}${responding ? ' seat-responding' : ''}`}
+      className={`seat ${seatColorClass(index)}${active ? ' seat-active' : ''}${focused ? ' seat-focused' : ''}${
+        responding ? ' seat-responding' : ''
+      }`}
+      data-focused={focused || undefined}
       data-testid={`seat-${seat.player.seat}`}
       data-link={seat.link}
       data-active={active}

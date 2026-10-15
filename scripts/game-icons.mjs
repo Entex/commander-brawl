@@ -74,6 +74,17 @@ const ICONS = [
   'laurels-trophy',
   'crossed-sabres',
   'hazard-sign',
+  // The layout, shortcuts
+  'expand',
+  'keyboard',
+  // Calls to wait, reminders and stops
+  'ringing-bell',
+  'stop-sign',
+  'check-mark',
+  // On the battlefield: cards, tokens and counters on the videos; graveyards
+  'pin',
+  'token',
+  'graveyard',
 ];
 
 const root = resolve(import.meta.dirname, '..');

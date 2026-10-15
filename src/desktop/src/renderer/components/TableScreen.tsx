@@ -84,6 +84,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const spectating = state.spectating;
   // The clean view for streaming (OBS): seats, life totals and commanders, none of the buttons.
   const [clean, setClean] = useState(false);
+  const [enlargeActive, setEnlargeActive] = useEnlargeActive();
   const readOnly = spectating || clean;
   useEffect(() => {
     if (!clean) return;
@@ -135,6 +136,10 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
   const seats = arrangeSeats(state.seats, game?.state.turnOrder ?? null);
   const activeSeat = game?.state.activeSeat ?? null;
+  // The seat that gets most of the screen, if any: the active player's, with that setting on (not on your own turn).
+  const focusedSeat = enlargeActive && activeSeat !== null && activeSeat !== selfSeat ? activeSeat : null;
+  const focused = focusedSeat !== null && seats.some((seat) => seat?.player.seat === focusedSeat);
+  const othersShown = seats.filter((seat) => seat && seat.player.seat !== focusedSeat).length;
 
   return (
     <div className={`table-screen${clean ? ' clean-view' : ''}`} data-testid="table-screen">
@@ -293,6 +298,14 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                     <Icon name="clapperboard" /> Record clips
                   </button>
                 )}
+                <button
+                  role="menuitemcheckbox"
+                  aria-checked={enlargeActive}
+                  title="The player whose turn it is gets most of the screen (not on your own turn)"
+                  onClick={() => setEnlargeActive(!enlargeActive)}
+                >
+                  <Icon name="expand" /> Enlarge the active player
+                </button>
                 <button role="menuitemcheckbox" aria-checked={showStats} onClick={() => setShowStats((v) => !v)}>
                   <Icon name="network-bars" /> {showStats ? 'Hide stats' : 'Show stats'}
                 </button>
@@ -402,6 +415,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
       <div className="table-body">
         <PointerLayer
+          focusRows={focused ? Math.max(1, othersShown) : null}
           marks={pointerMarks}
           onPoint={spectating ? ignore : point}
           onArea={(seat, from, to, rotation) => lookAt(seat, cardInArea(from, to), rotation)}
@@ -420,6 +434,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 players={state.seats}
                 game={game?.state ?? null}
                 active={seat.player.seat === activeSeat}
+                focused={focused && seat.player.seat === focusedSeat}
                 responding={responding.has(seat.player.seat)}
                 hostClockOffset={game?.hostClockOffset ?? 0}
                 readOnly={readOnly}
@@ -428,7 +443,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 onOpenCard={openCard}
                 onLook={(target, rotation) => lookAt(seat.player.seat, target, rotation)}
               />
-            ) : (
+            ) : focused ? null : (
               <EmptySeat key={`empty-${index}`} index={index} />
             ),
           )}
@@ -519,6 +534,18 @@ function arrangeSeats<T extends SeatView<MediaStreamTrack>>(
   ];
   const slot = (i: number) => inOrder[i];
   return [slot(0), slot(1), slot(3), slot(2)];
+}
+
+const ENLARGE_ACTIVE_KEY = 'cb.enlargeActive';
+
+/** Whether the active player's seat gets most of the screen. Remembered on this computer; off at first. */
+function useEnlargeActive(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => localStorage.getItem(ENLARGE_ACTIVE_KEY) === '1');
+  const set = (next: boolean) => {
+    localStorage.setItem(ENLARGE_ACTIVE_KEY, next ? '1' : '0');
+    setOn(next);
+  };
+  return [on, set];
 }
 
 /** Ctrl (or Cmd on a Mac) plus a key, anywhere in the window. */

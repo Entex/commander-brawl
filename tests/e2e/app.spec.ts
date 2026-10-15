@@ -319,9 +319,25 @@ test('a shuffled turn order, passed around the table', async () => {
     ? [host, friend]
     : [friend, host];
   await expect(second.page.getByTestId('turn')).not.toContainText('Your turn');
+
+  // The player who's waiting has the active player's seat take most of the screen.
+  await second.page.getByRole('button', { name: 'Menu' }).click();
+  await second.page.getByRole('menuitemcheckbox', { name: 'Enlarge the active player' }).click();
+  await second.page.keyboard.press('Escape');
+  const firstName = first === host ? 'Host' : 'Friend';
+  const big = second.page.locator('.seat[data-focused="true"]');
+  await expect(big).toContainText(firstName);
+  await expect(second.page.locator('.seat-free')).toHaveCount(0);
+  const bigBox = (await big.boundingBox())!;
+  const smallBox = (await second.page.locator('.seat:not([data-focused])').boundingBox())!;
+  expect(bigBox.width).toBeGreaterThan(smallBox.width * 2);
+  await second.page.screenshot({ path: test.info().outputPath('enlarged.png') });
+
   await first.page.getByRole('button', { name: 'Pass turn' }).click();
 
+  // On your own turn, the seats are as usual.
   await expect(second.page.getByTestId('turn')).toContainText('Turn 2 · Round 1 · Your turn');
+  await expect(second.page.locator('.seat[data-focused="true"]')).toHaveCount(0);
   await expect(first.page.getByRole('button', { name: 'Pass turn' })).toHaveCount(0);
   await expect(first.page.locator('.seat[data-active="true"]')).toHaveCount(1);
 });
