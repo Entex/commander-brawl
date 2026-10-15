@@ -99,7 +99,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   }, [session, camera.track, spectating]);
 
   // Cards clicked on the players' videos (yours too): outlined there, and shown in a column beside the table.
-  const { lookups, look, choose, markTracked, clear: clearLookups } = useCardLookups(camera);
+  const { lookups, look, choose, markTracked, remove: removeLookups } = useCardLookups(camera);
   const [seenOpen, setSeenOpen] = useState(false);
   /** The lookup the Cards panel is searching for (none of the guesses was it). */
   const [correcting, setCorrecting] = useState<number | null>(null);
@@ -448,7 +448,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               setCardFocus(null);
               setCardsOpen(true);
             }}
-            onClear={clearLookups}
+            onRemove={removeLookups}
             onClose={() => setSeenOpen(false)}
           />
         )}

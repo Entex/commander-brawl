@@ -2165,6 +2165,24 @@ button.response-button:hover:not(:disabled) {
   justify-content: space-between;
 }
 
+/* Whose cards: everyone's, or one player's. */
+.card-rail-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.card-rail-filter button {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.card-rail-filter button[aria-pressed='true'] {
+  border-color: var(--seat, var(--accent));
+  color: var(--seat, var(--accent));
+}
+
 .card-rail-header h2 {
   margin: 0;
   display: flex;
@@ -2319,10 +2337,26 @@ button.response-button:hover:not(:disabled) {
   gap: 0.3rem;
 }
 
+.lookup-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
 .lookup-name {
   margin: 0;
   font-size: 1.2rem;
   line-height: 1.2;
+}
+
+.lookup-remove {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+}
+
+.lookup-remove:hover {
+  color: var(--error);
 }
 
 .lookup-meta {
@@ -2406,6 +2440,12 @@ button.response-button:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+.lookup-item {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
 }
 
 .lookup-row {

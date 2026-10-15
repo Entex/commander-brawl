@@ -69,7 +69,8 @@ export interface CardLookups {
   choose(id: number, card: Card): void;
   /** The card is now kept track of on its player's side. */
   markTracked(id: number): void;
-  clear(): void;
+  /** Takes these out of the list. */
+  remove(ids: readonly number[]): void;
 }
 
 /** Cards clicked on players' videos, one lookup each, worked on side by side. */
@@ -139,8 +140,11 @@ export function useCardLookups(camera: CameraState): CardLookups {
 
   const choose = useCallback((id: number, card: Card) => change(id, (l) => ({ ...l, chosen: card })), [change]);
   const markTracked = useCallback((id: number) => change(id, (l) => ({ ...l, tracked: true })), [change]);
-  const clear = useCallback(() => setLookups([]), []);
-  return { lookups, look, choose, markTracked, clear };
+  const remove = useCallback(
+    (ids: readonly number[]) => setLookups((current) => current.filter((lookup) => !ids.includes(lookup.id))),
+    [],
+  );
+  return { lookups, look, choose, markTracked, remove };
 }
 
 /** Where the outline found in the video is in the picture of the crop, as fractions of that picture. */

@@ -1,4 +1,4 @@
-import type { Card } from '@commander-brawl/domain';
+import type { Card, SeatIndex } from '@commander-brawl/domain';
 import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
 import { useEffect, useState } from 'react';
 import { Icon } from '../icons/Icon';
@@ -16,7 +16,8 @@ interface CardRailProps {
   onChoose(lookupId: number, card: Card): void;
   /** Search for the card a lookup is, when none of the guesses is it. */
   onSearch(lookupId: number): void;
-  onClear(): void;
+  /** Takes these out of the list. */
+  onRemove(lookupIds: readonly number[]): void;
   onClose(): void;
 }
 
@@ -27,11 +28,13 @@ const MAX_OTHERS = 4;
 
 /**
  * The cards clicked on the players' videos, beside the table: the latest one big, with which card it
- * probably is and the other guesses to pick instead, and the earlier ones below.
+ * probably is and the other guesses to pick instead, and the earlier ones below. With cards from more than one
+ * player, it can show just one player's.
  */
-export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onClear, onClose }: CardRailProps) {
+export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onRemove, onClose }: CardRailProps) {
   const now = useNow(30_000);
   const [picked, setPicked] = useState<number | null>(null);
+  const [only, setOnly] = useState<SeatIndex | null>(null);
   // A new card clicked: that's the one to show.
   const newest = lookups[0]?.id;
   const [shownNewest, setShownNewest] = useState(newest);
@@ -39,9 +42,13 @@ export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onC
     setShownNewest(newest);
     setPicked(null);
   }
-  const featured = lookups.find((lookup) => lookup.id === picked) ?? lookups[0];
+  const players = playersIn(lookups);
+  // Back to everyone's once none of that player's are left.
+  const filter = only !== null && players.some((p) => p.seat === only) ? only : null;
+  const shown = filter === null ? lookups : lookups.filter((lookup) => lookup.seat === filter);
+  const featured = shown.find((lookup) => lookup.id === picked) ?? shown[0];
   if (!featured) return null;
-  const earlier = lookups.filter((lookup) => lookup !== featured);
+  const earlier = shown.filter((lookup) => lookup !== featured);
 
   return (
     <aside className="card-rail" aria-label="Cards seen" data-testid="card-rail">
@@ -53,6 +60,23 @@ export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onC
           ✕
         </button>
       </header>
+      {players.length > 1 && (
+        <div className="card-rail-filter" role="group" aria-label="Whose cards">
+          <button aria-pressed={filter === null} onClick={() => setOnly(null)}>
+            All
+          </button>
+          {players.map((player) => (
+            <button
+              key={player.seat}
+              className={seatColorClass(player.seat)}
+              aria-pressed={filter === player.seat}
+              onClick={() => setOnly(player.seat)}
+            >
+              {player.name}
+            </button>
+          ))}
+        </div>
+      )}
       <FeaturedLookup
         key={featured.id}
         lookup={featured}
@@ -61,34 +85,53 @@ export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onC
         onTrack={onTrack}
         onChoose={onChoose}
         onSearch={onSearch}
+        onRemove={() => onRemove([featured.id])}
       />
       {earlier.length > 0 && (
         <section className="card-rail-history" aria-label="Earlier">
           <header className="card-rail-history-header">
             <h3>Earlier</h3>
-            <button className="link" onClick={onClear}>
-              Clear
+            <button className="link" onClick={() => onRemove(shown.map((lookup) => lookup.id))}>
+              Remove all
             </button>
           </header>
           <ul>
-            {earlier.map((lookup) => (
-              <li key={lookup.id} className={seatColorClass(lookup.seat)}>
-                <button className="lookup-row" onClick={() => setPicked(lookup.id)}>
-                  <LookupThumb lookup={lookup} />
-                  <span className="lookup-row-text">
-                    <span className="lookup-row-name">{lookupCard(lookup)?.name ?? stepText(lookup)}</span>
-                    <span className="hint">
-                      {lookup.own ? 'You' : lookup.from} · {ago(lookup.at, now)}
+            {earlier.map((lookup) => {
+              const name = lookupCard(lookup)?.name ?? stepText(lookup);
+              return (
+                <li key={lookup.id} className={`lookup-item ${seatColorClass(lookup.seat)}`}>
+                  <button className="lookup-row" onClick={() => setPicked(lookup.id)}>
+                    <LookupThumb lookup={lookup} />
+                    <span className="lookup-row-text">
+                      <span className="lookup-row-name">{name}</span>
+                      <span className="hint">
+                        {lookup.own ? 'You' : lookup.from} · {ago(lookup.at, now)}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </li>
-            ))}
+                  </button>
+                  <button
+                    className="icon-button lookup-remove"
+                    aria-label={`Remove ${name}`}
+                    title="Remove from the list"
+                    onClick={() => onRemove([lookup.id])}
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
     </aside>
   );
+}
+
+/** The players whose cards are in the list, in seat order: "You" for your own camera. */
+function playersIn(lookups: readonly CardLookup[]): { readonly seat: SeatIndex; readonly name: string }[] {
+  const bySeat = new Map<SeatIndex, string>();
+  for (const lookup of lookups) if (!bySeat.has(lookup.seat)) bySeat.set(lookup.seat, lookup.own ? 'You' : lookup.from);
+  return [...bySeat].sort(([a], [b]) => a - b).map(([seat, name]) => ({ seat, name }));
 }
 
 function FeaturedLookup({
@@ -98,6 +141,7 @@ function FeaturedLookup({
   onTrack,
   onChoose,
   onSearch,
+  onRemove,
 }: {
   readonly lookup: CardLookup;
   readonly now: number;
@@ -105,6 +149,7 @@ function FeaturedLookup({
   onTrack: ((lookup: CardLookup, card: Card) => void) | undefined;
   onChoose(lookupId: number, card: Card): void;
   onSearch(lookupId: number): void;
+  onRemove(): void;
 }) {
   const { step } = lookup;
   const card = lookupCard(lookup);
@@ -174,9 +219,19 @@ function FeaturedLookup({
       </div>
 
       <header className="lookup-heading">
-        <h3 className="lookup-name" data-testid="lookup-name">
-          {card ? card.name : stepText(lookup)}
-        </h3>
+        <div className="lookup-title">
+          <h3 className="lookup-name" data-testid="lookup-name">
+            {card ? card.name : stepText(lookup)}
+          </h3>
+          <button
+            className="icon-button lookup-remove"
+            aria-label={`Remove ${card ? card.name : 'this card'}`}
+            title="Remove from the list"
+            onClick={onRemove}
+          >
+            ✕
+          </button>
+        </div>
         <p className="lookup-meta">
           {step.status === 'done' && <Confidence lookup={lookup} />}
           <span>

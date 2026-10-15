@@ -529,7 +529,7 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByRole('button', { name: 'Track Rhystic Study' })).toBeEnabled();
   await rail
     .getByRole('region', { name: 'Earlier' })
-    .getByRole('button', { name: /Rhystic Study/ })
+    .getByRole('button', { name: /^Rhystic Study/ })
     .click();
   await expect(lookup.getByRole('button', { name: 'Tracking Rhystic Study' })).toBeDisabled();
 
@@ -560,6 +560,33 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   const ownLookup = host.page.getByTestId('card-rail').getByTestId('lookup');
   await expect(ownLookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
   await expect(ownLookup).toContainText('Your camera');
+
+  // Cards from two players: everyone's, or just one player's.
+  const friendOwn = friend.page.locator('.seat', { hasText: 'Friend (you)' }).getByTestId('seat-video');
+  const friendSpot = await onPicture(friendOwn, 0.5, 0.5);
+  await friend.page.mouse.click(friendSpot.x, friendSpot.y);
+  const earlier = rail.getByRole('region', { name: 'Earlier' });
+  await expect(earlier.locator('.lookup-row')).toHaveCount(3);
+  const whose = rail.getByRole('group', { name: 'Whose cards' });
+  await whose.getByRole('button', { name: 'Host' }).click();
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+  await expect(earlier.locator('.lookup-row')).toHaveCount(2);
+  await whose.getByRole('button', { name: 'You' }).click();
+  await expect(lookup).toContainText('Your camera');
+  await expect(earlier).toHaveCount(0);
+  await whose.getByRole('button', { name: 'All' }).click();
+  await expect(earlier.locator('.lookup-row')).toHaveCount(3);
+
+  // Taken out of the list one at a time, or all at once.
+  await earlier.getByRole('button', { name: 'Remove Rhystic Study' }).first().click();
+  await expect(earlier.locator('.lookup-row')).toHaveCount(2);
+  await lookup.getByRole('button', { name: /^Remove / }).click();
+  await expect(whose).toHaveCount(0);
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+  await expect(earlier.locator('.lookup-row')).toHaveCount(1);
+  await earlier.getByRole('button', { name: 'Remove all' }).click();
+  await expect(friend.page.getByTestId('card-rail')).toHaveCount(0);
+  await expect(friend.page.getByTestId('seen-toggle')).toHaveCount(0);
 });
 
 /** A camera picture of a (made-up) Rhystic Study on a playmat, for the fake camera to show. */
