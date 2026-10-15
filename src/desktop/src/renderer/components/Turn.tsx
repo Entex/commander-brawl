@@ -42,6 +42,7 @@ interface TurnControlsProps {
 /** Whose turn it is, where they are in it, the clock, and passing the turn. Before the first turn: deciding the order. */
 export function TurnControls({ game, players, hostClockOffset, readOnly = false }: TurnControlsProps) {
   const self = players.find((p) => p.isSelf)?.player.seat;
+  const [ordering, setOrdering] = useState(false);
   useTurnKeys(game, self ?? null, !readOnly);
   if (game.turnOrder === null || game.activeSeat === null) {
     if (readOnly) return <span className="hint">The game hasn't started yet.</span>;
@@ -53,11 +54,15 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
         >
           <Icon name="cycle" /> Random turn order
         </button>
+        <button disabled={players.length === 0} onClick={() => setOrdering(true)}>
+          Set the order…
+        </button>
         {game.clock && (
           <span className="hint">
             <Icon name="hourglass" /> Clock starts with the first turn
           </span>
         )}
+        {ordering && <TurnOrderPanel players={players} onClose={() => setOrdering(false)} />}
       </div>
     );
   }
@@ -81,6 +86,68 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
           Pass turn <Icon name="next-button" />
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * The turn order set by hand: the order around the real table, say. The first player starts, or a random one, with
+ * the others following in this order.
+ */
+function TurnOrderPanel({ players, onClose }: { readonly players: Players; onClose(): void }) {
+  const [order, setOrder] = useState(() => players.map((p) => p.player.seat).sort((a, b) => a - b));
+  const move = (index: number, by: -1 | 1) =>
+    setOrder((current) => {
+      const next = [...current];
+      [next[index], next[index + by]] = [next[index + by]!, next[index]!];
+      return next;
+    });
+  const start = (action: 'chosen' | 'random-first') => {
+    submitGameEvent(
+      action === 'chosen' ? { type: 'turn-order-chosen', order } : { type: 'randomize-first-player', order },
+    );
+    onClose();
+  };
+  return (
+    <div className="overlay" role="dialog" aria-label="Turn order" onClick={onClose}>
+      <div className="panel turn-order-panel" onClick={(event) => event.stopPropagation()}>
+        <header className="panel-header">
+          <h2>
+            <Icon name="cycle" /> Turn order
+          </h2>
+          <button onClick={onClose}>Close</button>
+        </header>
+        <p className="hint">Put the players in the order they take turns, like around your table.</p>
+        <ol className="turn-order-list">
+          {order.map((seat, index) => (
+            <li key={seat} className={seatColorClass(seat)}>
+              <span className="turn-order-name">{seatName(players, seat)}</span>
+              <button
+                aria-label={`Move ${seatName(players, seat)} up`}
+                disabled={index === 0}
+                onClick={() => move(index, -1)}
+              >
+                ↑
+              </button>
+              <button
+                aria-label={`Move ${seatName(players, seat)} down`}
+                disabled={index === order.length - 1}
+                onClick={() => move(index, 1)}
+              >
+                ↓
+              </button>
+            </li>
+          ))}
+        </ol>
+        <div className="row">
+          <button className="primary" onClick={() => start('chosen')}>
+            {seatName(players, order[0]!)} goes first
+          </button>
+          <button onClick={() => start('random-first')} title="A random player starts; the others follow in this order">
+            <Icon name="rolling-dices" /> A random player goes first
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

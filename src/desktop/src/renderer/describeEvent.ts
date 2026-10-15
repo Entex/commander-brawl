@@ -162,8 +162,14 @@ export function describeEvent(
         game,
         event.kind,
       )}`;
-    case 'turn-order-set':
-      return `${by.name} shuffled the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
+    case 'turn-order-set': {
+      const order = event.order.map((seat) => seatName(players, seat)).join(' → ');
+      return event.firstOnly
+        ? `${by.name} picked a random first player: ${order}`
+        : `${by.name} shuffled the turn order: ${order}`;
+    }
+    case 'turn-order-chosen':
+      return `${by.name} set the turn order: ${event.order.map((seat) => seatName(players, seat)).join(' → ')}`;
     case 'turn-passed': {
       const from = seatName(players, event.from);
       return from === by.name ? `${by.name} passed the turn` : `${by.name} passed the turn for ${from}`;

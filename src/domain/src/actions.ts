@@ -13,6 +13,8 @@ export const MAX_ROLLS = 10;
  */
 export type GameIntent =
   | { readonly type: 'randomize-turn-order'; readonly seats: readonly SeatIndex[] }
+  /** A random player goes first, and the others follow in this order, as around a real table. */
+  | { readonly type: 'randomize-first-player'; readonly order: readonly SeatIndex[] }
   | { readonly type: 'roll-dice'; readonly sides: number; readonly count: number }
   | { readonly type: 'flip-coins'; readonly count: number }
   /** A random player from these seats: a random opponent, or anyone. */
@@ -28,6 +30,7 @@ export type GameAction = GameEvent | GameIntent;
 
 const INTENTS: ReadonlySet<string> = new Set([
   'randomize-turn-order',
+  'randomize-first-player',
   'roll-dice',
   'flip-coins',
   'pick-seat',
@@ -71,6 +74,8 @@ export function toGameAction(raw: unknown): GameAction | null {
   switch (value.type) {
     case 'randomize-turn-order':
       return isSeatList(value.seats) ? { type: 'randomize-turn-order', seats: value.seats } : null;
+    case 'randomize-first-player':
+      return isSeatList(value.order) ? { type: 'randomize-first-player', order: value.order } : null;
     case 'roll-dice':
       return isCount(value.count, MAX_ROLLS) && isCount(value.sides, MAX_DIE_SIDES) && value.sides >= 2
         ? { type: 'roll-dice', sides: value.sides, count: value.count }
@@ -102,6 +107,14 @@ export function resolveAction(action: GameAction, random: () => number): GameEve
   switch (action.type) {
     case 'randomize-turn-order':
       return { type: 'turn-order-set', order: shuffle(action.seats, random) };
+    case 'randomize-first-player': {
+      const first = Math.floor(random() * action.order.length);
+      return {
+        type: 'turn-order-set',
+        order: [...action.order.slice(first), ...action.order.slice(0, first)],
+        firstOnly: true,
+      };
+    }
     case 'roll-dice':
       return {
         type: 'dice-rolled',

@@ -117,6 +117,7 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'custom-counter-changed':
       return event.seat === null ? [] : [event.seat];
     case 'turn-order-set':
+    case 'turn-order-chosen':
       return [...event.order];
     case 'seat-picked':
       return [event.picked];

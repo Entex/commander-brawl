@@ -1,6 +1,7 @@
 import {
   applyEvent,
   applyEvents,
+  isUndoable,
   newGame,
   nextPhase,
   resolveAction,
@@ -90,5 +91,38 @@ describe('shuffling the turn order', () => {
   ])('rejects %s', (_case, seats) => {
     expect(toGameAction({ type: 'randomize-turn-order', seats })).toBeNull();
     expect(toGameAction({ type: 'turn-order-set', order: seats })).toBeNull();
+  });
+});
+
+describe('a turn order the players choose', () => {
+  it('starts the first turn with the first seat, like a shuffled one', () => {
+    const state = applyEvent(newGame(), { type: 'turn-order-chosen', order: [3, 1, 0] });
+    expect(state.turnOrder).toEqual([3, 1, 0]);
+    expect(turnOf(state)).toEqual({ active: 3, turn: 1, round: 1 });
+  });
+
+  it('is an ordinary change a player can send, and take back', () => {
+    const action = toGameAction({ type: 'turn-order-chosen', order: [1, 0] });
+    expect(action).toEqual({ type: 'turn-order-chosen', order: [1, 0] });
+    expect(isUndoable(action as GameEvent)).toBe(true);
+    expect(toGameAction({ type: 'turn-order-chosen', order: [1, 1] })).toBeNull();
+  });
+
+  it('or a random first player, the others following in that order', () => {
+    const action = toGameAction({ type: 'randomize-first-player', order: [2, 0, 3] })!;
+    const starts = new Set<number>();
+    for (const roll of [0, 0.4, 0.9]) {
+      const event = resolveAction(action, () => roll);
+      expect(event.type === 'turn-order-set' && event.firstOnly).toBe(true);
+      if (event.type !== 'turn-order-set') continue;
+      // Around the table in the same order, whoever starts.
+      const at = event.order.indexOf(2);
+      expect([...event.order.slice(at), ...event.order.slice(0, at)]).toEqual([2, 0, 3]);
+      starts.add(event.order[0]!);
+    }
+    expect(starts).toEqual(new Set([2, 0, 3]));
+    // A result of chance: the host decides it, so a player can't send one or take it back.
+    expect(toGameAction({ type: 'turn-order-set', order: [0, 3, 2], firstOnly: true })).toBeNull();
+    expect(isUndoable(resolveAction(action, () => 0))).toBe(false);
   });
 });

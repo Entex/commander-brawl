@@ -231,8 +231,13 @@ export type GameEvent =
       readonly analysis: DeckAnalysis;
     }
   | { readonly type: 'bracket-declared'; readonly seat: SeatIndex; readonly bracket: Bracket | null }
-  /** Sets the turn order and starts the first turn. */
-  | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[] }
+  /**
+   * Sets the turn order and starts the first turn. Shuffled by the host (see GameIntent): all of it, or (`firstOnly`)
+   * just who goes first, the rest following in the order the players chose.
+   */
+  | { readonly type: 'turn-order-set'; readonly order: readonly SeatIndex[]; readonly firstOnly?: true }
+  /** The players chose the turn order themselves, with no chance in it. Starts the first turn too. */
+  | { readonly type: 'turn-order-chosen'; readonly order: readonly SeatIndex[] }
   /** Only counts if `from` still has the turn, so a double click can't skip a player. */
   | { readonly type: 'turn-passed'; readonly from: SeatIndex }
   | { readonly type: 'new-game'; readonly startingLife: number }
@@ -459,7 +464,8 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
       return changeSeatPermanent(state, event.seat, event.id, (p) => changeTapped(p, event.amount));
     case 'permanent-counter-changed':
       return changeSeatPermanent(state, event.seat, event.id, (p) => changeCounter(p, event.kind, event.amount));
-    case 'turn-order-set': {
+    case 'turn-order-set':
+    case 'turn-order-chosen': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
       return {
         ...state,
@@ -651,7 +657,12 @@ export function toGameEvent(raw: unknown): GameEvent | null {
         : null;
     }
     case 'turn-order-set':
-      return isSeatList(value.order) ? { type: 'turn-order-set', order: value.order } : null;
+      if (!isSeatList(value.order)) return null;
+      return value.firstOnly === true
+        ? { type: 'turn-order-set', order: value.order, firstOnly: true }
+        : { type: 'turn-order-set', order: value.order };
+    case 'turn-order-chosen':
+      return isSeatList(value.order) ? { type: 'turn-order-chosen', order: value.order } : null;
     case 'turn-passed':
       return isSeatIndex(value.from) ? { type: 'turn-passed', from: value.from } : null;
     case 'undo':

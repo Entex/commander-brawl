@@ -342,6 +342,34 @@ test('a shuffled turn order, passed around the table', async () => {
   await expect(first.page.locator('.seat[data-active="true"]')).toHaveCount(1);
 });
 
+test('a turn order set by hand, or a random first player in that order', async () => {
+  const { host, friend } = await hostAndFriend();
+
+  await friend.page.getByRole('button', { name: 'Set the order…' }).click();
+  const panel = friend.page.getByRole('dialog', { name: 'Turn order' });
+  await panel.getByRole('button', { name: 'Move Friend up' }).click();
+  await expect(panel.locator('li')).toHaveText([/Friend/, /Host/]);
+  await panel.getByRole('button', { name: 'Friend goes first' }).click();
+
+  await expect(host.page.getByTestId('turn')).toContainText("Friend's turn");
+  await expect(friend.page.getByTestId('turn')).toContainText('Your turn');
+  await expect(host.page.getByTestId('last-change')).toHaveText('Friend set the turn order: Friend → Host');
+
+  // Chosen, not rolled: it can be taken back.
+  await friend.page.getByRole('button', { name: 'Undo' }).click();
+  await expect(host.page.getByRole('button', { name: 'Set the order…' })).toBeVisible();
+
+  await host.page.getByRole('button', { name: 'Set the order…' }).click();
+  await host.page
+    .getByRole('dialog', { name: 'Turn order' })
+    .getByRole('button', { name: 'A random player goes first' })
+    .click();
+  await expect(friend.page.getByTestId('turn')).toContainText('Turn 1 · Round 1');
+  await expect(friend.page.getByTestId('last-change')).toHaveText(
+    /^Host picked a random first player: (Host → Friend|Friend → Host)$/,
+  );
+});
+
 test('undo, the game log, and saving it', async () => {
   const { host, friend } = await hostAndFriend();
   for (let i = 0; i < 3; i++) {

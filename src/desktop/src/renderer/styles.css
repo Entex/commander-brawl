@@ -2791,3 +2791,43 @@ button.response-button:hover:not(:disabled) {
   border-radius: 6px;
   object-fit: contain;
 }
+
+/* Setting the turn order by hand. */
+.turn-order-panel {
+  width: min(380px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.turn-order-list {
+  margin: 0;
+  padding-left: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.turn-order-list li {
+  padding-left: 0.3rem;
+}
+
+.turn-order-list li::marker {
+  color: var(--seat, var(--accent));
+  font-weight: 700;
+}
+
+.turn-order-list li > * {
+  vertical-align: middle;
+}
+
+.turn-order-name {
+  display: inline-block;
+  min-width: 10rem;
+  font-weight: 600;
+}
+
+.turn-order-list button {
+  padding: 0.1rem 0.55rem;
+  margin-left: 0.25rem;
+}
