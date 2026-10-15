@@ -733,11 +733,11 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
   await expect(label).toHaveAccessibleName('Rhystic Study');
 
-  // Shown over itself on the video, the card is clicked for what can be done with it. To look at it again, the cards
-  // on the videos go out of the way first (B).
-  await shown.click();
+  // Shown over itself on the video, the card is Alt+clicked for what can be done with it. To look at it again, the
+  // cards on the videos go out of the way first (B).
+  await shown.click({ modifiers: ['Alt'] });
   await expect(friend.page.getByRole('group', { name: 'Rhystic Study: what to do' })).toBeVisible();
-  await shown.click();
+  await shown.click({ modifiers: ['Alt'] });
   await friend.page.keyboard.press('b');
   await expect(shown).toHaveCount(0);
 
@@ -898,11 +898,13 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await friend.page.keyboard.press('Delete');
   await expect(note).toHaveCount(0);
 
-  // Clicked: what can be done with it, and it's in Cards seen, the newest. Tap one.
+  // Clicked, it's in Cards seen, the newest; Alt+clicked, what can be done with it. Tap one.
   await friend.page.getByTestId('board-card').click();
   const seen = friend.page.getByTestId('card-rail').getByTestId('lookup');
   await expect(seen.getByTestId('lookup-name')).toHaveText('Soldier');
   await expect(seen).toContainText("On Host's battlefield");
+  await expect(friend.page.getByRole('group', { name: 'Soldier: what to do' })).toHaveCount(0);
+  await friend.page.getByTestId('board-card').click({ modifiers: ['Alt'] });
   await friend.page
     .getByRole('group', { name: 'Soldier: what to do' })
     .getByRole('button', { name: 'Tap one Soldier', exact: true })
@@ -927,13 +929,34 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await expect(earlierSeen.locator('.lookup-row')).toHaveCount(1);
   await expect(earlierSeen).toContainText('Sol Ring');
 
-  // Dragged to where it is now, for everyone.
+  // Pointed at like the video under it, for everyone: an arrow from it, an arrow to it, and a ping on it.
+  const token = await centerOf(friend.page.getByTestId('board-card'));
+  const elsewhere = await onPicture(seatVideo(friend.page, 'Friend (you)'), 0.5, 0.5);
+  const arrow = async (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    await friend.page.mouse.move(start.x, start.y);
+    await friend.page.mouse.down();
+    await friend.page.mouse.move(end.x, end.y, { steps: 8 });
+    await friend.page.mouse.up();
+  };
+  await arrow(token, elsewhere);
+  await arrow(elsewhere, token);
+  await expect(host.page.getByTestId('arrow')).toHaveCount(2);
+  await friend.page.getByTestId('board-card').click({ button: 'right' });
+  await expect(host.page.getByTestId('ping')).toHaveCount(1);
+  // Not moved by any of it.
+  await expect
+    .poll(async () => Math.round(Math.abs((await centerOf(friend.page.getByTestId('board-card'))).x - token.x)))
+    .toBe(0);
+
+  // Alt+dragged to where it is now, for everyone.
   const from = await centerOf(friend.page.getByTestId('board-card'));
   const to = await onPicture(seatVideo(friend.page, 'Host'), 0.8, 0.7);
+  await friend.page.keyboard.down('Alt');
   await friend.page.mouse.move(from.x, from.y);
   await friend.page.mouse.down();
   await friend.page.mouse.move(to.x, to.y, { steps: 8 });
   await friend.page.mouse.up();
+  await friend.page.keyboard.up('Alt');
   const moved = await onPicture(seatVideo(host.page, 'Host (you)'), 0.8, 0.7);
   await expect.poll(async () => Math.round(Math.abs((await centerOf(tokens)).x - moved.x) / 4)).toBe(0);
 
@@ -958,7 +981,7 @@ test("a player's graveyard: cards put there from the battlefield or by hand, sea
   await add.getByRole('button', { name: 'Card' }).click();
   await add.getByLabel('Card', { exact: true }).fill('sol ring');
   await add.getByRole('button', { name: 'Sol Ring' }).click();
-  await friend.page.getByTestId('board-card').click();
+  await friend.page.getByTestId('board-card').click({ modifiers: ['Alt'] });
   await friend.page
     .getByRole('group', { name: 'Sol Ring: what to do' })
     .getByRole('button', { name: 'Graveyard' })

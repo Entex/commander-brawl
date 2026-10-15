@@ -74,8 +74,9 @@ interface BattlefieldProps {
 
 /**
  * What's on the players' battlefields, on their videos, the same for everyone: the cards that were identified (or
- * added) and the tokens, with their counters, and counters and notes put on the table. Drag one to where it is now;
- * click it for what can be done with it (a card clicked is in Cards seen too). Drawn over the seats, like pings.
+ * added) and the tokens, with their counters, and counters and notes put on the table. A card is Alt+dragged to where
+ * it is now, and Alt+clicked for what can be done with it; clicked, it's in Cards seen, and pointed at like the video
+ * under it (an arrow from or to it, a ping on it). Counters and notes are dragged and clicked. Drawn over the seats.
  */
 export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen }: BattlefieldProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -159,12 +160,11 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen 
 
   const startDrag = (event: ReactPointerEvent, item: Item) => {
     if (event.button !== 0) return;
+    // A card without Alt is the video under it: dragged from, it's an arrow (see PointerLayer); clicked, see onClick.
+    if (item.kind === 'permanent' && !event.altKey) return;
     // Not a ping, an arrow or a close-up: this is about the item.
     event.stopPropagation();
-    if (readOnly) {
-      seen(item);
-      return;
-    }
+    if (readOnly) return;
     event.preventDefault();
     const start = { x: event.clientX, y: event.clientY };
     const element = event.currentTarget as HTMLElement;
@@ -183,7 +183,6 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen 
       if (e.type !== 'pointerup') return;
       if (!moved) {
         setOpen((current) => (current === item.key ? null : item.key));
-        seen(item);
         return;
       }
       drop(item, element, e.clientX, e.clientY);
@@ -216,6 +215,9 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen 
               else elements.current.delete(item.key);
             }}
             onPointerDown={(event) => startDrag(event, item)}
+            onClick={(event) => {
+              if (!event.altKey) seen(item);
+            }}
             onPointerEnter={() => (hovered.current = item)}
             onPointerLeave={() => (hovered.current = null)}
             onKeyDown={(event: ReactKeyboardEvent) => {
@@ -299,7 +301,7 @@ function BoardCard({
       tabIndex={0}
       aria-label={name}
       aria-expanded={open}
-      title={`${name}: drag it to where it is, click for more. Del takes it away.`}
+      title={`${name}: click for Cards seen, Alt+click for what can be done with it, Alt+drag to where it is. Del takes it away.`}
       data-testid="board-card"
       data-virtual={isVirtual(item.permanent) || undefined}
       data-permanent-id={item.permanent.id}

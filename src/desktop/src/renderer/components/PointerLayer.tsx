@@ -47,7 +47,7 @@ const MIN_AREA = 0.02;
 /**
  * The seats, with pings and arrows over their videos. Right-click a video to ping a spot on it; drag from one
  * spot to another (on the same video or another) to draw an arrow; Ctrl+drag around a card on a video to pick it
- * out. A plain click still goes to the video.
+ * out. A plain click still goes to the video. A card shown on a video is that spot of the video: pointed at the same.
  */
 export function PointerLayer({ focusRows = null, marks, onPoint, onArea, selfSeat, children }: PointerLayerProps) {
   const ref = useRef<HTMLElement>(null);
@@ -95,9 +95,7 @@ export function PointerLayer({ focusRows = null, marks, onPoint, onArea, selfSea
     if (event.button !== 0) return;
     if ((event.ctrlKey || event.metaKey) && onArea) {
       // A seat's video, with cards to pick out (not an empty seat).
-      const video = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest<HTMLVideoElement>('video.seat-video-look[data-seat]');
+      const video = videoAt(event.clientX, event.clientY, 'video.seat-video-look[data-seat]');
       const seat = Number(video?.dataset.seat);
       if (video && isSeatIndex(seat)) {
         drawArea(event, video, seat);
@@ -160,11 +158,20 @@ export function PointerLayer({ focusRows = null, marks, onPoint, onArea, selfSea
 
 /** The seat video under a point on screen, and where on its picture. */
 function tablePointAt(clientX: number, clientY: number): TablePoint | null {
-  const video = document.elementFromPoint(clientX, clientY)?.closest<HTMLVideoElement>('video[data-seat]');
+  const video = videoAt(clientX, clientY, 'video[data-seat]');
   const seat = Number(video?.dataset.seat);
   if (!video || !isSeatIndex(seat)) return null;
   const point = pictureAt(video, clientX, clientY);
   return point && { seat, ...point };
+}
+
+/** The video under a point on screen, through the cards, counters and notes shown on it: they're on that spot of it. */
+function videoAt(clientX: number, clientY: number, selector: string): HTMLVideoElement | null {
+  for (const element of document.elementsFromPoint(clientX, clientY)) {
+    if (element.closest('.board-item')) continue;
+    return element.closest<HTMLVideoElement>(selector);
+  }
+  return null;
 }
 
 interface Placed {
