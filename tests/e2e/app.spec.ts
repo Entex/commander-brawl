@@ -741,23 +741,18 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await friend.page.keyboard.press('b');
   await expect(shown).toHaveCount(0);
 
-  // Another look: the newest is shown, the earlier ones are listed below and can be shown again.
+  // Another look at the same card: it's the newest again, not in the list twice.
   const lower = await onPicture(video, 0.5, 0.6);
   await friend.page.mouse.click(lower.x, lower.y);
   const rail = friend.page.getByTestId('card-rail');
-  await expect(rail.getByRole('region', { name: 'Earlier' })).toContainText('Rhystic Study');
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
+  await expect(rail.getByRole('region', { name: 'Earlier' })).toHaveCount(0);
   // Lower on the card, it's sometimes less sure (then it's put on the battlefield by hand). The same card: one of a
   // kind, so it's still the one there, moved where it was clicked.
   const put = lookup.getByRole('button', { name: 'Put Rhystic Study on the battlefield' });
   if (await put.isVisible()) await put.click();
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
   await expect(host.page.getByTestId('board-card')).toHaveCount(1);
-  await rail
-    .getByRole('region', { name: 'Earlier' })
-    .getByRole('button', { name: /^Rhystic Study/ })
-    .click();
-  await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
 
   // Or a box drawn around the card (Ctrl+drag): just that, when a click would pick the wrong thing.
   const topLeft = await onPicture(video, 0.41, 0.28);
@@ -770,8 +765,8 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await friend.page.mouse.up();
   await friend.page.keyboard.up('Control');
   await expect(friend.page.getByTestId('area-preview')).toHaveCount(0);
-  await expect(rail.getByRole('region', { name: 'Earlier' }).locator('.lookup-row')).toHaveCount(2);
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
+  await expect(rail.getByRole('region', { name: 'Earlier' })).toHaveCount(0);
   await expect(host.page.getByTestId('arrow')).toHaveCount(0);
   // The cards on the videos back.
   await friend.page.keyboard.press('b');
@@ -799,6 +794,20 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
   await expect(friend.page.getByTestId('last-change')).toHaveText('Host put Rhystic Study in their graveyard');
 
+  // Cards the host casts come in too, newest first.
+  const cardsPanel = host.page.getByTestId('cards-panel');
+  for (const [search, name] of [
+    ['sol ring', 'Sol Ring'],
+    ['demonic', 'Demonic Consultation'],
+  ]) {
+    await host.page.getByRole('button', { name: 'Cards', exact: true }).click();
+    await cardsPanel.getByLabel('Search for a card').fill(search!);
+    await cardsPanel.getByRole('button', { name: name! }).click();
+    await cardsPanel.getByRole('button', { name: 'Cast it' }).click();
+    await expect(lookup.getByTestId('lookup-name')).toHaveText(name!);
+    await friend.page.getByTestId('spotlight').getByRole('button', { name: 'Close' }).click();
+  }
+
   // Cards from two players: everyone's, or just one player's.
   const friendOwn = friend.page.locator('.seat', { hasText: 'Friend (you)' }).getByTestId('seat-video');
   const friendSpot = await onPicture(friendOwn, 0.5, 0.5);
@@ -807,7 +816,7 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(earlier.locator('.lookup-row')).toHaveCount(3);
   const whose = rail.getByRole('group', { name: 'Whose cards' });
   await whose.getByRole('button', { name: 'Host' }).click();
-  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Demonic Consultation');
   await expect(earlier.locator('.lookup-row')).toHaveCount(2);
   await whose.getByRole('button', { name: 'You' }).click();
   await expect(lookup).toContainText('Your camera');
@@ -820,7 +829,7 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(earlier.locator('.lookup-row')).toHaveCount(2);
   await lookup.getByRole('button', { name: /^Remove / }).click();
   await expect(whose).toHaveCount(0);
-  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Demonic Consultation');
   await expect(earlier.locator('.lookup-row')).toHaveCount(1);
   await earlier.getByRole('button', { name: 'Remove all' }).click();
   await expect(friend.page.getByTestId('card-rail')).toHaveCount(0);

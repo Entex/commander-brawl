@@ -144,6 +144,15 @@ export function useCardLookups(camera: CameraState): CardLookups {
       };
       setLookups((current) => [lookup, ...current].slice(0, MAX_LOOKUPS));
       const step = (next: LookupStep) => change(id, (l) => ({ ...l, step: next }));
+      // Worked out: a card of this player's seen before is this one now, at the top, not in the list twice.
+      const done = (next: LookupStep) =>
+        setLookups((current) =>
+          onceEach(
+            current.map((l) => (l.id === id ? { ...l, step: next } : l)),
+            id,
+            true,
+          ),
+        );
       warmUpCardIdentifier();
       // The deck's artwork downloads while the picture is on its way.
       const likely = deck ? deckCards(deck) : Promise.resolve([]);
@@ -165,17 +174,28 @@ export function useCardLookups(camera: CameraState): CardLookups {
             expected: target.outline ? inCrop(target.outline, target.crop) : undefined,
           });
           const picture = result.picture ? { url: await rgbaToDataUrl(result.picture), straight: true } : photo;
-          step({ status: 'done', picture, guesses: result.guesses });
+          done({ status: 'done', picture, guesses: result.guesses });
         } catch (error) {
           console.warn('[cards] could not work out which card this is', error);
-          step({ status: 'done', picture: photo, guesses: [] });
+          done({ status: 'done', picture: photo, guesses: [] });
         }
       })();
     },
     [takeSnapshot, change],
   );
 
-  const choose = useCallback((id: number, card: Card) => change(id, (l) => ({ ...l, chosen: card })), [change]);
+  // Said to be a card of this player's that's in the list already: that one goes, this one stays where it is.
+  const choose = useCallback(
+    (id: number, card: Card) =>
+      setLookups((current) =>
+        onceEach(
+          current.map((l) => (l.id === id ? { ...l, chosen: card } : l)),
+          id,
+          false,
+        ),
+      ),
+    [],
+  );
   const addKnown = useCallback((known: KnownCard) => {
     setLookups((current) => {
       const existing = current.find((l) => lookupCard(l)?.id === known.card.id && l.seat === known.seat);
@@ -222,6 +242,18 @@ export function useCardLookups(camera: CameraState): CardLookups {
     [],
   );
   return { lookups, look, choose, markPlaced, addKnown, accept, remove };
+}
+
+/**
+ * The list with this lookup's card in it once for its player: other lookups of the same card for the same player are
+ * taken out (it's the same card, seen again). With `toTop`, this one goes to the top.
+ */
+function onceEach(lookups: readonly CardLookup[], id: number, toTop: boolean): readonly CardLookup[] {
+  const lookup = lookups.find((l) => l.id === id);
+  const card = lookup && lookupCard(lookup);
+  if (!lookup || !card) return lookups;
+  const kept = lookups.filter((l) => l === lookup || l.seat !== lookup.seat || lookupCard(l)?.id !== card.id);
+  return toTop ? [lookup, ...kept.filter((l) => l !== lookup)] : kept;
 }
 
 /** A card that came into Cards seen without a close-up. */
