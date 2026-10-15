@@ -101,7 +101,8 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
             : nextControls,
         );
       }
-      frame = requestAnimationFrame(place);
+      // Nothing on any video: nothing to place until something is (the layout key changes then).
+      if (latest.current.items.length > 0) frame = requestAnimationFrame(place);
     });
     return () => cancelAnimationFrame(frame);
   }, [layoutKey]);
