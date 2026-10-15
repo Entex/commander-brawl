@@ -1016,6 +1016,26 @@ test("stops on someone else's phase, and trigger reminders", async () => {
   await host.page.keyboard.press('Space');
   const unresolved = host.page.getByRole('dialog', { name: 'Not resolved yet' });
   await expect(unresolved).toContainText('Friend asked to stop at your combat');
+  // On top of everything, the calls in the middle of the table too: nothing covers its buttons.
+  const covered = await unresolved.evaluate((dialog) =>
+    [...dialog.querySelectorAll('button')].flatMap((button) => {
+      const box = button.getBoundingClientRect();
+      const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return top && button.contains(top) ? [] : [button.textContent];
+    }),
+  );
+  expect(covered).toEqual([]);
+  // And the call shows behind the dialog's backdrop, not over it. (It lets clicks through, so for finding what's
+  // on top it's made to catch them for a moment.)
+  const callOnTop = await host.page.getByTestId('call').evaluate((call) => {
+    const calls = call.closest<HTMLElement>('.calls')!;
+    calls.style.pointerEvents = 'auto';
+    const box = call.getBoundingClientRect();
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    calls.style.pointerEvents = '';
+    return top !== null && calls.contains(top);
+  });
+  expect(callOnTop).toBe(false);
   await unresolved.getByRole('button', { name: 'Keep waiting' }).click();
   await expect(unresolved).toHaveCount(0);
   await friend.page.getByTestId('call').getByRole('button', { name: 'Resolved' }).click();

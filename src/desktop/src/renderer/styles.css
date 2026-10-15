@@ -2931,7 +2931,8 @@ button.response-button:hover:not(:disabled) {
   background: rgb(0 0 0 / 0.6);
   display: grid;
   place-items: center;
-  z-index: 10;
+  /* Over everything on the table: the calls and rolls in its middle, menus, the menu for adding to a battlefield. */
+  z-index: 60;
   /* A panel opened from the status bar (Turn order, Not resolved yet) doesn't take on its unwrapped small text. */
   white-space: normal;
   font-size: 1rem;
