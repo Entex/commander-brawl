@@ -37,14 +37,24 @@ export interface CardLookup {
   readonly step: LookupStep;
   /** The card the player said it is, overruling the guesses. */
   readonly chosen: Card | null;
-  /** Kept track of on their side of the table. */
-  readonly tracked: boolean;
+  /** On their battlefield, at the spot clicked: the permanent it is there. */
+  readonly placed: string | null;
 }
 
 /** The card a lookup comes to: the player's pick, or else the best guess. */
 export function lookupCard(lookup: CardLookup): Card | null {
   if (lookup.chosen) return lookup.chosen;
   return lookup.step.status === 'done' ? (lookup.step.guesses[0]?.card ?? null) : null;
+}
+
+/** A guess this good is very likely right. */
+export const LIKELY = 0.6;
+
+/** The card, if it's known for sure: the player's pick, or a guess that's very likely right. */
+export function sureCard(lookup: CardLookup): Card | null {
+  if (lookup.chosen) return lookup.chosen;
+  const best = lookup.step.status === 'done' ? lookup.step.guesses[0] : undefined;
+  return best && best.score >= LIKELY ? best.card : null;
 }
 
 /** Lookups kept, newest first: the cards seen this session. */
@@ -67,8 +77,8 @@ export interface CardLookups {
   ): void;
   /** The player says which card it is. */
   choose(id: number, card: Card): void;
-  /** The card is now kept track of on its player's side. */
-  markTracked(id: number): void;
+  /** The card is now on its player's battlefield, as this permanent. */
+  markPlaced(id: number, permanentId: string): void;
   /** Takes these out of the list. */
   remove(ids: readonly number[]): void;
 }
@@ -103,7 +113,7 @@ export function useCardLookups(camera: CameraState): CardLookups {
         target,
         step: { status: 'asking' },
         chosen: null,
-        tracked: false,
+        placed: null,
       };
       setLookups((current) => [lookup, ...current].slice(0, MAX_LOOKUPS));
       const step = (next: LookupStep) => change(id, (l) => ({ ...l, step: next }));
@@ -139,12 +149,15 @@ export function useCardLookups(camera: CameraState): CardLookups {
   );
 
   const choose = useCallback((id: number, card: Card) => change(id, (l) => ({ ...l, chosen: card })), [change]);
-  const markTracked = useCallback((id: number) => change(id, (l) => ({ ...l, tracked: true })), [change]);
+  const markPlaced = useCallback(
+    (id: number, permanentId: string) => change(id, (l) => ({ ...l, placed: permanentId })),
+    [change],
+  );
   const remove = useCallback(
     (ids: readonly number[]) => setLookups((current) => current.filter((lookup) => !ids.includes(lookup.id))),
     [],
   );
-  return { lookups, look, choose, markTracked, remove };
+  return { lookups, look, choose, markPlaced, remove };
 }
 
 /** Where the outline found in the video is in the picture of the crop, as fractions of that picture. */

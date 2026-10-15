@@ -1,6 +1,12 @@
+/** A spot on a player's camera picture: fractions of its width and height (0 to 1), from the top left. */
+export interface Spot {
+  readonly x: number;
+  readonly y: number;
+}
+
 /**
  * Permanents a player wants the table to keep track of: a card with counters on it, or a group of tokens
- * (how many, how many tapped).
+ * (how many, how many tapped). Usually where it is on their video too, to show it there.
  */
 export interface Permanent {
   /** Made up by the player who adds it. */
@@ -15,6 +21,8 @@ export interface Permanent {
   readonly tapped: number;
   /** Counters on it (on each of them, for a group of tokens), by kind: "+1/+1", "loyalty", a custom counter's id. */
   readonly counters: Readonly<Record<string, number>>;
+  /** Where it is on its player's camera picture. Null: only in the list. */
+  readonly spot: Spot | null;
 }
 
 /** The counters that come up most, offered first. */
@@ -43,11 +51,24 @@ export interface NewPermanent {
   readonly cardId: string | null;
   readonly token: boolean;
   readonly count: number;
+  /** Where it is on the player's video (earlier versions didn't say). */
+  readonly spot?: Spot | null;
+}
+
+/** Reads untrusted data as a spot on a picture. Null if it isn't one. */
+export function toSpot(raw: unknown): Spot | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const { x, y } = raw as Record<string, unknown>;
+  const fraction = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+  return fraction(x) && fraction(y) ? { x, y } : null;
 }
 
 export function toNewPermanent(raw: unknown): NewPermanent | null {
   if (typeof raw !== 'object' || raw === null) return null;
   const { id, name, cardId, token, count } = raw as Record<string, unknown>;
+  const rawSpot = (raw as Record<string, unknown>).spot;
+  const spot = rawSpot === undefined || rawSpot === null ? null : toSpot(rawSpot);
+  if (rawSpot !== undefined && rawSpot !== null && spot === null) return null;
   const valid =
     typeof id === 'string' &&
     id.length > 0 &&
@@ -61,7 +82,8 @@ export function toNewPermanent(raw: unknown): NewPermanent | null {
     Number.isInteger(count) &&
     count >= 1 &&
     count <= (token ? MAX_TOKENS_IN_GROUP : 1);
-  return valid ? { id, name: name.trim(), cardId, token, count } : null;
+  if (!valid) return null;
+  return spot ? { id, name: name.trim(), cardId, token, count, spot } : { id, name: name.trim(), cardId, token, count };
 }
 
 export function isCounterKind(value: unknown): value is string {
@@ -70,7 +92,67 @@ export function isCounterKind(value: unknown): value is string {
 
 export function addPermanent(permanents: readonly Permanent[], added: NewPermanent): readonly Permanent[] {
   if (permanents.length >= MAX_PERMANENTS || permanents.some((p) => p.id === added.id)) return permanents;
-  return [...permanents, { ...added, tapped: 0, counters: {} }];
+  return [...permanents, { ...added, spot: added.spot ?? null, tapped: 0, counters: {} }];
+}
+
+/** It's another card than was thought (a close-up's guess put right). A card is one of it; a token keeps its count. */
+export function identify(permanent: Permanent, name: string, cardId: string | null, token: boolean): Permanent {
+  const count = token ? permanent.count : 1;
+  return { ...permanent, name, cardId, token, count, tapped: Math.min(permanent.tapped, count) };
+}
+
+/**
+ * A counter or a note put on a spot of a player's battlefield, on their video, but not on a card the app knows
+ * about (yet). Connected to a card, a counter becomes that card's.
+ */
+export interface PlacedMarker {
+  readonly id: string;
+  readonly spot: Spot;
+  /** A counter's kind ("+1/+1", "loyalty", a custom counter's), or NOTE. */
+  readonly kind: string;
+  /** How many, for a counter. */
+  readonly count: number;
+  /** A note's words: "Attacking", "Goaded by Alex". */
+  readonly text: string;
+}
+
+export const NOTE = 'note';
+export const MAX_MARKERS = 40;
+export const MAX_MARKER_COUNT = 999;
+export const MAX_NOTE_LENGTH = 40;
+
+export function toPlacedMarker(raw: unknown): PlacedMarker | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const { id, spot, kind, count, text } = raw as Record<string, unknown>;
+  const at = toSpot(spot);
+  const valid =
+    typeof id === 'string' &&
+    id.length > 0 &&
+    id.length <= 64 &&
+    at !== null &&
+    isCounterKind(kind) &&
+    typeof count === 'number' &&
+    Number.isInteger(count) &&
+    count >= (kind === NOTE ? 0 : 1) &&
+    count <= MAX_MARKER_COUNT &&
+    typeof text === 'string' &&
+    text.length <= MAX_NOTE_LENGTH &&
+    (kind !== NOTE || text.trim().length > 0);
+  return valid ? { id, spot: at, kind, count, text: text.trim() } : null;
+}
+
+export function placeMarker(markers: readonly PlacedMarker[], marker: PlacedMarker): readonly PlacedMarker[] {
+  if (markers.length >= MAX_MARKERS || markers.some((m) => m.id === marker.id)) return markers;
+  return [...markers, marker];
+}
+
+/** More or fewer of a counter. None left and it's gone. Notes don't count. */
+export function changeMarkers(markers: readonly PlacedMarker[], id: string, amount: number): readonly PlacedMarker[] {
+  return markers.flatMap((m) => {
+    if (m.id !== id || m.kind === NOTE) return [m];
+    const count = Math.min(MAX_MARKER_COUNT, m.count + amount);
+    return count <= 0 ? [] : [{ ...m, count }];
+  });
 }
 
 export function changePermanent(

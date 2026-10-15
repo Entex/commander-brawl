@@ -133,6 +133,13 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'permanent-count-changed':
     case 'permanent-tapped':
     case 'permanent-counter-changed':
+    case 'permanent-moved':
+    case 'permanent-identified':
+    case 'marker-placed':
+    case 'marker-changed':
+    case 'marker-moved':
+    case 'marker-removed':
+    case 'marker-attached':
     case 'citys-blessing-set':
     case 'life-changed':
     case 'deck-chosen':

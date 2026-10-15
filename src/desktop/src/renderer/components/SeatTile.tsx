@@ -21,10 +21,12 @@ import {
 } from '@commander-brawl/domain';
 import { useEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
 import { cardTargetAt, type CardTarget } from '../cardTarget';
+import { pictureAt } from '../videoPoints';
 import { Icon, type GameIconName } from '../icons/Icon';
 import { COUNTER_ICONS, COUNTER_NAMES, commanderName, describeLoss, type Players } from '../names';
 import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
+import { AddToBattlefield } from './AddToBattlefield';
 import { CommanderBadges } from './CommanderBadges';
 import { LifeCounter } from './LifeCounter';
 import { SeatDetails } from './SeatDetails';
@@ -54,6 +56,9 @@ interface SeatTileProps {
   onOpenCard(cardId: string): void;
   /** A card clicked on this player's video (yours too): which card it is, from a sharp picture of it. */
   onLook(target: CardTarget, rotation: 0 | 180): void;
+  /** The cards and counters with a spot show on the videos (not hidden): the seat doesn't list them again. */
+  readonly boardShown?: boolean;
+  readonly selfSeat?: SeatIndex | null;
 }
 
 const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
@@ -76,9 +81,16 @@ export function SeatTile({
   getStats,
   onOpenCard,
   onLook,
+  boardShown = false,
+  selfSeat = null,
 }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  /** Adding to their battlefield: where on their picture, and where the menu opens on the seat. */
+  const [adding, setAdding] = useState<{
+    readonly spot: { x: number; y: number } | null;
+    readonly at: { x: number; y: number } | null;
+  } | null>(null);
   // The chips let the pointer through to the video, so whether it's near them is worked out here.
   const chipsRef = useRef<HTMLDivElement>(null);
   const [nearChips, setNearChips] = useState(false);
@@ -116,8 +128,18 @@ export function SeatTile({
           className="seat-video seat-video-look"
           testId="seat-video"
           seat={index}
-          title="Click a card to see which card it is, or Ctrl+drag a box around it. Right-click to point at it; drag to draw an arrow"
+          title="Click a card to see which card it is, or Ctrl+drag a box around it. Right-click to point at it; drag to draw an arrow. Alt+click to add a token, counter or note there"
           onClick={(event) => {
+            if (event.altKey) {
+              if (!game || readOnly) return;
+              const spot = pictureAt(event.currentTarget, event.clientX, event.clientY);
+              // Where it was clicked, but all of the menu on the seat.
+              const box = event.currentTarget.parentElement!.getBoundingClientRect();
+              const x = Math.max(4, Math.min(event.clientX - box.left, box.width - ADD_MENU_SIZE.width));
+              const y = Math.max(4, Math.min(event.clientY - box.top, box.height - ADD_MENU_SIZE.height));
+              if (spot) setAdding({ spot, at: { x, y } });
+              return;
+            }
             const target = cardTargetAt(event.currentTarget, event.clientX, event.clientY);
             if (target) onLook(target, rotation);
           }}
@@ -155,7 +177,14 @@ export function SeatTile({
           {status && <span className="badge badge-warn">{status}</span>}
         </div>
         {game && state && (
-          <SeatChips seat={seat} game={game} players={players} expanded={nearChips} chipsRef={chipsRef} />
+          <SeatChips
+            seat={seat}
+            game={game}
+            players={players}
+            expanded={nearChips}
+            chipsRef={chipsRef}
+            boardShown={boardShown}
+          />
         )}
       </div>
       {game && state && isOut(game, index) && (
@@ -170,11 +199,32 @@ export function SeatTile({
           <Icon name="cycle" /> Flip
         </button>
         {game && !readOnly && (
+          <button
+            aria-label={`Add to ${seat.player.name}'s battlefield`}
+            title="Add a token, a counter, a note, a card or a reminder (or Alt+click a spot on the video)"
+            onClick={() => setAdding(adding ? null : { spot: null, at: null })}
+          >
+            + Add
+          </button>
+        )}
+        {game && !readOnly && (
           <button aria-label={`${seat.player.name}'s details`} onClick={() => setDetailsOpen(!detailsOpen)}>
             <Icon name="open-book" /> Details
           </button>
         )}
       </div>
+      {game && adding && !readOnly && (
+        <AddToBattlefield
+          seat={index}
+          whose={seat.isSelf ? 'your' : `${seat.player.name}'s`}
+          game={game}
+          players={players}
+          selfSeat={selfSeat}
+          spot={adding.spot}
+          at={adding.at}
+          onClose={() => setAdding(null)}
+        />
+      )}
       {state && (
         <LifeCounter
           seat={index}
@@ -204,9 +254,11 @@ interface SeatChipsProps {
   /** The pointer is near: every chip shows its words. */
   readonly expanded: boolean;
   readonly chipsRef: RefObject<HTMLDivElement | null>;
+  /** Cards and tokens with a spot show on the video: only the others are listed. */
+  readonly boardShown: boolean;
 }
 
-function SeatChips({ seat, game, players, expanded, chipsRef }: SeatChipsProps) {
+function SeatChips({ seat, game, players, expanded, chipsRef, boardShown }: SeatChipsProps) {
   const state = game.seats[seat.player.seat];
   if (!state) return null;
   const chips: Chip[] = [];
@@ -257,7 +309,8 @@ function SeatChips({ seat, game, players, expanded, chipsRef }: SeatChipsProps) 
       title: describeThreat(threat, players),
     });
   }
-  const summaries = permanentSummaries(game, state.permanents);
+  const listed = boardShown ? state.permanents.filter((p) => p.spot === null) : state.permanents;
+  const summaries = permanentSummaries(game, listed);
   for (const summary of summaries.slice(0, MAX_PERMANENT_CHIPS)) {
     chips.push({
       key: `permanent-${summary.key}`,
@@ -386,6 +439,9 @@ function SeatChip({ chip, expanded }: { readonly chip: Chip; readonly expanded: 
     </span>
   );
 }
+
+/** About how big the menu for adding to a battlefield is, to keep it on the seat. */
+const ADD_MENU_SIZE = { width: 256, height: 240 };
 
 /** Cards and tokens listed on a seat; the rest are in the player's details. */
 const MAX_PERMANENT_CHIPS = 6;

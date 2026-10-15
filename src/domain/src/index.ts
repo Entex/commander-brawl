@@ -88,11 +88,16 @@ export type { Archenemy, PlanarDieResult, Planechase, Scheme, VariantCard } from
 export {
   MAX_COUNTER_KINDS,
   MAX_COUNTER_KIND_LENGTH,
+  MAX_MARKERS,
+  MAX_MARKER_COUNT,
+  MAX_NOTE_LENGTH,
   MAX_PERMANENTS,
   MAX_TOKENS_IN_GROUP,
+  NOTE,
   PERMANENT_COUNTERS,
+  toSpot,
 } from './permanents';
-export type { NewPermanent, Permanent } from './permanents';
+export type { NewPermanent, Permanent, PlacedMarker, Spot } from './permanents';
 export { comboThreats } from './combos';
 export {
   MAX_CALLS,

@@ -546,9 +546,15 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
     .toBeCloseTo(88 / 63, 1);
   await friend.page.screenshot({ path: test.info().outputPath('close-up.png') });
 
-  // Keeping track of it, on the host's side.
-  await lookup.getByRole('button', { name: 'Track Rhystic Study' }).click();
-  await expect(lookup.getByRole('button', { name: 'Tracking Rhystic Study' })).toBeDisabled();
+  // Known for sure, so it's on the host's battlefield: on the video, where it is, for everyone.
+  await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
+  const label = host.page.getByTestId('board-card');
+  await expect(label).toHaveAccessibleName('Rhystic Study');
+  const ownVideo = host.page.locator('.seat', { hasText: 'Host (you)' }).getByTestId('seat-video');
+  const middle = await onPicture(ownVideo, 0.5, 0.5);
+  const labelAt = await centerOf(label);
+  expect(Math.abs(labelAt.x - middle.x)).toBeLessThan(30);
+  expect(Math.abs(labelAt.y - middle.y)).toBeLessThan(30);
   await host.page.getByRole('button', { name: "Host's details" }).click();
   await expect(host.page.getByTestId('permanent-Rhystic Study')).toBeVisible();
   await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Close' }).click();
@@ -567,8 +573,11 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(search).toHaveCount(0);
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Sol Ring');
   await expect(lookup).toContainText('Your pick');
+  // On the battlefield, it's that card now too.
+  await expect(label).toHaveAccessibleName('Sol Ring');
   await lookup.getByTestId('lookup-others').getByRole('button', { name: 'Rhystic Study' }).click();
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+  await expect(label).toHaveAccessibleName('Rhystic Study');
 
   // Another look: the newest is shown, the earlier ones are listed below and can be shown again.
   const lower = await onPicture(video, 0.5, 0.6);
@@ -576,12 +585,16 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   const rail = friend.page.getByTestId('card-rail');
   await expect(rail.getByRole('region', { name: 'Earlier' })).toContainText('Rhystic Study');
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
-  await expect(lookup.getByRole('button', { name: 'Track Rhystic Study' })).toBeEnabled();
+  // Not as sure this time (lower on the card), so it's put on the battlefield by hand. The same card: one of a kind,
+  // so it's still the one there, moved where it was clicked.
+  await lookup.getByRole('button', { name: 'Put Rhystic Study on the battlefield' }).click();
+  await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
+  await expect(host.page.getByTestId('board-card')).toHaveCount(1);
   await rail
     .getByRole('region', { name: 'Earlier' })
     .getByRole('button', { name: /^Rhystic Study/ })
     .click();
-  await expect(lookup.getByRole('button', { name: 'Tracking Rhystic Study' })).toBeDisabled();
+  await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
 
   // Or a box drawn around the card (Ctrl+drag): just that, when a click would pick the wrong thing.
   const topLeft = await onPicture(video, 0.41, 0.28);
@@ -637,6 +650,92 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await earlier.getByRole('button', { name: 'Remove all' }).click();
   await expect(friend.page.getByTestId('card-rail')).toHaveCount(0);
   await expect(friend.page.getByTestId('seen-toggle')).toHaveCount(0);
+});
+
+test('on the battlefield, on the videos: tokens, counters and notes, moved, put on cards and taken away', async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(friend.page);
+  await expectVideoFrom(host.page, 'Friend');
+  const seatVideo = (page: Page, name: string) => page.locator('.seat', { hasText: name }).getByTestId('seat-video');
+
+  // Three Soldier tokens on the host's battlefield, from the friend's screen.
+  const hostSeat = friend.page.locator('.seat', { hasText: 'Host' });
+  await hostSeat.hover();
+  await hostSeat.getByRole('button', { name: "Add to Host's battlefield" }).click();
+  const add = friend.page.getByRole('dialog', { name: "Add to Host's battlefield" });
+  await add.getByRole('button', { name: 'Token' }).click();
+  await add.getByLabel('Token', { exact: true }).fill('soldier');
+  await add.getByLabel('How many tokens').fill('3');
+  await add.getByRole('button', { name: 'Soldier', exact: true }).click();
+  const tokens = host.page.getByTestId('board-card');
+  await expect(tokens).toHaveAccessibleName('Soldier');
+  await expect(tokens).toContainText('Soldier ×3');
+
+  // The host Alt+clicks a spot on their own video for a +1/+1 counter: there for the friend too.
+  await host.page.keyboard.down('Alt');
+  const spot = await onPicture(seatVideo(host.page, 'Host (you)'), 0.3, 0.3);
+  await host.page.mouse.click(spot.x, spot.y);
+  await host.page.keyboard.up('Alt');
+  const hostAdd = host.page.getByRole('dialog', { name: 'Add to your battlefield' });
+  await hostAdd.getByRole('button', { name: 'Counter' }).click();
+  await hostAdd.getByRole('button', { name: '+1/+1' }).click();
+  const counter = friend.page.getByTestId('board-marker');
+  await expect(counter).toHaveAccessibleName('1 +1/+1 counters');
+  const counterAt = await centerOf(counter);
+  const expected = await onPicture(seatVideo(friend.page, 'Host'), 0.3, 0.3);
+  expect(Math.abs(counterAt.x - expected.x)).toBeLessThan(4);
+  expect(Math.abs(counterAt.y - expected.y)).toBeLessThan(4);
+  // The wheel counts it up.
+  await counter.hover();
+  await friend.page.mouse.wheel(0, -100);
+  await expect(host.page.getByTestId('board-marker')).toHaveAccessibleName('2 +1/+1 counters');
+
+  // Dragged onto the tokens, they're the tokens' counters.
+  const onto = await centerOf(friend.page.getByTestId('board-card'));
+  await friend.page.mouse.move(counterAt.x, counterAt.y);
+  await friend.page.mouse.down();
+  await friend.page.mouse.move(onto.x, onto.y, { steps: 8 });
+  await friend.page.mouse.up();
+  await expect(host.page.getByTestId('board-marker')).toHaveCount(0);
+  await expect(tokens).toContainText('2 +1/+1');
+
+  // A note, and Del with the pointer on it takes it away.
+  await hostSeat.hover();
+  await hostSeat.getByRole('button', { name: "Add to Host's battlefield" }).click();
+  await add.getByRole('button', { name: 'Note' }).click();
+  await add.getByRole('button', { name: 'Attacking' }).click();
+  const note = host.page.getByTestId('board-marker');
+  await expect(note).toHaveAccessibleName('Note: Attacking');
+  await friend.page.getByTestId('board-marker').hover();
+  await friend.page.keyboard.press('Delete');
+  await expect(note).toHaveCount(0);
+
+  // Clicked: what can be done with it. Tap one.
+  await friend.page.getByTestId('board-card').click();
+  await friend.page
+    .getByRole('group', { name: 'Soldier: what to do' })
+    .getByRole('button', { name: 'Tap one Soldier', exact: true })
+    .click();
+  await expect(tokens).toContainText('(1 tapped)');
+  await friend.page.screenshot({ path: test.info().outputPath('battlefield.png') });
+
+  // Dragged to where it is now, for everyone.
+  const from = await centerOf(friend.page.getByTestId('board-card'));
+  const to = await onPicture(seatVideo(friend.page, 'Host'), 0.8, 0.7);
+  await friend.page.mouse.move(from.x, from.y);
+  await friend.page.mouse.down();
+  await friend.page.mouse.move(to.x, to.y, { steps: 8 });
+  await friend.page.mouse.up();
+  const moved = await onPicture(seatVideo(host.page, 'Host (you)'), 0.8, 0.7);
+  await expect.poll(async () => Math.round(Math.abs((await centerOf(tokens)).x - moved.x) / 4)).toBe(0);
+
+  // Out of the way with one setting: the seat lists them instead.
+  await friend.page.getByRole('button', { name: 'Menu' }).click();
+  await friend.page.getByRole('menuitemcheckbox', { name: 'Cards and counters on the videos' }).click();
+  await friend.page.keyboard.press('Escape');
+  await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
+  await expect(friend.page.getByTestId('chips-0')).toContainText('Soldier ×3');
+  await expect(tokens).toHaveCount(1);
 });
 
 /** A camera picture of a (made-up) Rhystic Study on a playmat, for the fake camera to show. */

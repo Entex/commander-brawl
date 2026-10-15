@@ -22,16 +22,24 @@ import {
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { canVenture, isDungeonId, isLastRoom, type DayNight, type DungeonPosition } from './markers';
 import {
+  NOTE,
   addPermanent,
   changeCount,
   changeCounter,
+  changeMarkers,
   changePermanent,
   changeTapped,
+  identify,
   isCounterKind,
+  placeMarker,
   toNewPermanent,
+  toPlacedMarker,
+  toSpot,
   untapAll,
   type NewPermanent,
   type Permanent,
+  type PlacedMarker,
+  type Spot,
 } from './permanents';
 import { MAX_SEATS, type SeatIndex } from './table';
 import {
@@ -103,6 +111,8 @@ export interface SeatGameState {
   readonly citysBlessing: boolean;
   /** Cards with counters and groups of tokens the player keeps track of here. */
   readonly permanents: readonly Permanent[];
+  /** Counters and notes on spots of their battlefield (on their video), not on a card. */
+  readonly markers: readonly PlacedMarker[];
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -246,6 +256,24 @@ export type GameEvent =
       readonly kind: string;
       readonly amount: number;
     }
+  /** Moved on the player's video (dragged where the card is now), or (null) taken off it, keeping track of it. */
+  | { readonly type: 'permanent-moved'; readonly seat: SeatIndex; readonly id: string; readonly spot: Spot | null }
+  /** It's another card than was thought. */
+  | {
+      readonly type: 'permanent-identified';
+      readonly seat: SeatIndex;
+      readonly id: string;
+      readonly name: string;
+      readonly cardId: string | null;
+      readonly token: boolean;
+    }
+  | { readonly type: 'marker-placed'; readonly seat: SeatIndex; readonly marker: PlacedMarker }
+  /** More or fewer of a counter on the table. */
+  | { readonly type: 'marker-changed'; readonly seat: SeatIndex; readonly id: string; readonly amount: number }
+  | { readonly type: 'marker-moved'; readonly seat: SeatIndex; readonly id: string; readonly spot: Spot }
+  | { readonly type: 'marker-removed'; readonly seat: SeatIndex; readonly id: string }
+  /** A counter on the table put on a card (permanent `to`): it's that card's from now on. */
+  | { readonly type: 'marker-attached'; readonly seat: SeatIndex; readonly id: string; readonly to: string }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -299,6 +327,7 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       ringTempts: 0,
       citysBlessing: false,
       permanents: [],
+      markers: [],
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
@@ -518,6 +547,38 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
       return changeSeatPermanent(state, event.seat, event.id, (p) => changeTapped(p, event.amount));
     case 'permanent-counter-changed':
       return changeSeatPermanent(state, event.seat, event.id, (p) => changeCounter(p, event.kind, event.amount));
+    case 'permanent-moved':
+      return changeSeatPermanent(state, event.seat, event.id, (p) => ({ ...p, spot: event.spot }));
+    case 'permanent-identified':
+      return changeSeatPermanent(state, event.seat, event.id, (p) =>
+        identify(p, event.name, event.cardId, event.token),
+      );
+    case 'marker-placed':
+      return updateSeat(state, event.seat, (seat) => ({ ...seat, markers: placeMarker(seat.markers, event.marker) }));
+    case 'marker-changed':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        markers: changeMarkers(seat.markers, event.id, event.amount),
+      }));
+    case 'marker-moved':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        markers: seat.markers.map((m) => (m.id === event.id ? { ...m, spot: event.spot } : m)),
+      }));
+    case 'marker-removed':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        markers: seat.markers.filter((m) => m.id !== event.id),
+      }));
+    case 'marker-attached': {
+      const seat = state.seats[event.seat];
+      const marker = seat?.markers.find((m) => m.id === event.id);
+      if (!seat || !marker || marker.kind === NOTE || !seat.permanents.some((p) => p.id === event.to)) return state;
+      const attached = changeSeatPermanent(state, event.seat, event.to, (p) =>
+        changeCounter(p, marker.kind, marker.count),
+      );
+      return updateSeat(attached, event.seat, (s) => ({ ...s, markers: s.markers.filter((m) => m.id !== event.id) }));
+    }
     case 'turn-order-set':
     case 'turn-order-chosen': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
@@ -915,6 +976,53 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     case 'permanent-counter-changed':
       return isSeatIndex(value.seat) && isPermanentId(value.id) && isCounterKind(value.kind) && isChange(value.amount)
         ? { type: 'permanent-counter-changed', seat: value.seat, id: value.id, kind: value.kind, amount: value.amount }
+        : null;
+    case 'permanent-moved': {
+      const spot = value.spot === null ? null : toSpot(value.spot);
+      return isSeatIndex(value.seat) && isPermanentId(value.id) && (spot !== null || value.spot === null)
+        ? { type: 'permanent-moved', seat: value.seat, id: value.id, spot }
+        : null;
+    }
+    case 'permanent-identified': {
+      const permanent = toNewPermanent({
+        id: value.id,
+        name: value.name,
+        cardId: value.cardId,
+        token: value.token,
+        count: 1,
+      });
+      return isSeatIndex(value.seat) && permanent
+        ? {
+            type: 'permanent-identified',
+            seat: value.seat,
+            id: permanent.id,
+            name: permanent.name,
+            cardId: permanent.cardId,
+            token: permanent.token,
+          }
+        : null;
+    }
+    case 'marker-placed': {
+      const marker = toPlacedMarker(value.marker);
+      return marker && isSeatIndex(value.seat) ? { type: 'marker-placed', seat: value.seat, marker } : null;
+    }
+    case 'marker-changed':
+      return isSeatIndex(value.seat) && isPermanentId(value.id) && isChange(value.amount)
+        ? { type: 'marker-changed', seat: value.seat, id: value.id, amount: value.amount }
+        : null;
+    case 'marker-moved': {
+      const spot = toSpot(value.spot);
+      return isSeatIndex(value.seat) && isPermanentId(value.id) && spot
+        ? { type: 'marker-moved', seat: value.seat, id: value.id, spot }
+        : null;
+    }
+    case 'marker-removed':
+      return isSeatIndex(value.seat) && isPermanentId(value.id)
+        ? { type: 'marker-removed', seat: value.seat, id: value.id }
+        : null;
+    case 'marker-attached':
+      return isSeatIndex(value.seat) && isPermanentId(value.id) && isPermanentId(value.to)
+        ? { type: 'marker-attached', seat: value.seat, id: value.id, to: value.to }
         : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE

@@ -3,14 +3,14 @@ import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
 import { useEffect, useState } from 'react';
 import { Icon } from '../icons/Icon';
 import { seatColorClass } from '../seatColors';
-import { lookupCard, type CardLookup, type LookupPicture } from '../useCardLookups';
+import { LIKELY, lookupCard, type CardLookup, type LookupPicture } from '../useCardLookups';
 
 interface CardRailProps {
   /** Newest first. */
   readonly lookups: readonly CardLookup[];
   /** Shows a card in the Cards panel: its text and rulings. */
   onOpenCard(cardId: string): void;
-  /** Keeps track of the card (its counters, tapped or not) on its player's side. Not when watching. */
+  /** Puts the card on its player's battlefield, where it was clicked. Not when watching. */
   onTrack?: (lookup: CardLookup, card: Card) => void;
   /** The player says which card a lookup is. */
   onChoose(lookupId: number, card: Card): void;
@@ -21,8 +21,6 @@ interface CardRailProps {
   onClose(): void;
 }
 
-/** A guess this good is very likely right. */
-const LIKELY = 0.6;
 /** Other guesses offered to pick instead. */
 const MAX_OTHERS = 4;
 
@@ -247,12 +245,12 @@ function FeaturedLookup({
           </button>
           {onTrack && (
             <button
-              disabled={lookup.tracked}
+              disabled={lookup.placed !== null}
               onClick={() => onTrack(lookup, card)}
-              title="Keep track of its counters and whether it's tapped"
-              aria-label={lookup.tracked ? `Tracking ${card.name}` : `Track ${card.name}`}
+              title="Shown on their video, with its counters and whether it's tapped"
+              aria-label={lookup.placed ? `${card.name} is on the battlefield` : `Put ${card.name} on the battlefield`}
             >
-              <Icon name="convergence-target" /> {lookup.tracked ? 'Tracking' : 'Track'}
+              <Icon name="pin" /> {lookup.placed ? 'On the battlefield' : 'Put on the battlefield'}
             </button>
           )}
         </div>

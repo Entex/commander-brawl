@@ -46,3 +46,33 @@ export function useCardsReady(): boolean {
   }, []);
   return status === 'usable';
 }
+
+/** Cards already looked up, by id. */
+const byId = new Map<string, Card | null>();
+
+/** The cards with these ids, once the card data is there. Null for ids it doesn't have. */
+export function useCardsById(ids: readonly string[]): ReadonlyMap<string, Card> {
+  const key = [...new Set(ids)].sort().join('\n');
+  const ready = useCardsReady();
+  const [, setVersion] = useState(0);
+
+  useEffect(() => {
+    const missing = key.split('\n').filter((id) => id && !byId.has(id));
+    if (!ready || missing.length === 0) return;
+    let active = true;
+    void api.cards.byIds(missing).then((found) => {
+      missing.forEach((id, i) => byId.set(id, found[i] ?? null));
+      if (active) setVersion((v) => v + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [key, ready]);
+
+  const cards = new Map<string, Card>();
+  for (const id of key.split('\n')) {
+    const card = byId.get(id);
+    if (card) cards.set(id, card);
+  }
+  return cards;
+}

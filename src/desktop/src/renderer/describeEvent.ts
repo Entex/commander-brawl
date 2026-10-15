@@ -1,5 +1,5 @@
 import type { LoggedEvent } from '@commander-brawl/application';
-import { DUNGEONS, type GameState, type Reminder, type SeatIndex } from '@commander-brawl/domain';
+import { DUNGEONS, NOTE, type GameState, type Reminder, type SeatIndex } from '@commander-brawl/domain';
 import {
   COUNTER_NAMES,
   PHASE_NAMES,
@@ -30,6 +30,11 @@ export function describeEvent(
   const byOther = (seat: SeatIndex) => (seatName(players, seat) === by.name ? '' : ` (${by.name})`);
   const permanentName = (seat: SeatIndex, id: string) =>
     game.seats[seat]?.permanents.find((p) => p.id === id)?.name ?? 'a permanent';
+  const markerName = (seat: SeatIndex, id: string) => {
+    const marker = game.seats[seat]?.markers.find((m) => m.id === id);
+    if (!marker) return 'a counter';
+    return marker.kind === NOTE ? `“${marker.text}”` : `${counterKindName(game, marker.kind)} counters`;
+  };
   switch (event.type) {
     case 'life-changed': {
       const target = seatName(players, event.seat);
@@ -175,6 +180,26 @@ export function describeEvent(
         game,
         event.kind,
       )}`;
+    case 'permanent-moved':
+      return event.spot
+        ? `${who(event.seat)} moved ${permanentName(event.seat, event.id)}`
+        : `${who(event.seat)} took ${permanentName(event.seat, event.id)} off the video`;
+    case 'permanent-identified':
+      return `${who(event.seat)}: that card is ${event.name}`;
+    case 'marker-placed': {
+      const { marker } = event;
+      if (marker.kind === NOTE) return `${who(event.seat)}: “${marker.text}” on the table`;
+      const kind = counterKindName(game, marker.kind);
+      return `${who(event.seat)}: ${marker.count} ${kind} counter${marker.count === 1 ? '' : 's'} on the table`;
+    }
+    case 'marker-changed':
+      return `${who(event.seat)}: ${markerName(event.seat, event.id)} ${formatChange(event.amount)}`;
+    case 'marker-moved':
+      return `${who(event.seat)} moved ${markerName(event.seat, event.id)}`;
+    case 'marker-removed':
+      return `${who(event.seat)} took a counter or note off the table`;
+    case 'marker-attached':
+      return `${who(event.seat)} put counters on ${permanentName(event.seat, event.to)}`;
     case 'turn-order-set': {
       const order = event.order.map((seat) => seatName(players, seat)).join(' → ');
       return event.firstOnly

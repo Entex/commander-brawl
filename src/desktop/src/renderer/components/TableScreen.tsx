@@ -9,7 +9,15 @@ import {
   type TableSessionState,
 } from '@commander-brawl/application';
 import { DEFAULT_ICE_SERVERS, WebRtcPeerLinkFactory } from '@commander-brawl/infrastructure/browser';
-import { MAX_SEATS, STARTING_LIFE, isUndoable, type Card, type SeatIndex } from '@commander-brawl/domain';
+import {
+  MAX_SEATS,
+  STARTING_LIFE,
+  isUndoable,
+  type Card,
+  type GameState,
+  type SeatIndex,
+  type Spot,
+} from '@commander-brawl/domain';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
@@ -17,8 +25,10 @@ import type { CardTarget } from '../cardTarget';
 import { describeEvent } from '../describeEvent';
 import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
+import { isToken } from './AddToBattlefield';
+import { Battlefield } from './Battlefield';
 import { CLIP_SECONDS, useClips } from '../clips';
-import { useCardLookups, type CardLookup } from '../useCardLookups';
+import { lookupCard, sureCard, useCardLookups, type CardLookup } from '../useCardLookups';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardOutline } from './CardOutline';
@@ -85,6 +95,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   // The clean view for streaming (OBS): seats, life totals and commanders, none of the buttons.
   const [clean, setClean] = useState(false);
   const [enlargeActive, setEnlargeActive] = useEnlargeActive();
+  const [boardShown, setBoardShown] = useBoardShown();
   const readOnly = spectating || clean;
   useEffect(() => {
     if (!clean) return;
@@ -100,7 +111,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   }, [session, camera.track, spectating]);
 
   // Cards clicked on the players' videos (yours too): outlined there, and shown in a column beside the table.
-  const { lookups, look, choose, markTracked, remove: removeLookups } = useCardLookups(camera);
+  const { lookups, look, choose: chooseCard, markPlaced, remove: removeLookups } = useCardLookups(camera);
   const [seenOpen, setSeenOpen] = useState(false);
   /** The lookup the Cards panel is searching for (none of the guesses was it). */
   const [correcting, setCorrecting] = useState<number | null>(null);
@@ -112,14 +123,30 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     look(seat.isSelf ? null : seat.player.id, seat.player.name, seatIndex, target, rotation, deck);
     setSeenOpen(true);
   };
-  const track = (lookup: CardLookup, card: Card) => {
-    const token = card.layout === 'token' || card.typeLine.startsWith('Token');
-    submitGameEvent({
-      type: 'permanent-added',
-      seat: lookup.seat,
-      permanent: { id: crypto.randomUUID(), name: card.name, cardId: card.id, token, count: 1 },
-    });
-    markTracked(lookup.id);
+  /** Puts a looked-up card on its player's battlefield, at the spot clicked (moving it there if it's there already). */
+  const track = useCallback(
+    (lookup: CardLookup, card: Card) => {
+      const placed = placeOnBattlefield(game?.state ?? null, lookup, card);
+      if (placed) markPlaced(lookup.id, placed);
+    },
+    [game, markPlaced],
+  );
+  // A card that's known for sure goes on the battlefield by itself: everyone sees it on the video.
+  usePlaceSureCards(lookups, spectating, track);
+  /** The player says which card it is. Already on the battlefield, it's that card there too. */
+  const choose = (lookupId: number, card: Card) => {
+    const lookup = lookups.find((l) => l.id === lookupId);
+    chooseCard(lookupId, card);
+    if (lookup?.placed && !spectating && lookupCard(lookup)?.id !== card.id) {
+      submitGameEvent({
+        type: 'permanent-identified',
+        seat: lookup.seat,
+        id: lookup.placed,
+        name: card.name,
+        cardId: card.id,
+        token: isToken(card),
+      });
+    }
   };
 
   const status = cameraStatus(camera);
@@ -300,6 +327,14 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 )}
                 <button
                   role="menuitemcheckbox"
+                  aria-checked={boardShown}
+                  title="The cards, tokens, counters and notes on each player's battlefield, on their video"
+                  onClick={() => setBoardShown(!boardShown)}
+                >
+                  <Icon name="pin" /> Cards and counters on the videos
+                </button>
+                <button
+                  role="menuitemcheckbox"
                   aria-checked={enlargeActive}
                   title="The player whose turn it is gets most of the screen (not on your own turn)"
                   onClick={() => setEnlargeActive(!enlargeActive)}
@@ -443,11 +478,14 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 getStats={getStats}
                 onOpenCard={openCard}
                 onLook={(target, rotation) => lookAt(seat.player.seat, target, rotation)}
+                boardShown={boardShown}
+                selfSeat={selfSeat}
               />
             ) : focused ? null : (
               <EmptySeat key={`empty-${index}`} index={index} />
             ),
           )}
+          {game && boardShown && <Battlefield game={game.state} readOnly={readOnly} onOpenCard={openCard} />}
           <CardOutline key={lookups[0]?.id} lookup={lookups[0] ?? null} />
         </PointerLayer>
         {seenOpen && lookups.length > 0 && (
@@ -537,6 +575,77 @@ function arrangeSeats<T extends SeatView<MediaStreamTrack>>(
   return [slot(0), slot(1), slot(3), slot(2)];
 }
 
+/**
+ * Puts the card from a close-up on its player's battlefield, where it was clicked: added, or moved there if it's on
+ * it already (one of a kind: Commander decks have one of each card, but basic lands and tokens). Returns the
+ * permanent's id.
+ */
+function placeOnBattlefield(game: GameState | null, lookup: CardLookup, card: Card): string | null {
+  if (!game) return null;
+  const spot = centerOf(lookup);
+  const seat = game.seats[lookup.seat];
+  const same = isRepeatable(card) ? undefined : seat?.permanents.find((p) => p.cardId === card.id);
+  if (same) {
+    submitGameEvent({ type: 'permanent-moved', seat: lookup.seat, id: same.id, spot });
+    return same.id;
+  }
+  const id = crypto.randomUUID();
+  submitGameEvent({
+    type: 'permanent-added',
+    seat: lookup.seat,
+    permanent: { id, name: card.name, cardId: card.id, token: isToken(card), count: 1, spot },
+  });
+  return id;
+}
+
+/** Cards a deck can have more than one of. */
+function isRepeatable(card: Card): boolean {
+  return isToken(card) || card.typeLine.includes('Basic') || /any number of cards named/i.test(card.oracleText);
+}
+
+/** The middle of the card clicked, on its player's picture. */
+function centerOf(lookup: CardLookup): Spot {
+  const { outline, crop } = lookup.target;
+  if (outline) {
+    return {
+      x: outline.reduce((sum, p) => sum + p.x, 0) / outline.length,
+      y: outline.reduce((sum, p) => sum + p.y, 0) / outline.length,
+    };
+  }
+  return { x: crop.x + crop.width / 2, y: crop.y + crop.height / 2 };
+}
+
+/** Once a looked-up card is known for sure, it's put on the battlefield; once for each look. Not when watching. */
+function usePlaceSureCards(
+  lookups: readonly CardLookup[],
+  watching: boolean,
+  place: (lookup: CardLookup, card: Card) => void,
+): void {
+  const done = useRef(new Set<number>());
+  useEffect(() => {
+    if (watching) return;
+    for (const lookup of lookups) {
+      if (lookup.placed !== null || done.current.has(lookup.id)) continue;
+      const card = sureCard(lookup);
+      if (!card) continue;
+      done.current.add(lookup.id);
+      place(lookup, card);
+    }
+  }, [lookups, watching, place]);
+}
+
+const BOARD_KEY = 'cb.board';
+
+/** Whether the cards and counters on the battlefields show on the videos. Remembered; on at first. */
+function useBoardShown(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => localStorage.getItem(BOARD_KEY) !== '0');
+  const set = (next: boolean) => {
+    localStorage.setItem(BOARD_KEY, next ? '1' : '0');
+    setOn(next);
+  };
+  return [on, set];
+}
+
 const ENLARGE_ACTIVE_KEY = 'cb.enlargeActive';
 
 /** Whether the active player's seat gets most of the screen. Remembered on this computer; off at first. */
@@ -592,6 +701,12 @@ function useUndoTarget(game: GameView | null, state: TableSessionState<MediaStre
   return target;
 }
 
+/**
+ * Not news in the status bar: things the app does by itself (like checking a deck), phases (they show next to the
+ * turn), and moving things around on the videos. They're in the log.
+ */
+const QUIET_EVENTS: ReadonlySet<string> = new Set(['deck-analyzed', 'phase-set', 'permanent-moved', 'marker-moved']);
+
 function LastChange({
   game,
   state,
@@ -601,9 +716,7 @@ function LastChange({
 }) {
   // Things the app does by itself (like checking a deck) stay in the log, but aren't news here; neither are
   // phases, which show next to the turn.
-  const last = game?.recent.findLast(
-    (entry) => entry.event.type !== 'deck-analyzed' && entry.event.type !== 'phase-set',
-  );
+  const last = game?.recent.findLast((entry) => !QUIET_EVENTS.has(entry.event.type));
   if (!game || !last) return null;
   return (
     <span className="last-change" data-testid="last-change">

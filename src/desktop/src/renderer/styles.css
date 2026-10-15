@@ -2981,3 +2981,230 @@ button.response-button:hover:not(:disabled) {
   padding: 0.1rem 0.55rem;
   margin-left: 0.25rem;
 }
+
+/*
+ * What's on the battlefields, on the videos: cards and tokens as small labels in the color of the player whose they
+ * are, counters and notes as badges. The layer lets the pointer through; the labels and badges don't.
+ */
+.battlefield-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.board-item {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.board-card,
+.board-marker {
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 55%);
+}
+
+.board-card {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 14rem;
+  padding: 2px 7px 2px 2px;
+  border: 1px solid color-mix(in srgb, var(--seat, var(--accent)) 70%, transparent);
+  border-left: 3px solid var(--seat, var(--accent));
+  border-radius: 6px;
+  background: rgb(8 9 13 / 0.82);
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.board-card-art {
+  width: 20px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 2px;
+  transition: transform 0.2s;
+}
+
+.board-card-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--seat, var(--accent));
+}
+
+.board-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tapped: turned sideways, like the card. */
+.board-card-tapped .board-card-art,
+.board-card-tapped .board-card-icon {
+  transform: rotate(90deg);
+}
+
+.board-card-tapped {
+  opacity: 0.75;
+}
+
+.board-counter {
+  flex-shrink: 0;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #1a1408;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.board-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border: 2px solid var(--gold);
+  border-radius: 999px;
+  background: rgb(26 20 8 / 0.9);
+  color: var(--gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.board-marker b {
+  font-size: 0.9rem;
+}
+
+.board-note {
+  border-color: var(--seat, var(--accent));
+  border-radius: 6px;
+  background: rgb(8 9 13 / 0.85);
+  color: var(--text);
+  font-style: italic;
+}
+
+.board-card:focus-visible,
+.board-marker:focus-visible,
+.board-open {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.board-controls-place {
+  position: absolute;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.board-controls {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 50%);
+  font-size: 0.8rem;
+  z-index: 1;
+}
+
+.board-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.board-controls button,
+.board-controls select {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.board-controls .hint {
+  margin: 0;
+  max-width: 14rem;
+  font-size: 0.75rem;
+}
+
+.board-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.board-stepper b {
+  min-width: 1.5ch;
+  text-align: center;
+}
+
+/* Adding to a player's battlefield: a small menu, where the spot was clicked or under the seat's buttons. */
+.add-board {
+  position: absolute;
+  top: 44px;
+  right: 6px;
+  z-index: 30;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-raised);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 50%);
+}
+
+.add-board[style] {
+  right: auto;
+}
+
+.add-board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.add-board-menu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.add-board-menu button {
+  justify-content: flex-start;
+}
+
+.add-board-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.add-board-picker .row input:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-board-picker input[type='number'] {
+  width: 4.5rem;
+}
+
+.add-board-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.add-board-choices button {
+  padding: 0.15rem 0.55rem;
+  font-size: 0.8rem;
+}
