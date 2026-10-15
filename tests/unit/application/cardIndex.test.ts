@@ -18,6 +18,7 @@ function card(name: string, extra: Partial<Card> = {}): Card {
     image: null,
     artist: null,
     faces: [],
+    keywords: [],
     ...extra,
   };
 }

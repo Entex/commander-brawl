@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { CardDataStatus, CardDetails } from '../../shared/api';
 import { api } from '../api';
 import { Icon } from '../icons/Icon';
+import { keywordExplanation } from '../keywords';
 import { CardText, Symbols } from './CardText';
 
 interface CardsPanelProps {
@@ -144,10 +145,11 @@ export function CardView({ details, actions }: { readonly details: CardDetails; 
               {face.name} <Symbols text={face.manaCost} />
             </h3>
             <p className="card-type">{face.typeLine}</p>
-            <CardText className="card-oracle" text={face.oracleText} />
+            <CardText className="card-oracle" text={face.oracleText} keywords={card.keywords} />
             {face.stats && <p className="card-stats">{face.stats}</p>}
           </section>
         ))}
+        <Keywords keywords={card.keywords} />
         {rulings.length > 0 && (
           <section className="card-rulings">
             <h4>Rulings</h4>
@@ -162,6 +164,28 @@ export function CardView({ details, actions }: { readonly details: CardDetails; 
         )}
       </div>
     </article>
+  );
+}
+
+/** What the card's keywords mean, the ones the app can explain. */
+function Keywords({ keywords }: { readonly keywords: readonly string[] }) {
+  const explained = keywords.flatMap((keyword) => {
+    const meaning = keywordExplanation(keyword);
+    return meaning ? [{ keyword, meaning }] : [];
+  });
+  if (explained.length === 0) return null;
+  return (
+    <section className="card-keywords" data-testid="card-keywords">
+      <h4>Keywords</h4>
+      <dl>
+        {explained.map(({ keyword, meaning }) => (
+          <div key={keyword}>
+            <dt>{keyword}</dt>
+            <dd>{meaning}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

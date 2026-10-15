@@ -64,6 +64,14 @@ describe('card data from Scryfall', () => {
       faces: [],
     });
     expect(byName("Atraxa, Praetors' Voice").stats).toBe('4/4');
+    expect(byName("Atraxa, Praetors' Voice").keywords).toEqual([
+      'Flying',
+      'Vigilance',
+      'Deathtouch',
+      'Lifelink',
+      'Proliferate',
+    ]);
+    expect(byName('Sol Ring').keywords).toEqual([]);
 
     const delver = byName('Delver of Secrets // Insectile Aberration');
     expect(delver.image).toBe('front/d/e/delver.jpg?1');
@@ -108,8 +116,18 @@ describe('card data from Scryfall', () => {
     const old = { version: 1, cards: [card], updatedAt: '2026-01-01', savedAt: Date.now() };
     await writeFile(join(dir, 'cards.json'), JSON.stringify(old));
     const saved = await cards.loadSaved();
-    expect(saved?.cards).toEqual([{ ...card, artist: null }]);
+    expect(saved?.cards).toEqual([{ ...card, artist: null, keywords: [] }]);
     // As if they were old, so new ones are downloaded right away.
+    expect(saved?.savedAt).toBe(0);
+  });
+
+  it('still uses cards saved before keywords were kept, until new ones are in', async () => {
+    const { dir, cards } = await scryfall();
+    const card = { id: 'sol-ring', name: 'Sol Ring', artist: 'Mark Tedin' };
+    const old = { version: 2, cards: [card], updatedAt: '2026-01-01', savedAt: Date.now() };
+    await writeFile(join(dir, 'cards.json'), JSON.stringify(old));
+    const saved = await cards.loadSaved();
+    expect(saved?.cards).toEqual([{ ...card, keywords: [] }]);
     expect(saved?.savedAt).toBe(0);
   });
 

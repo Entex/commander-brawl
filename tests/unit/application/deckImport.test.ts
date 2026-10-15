@@ -18,6 +18,7 @@ function card(name: string, typeLine = 'Artifact', oracleText = ''): Card {
     image: null,
     artist: null,
     faces: [],
+    keywords: [],
   };
 }
 

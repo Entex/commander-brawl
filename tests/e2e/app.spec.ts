@@ -545,7 +545,18 @@ test('importing decks and playing one', async () => {
   await expect(badge.locator('.commander-name')).toBeVisible();
   await friend.page.screenshot({ path: test.info().outputPath('commander.png') });
   await badge.click();
-  await expect(friend.page.getByTestId('card-view')).toContainText('proliferate');
+  const view = friend.page.getByTestId('card-view');
+  await expect(view).toContainText('proliferate');
+  // Its keywords, explained: listed, and marked in its text.
+  const keywords = view.getByTestId('card-keywords');
+  await expect(keywords).toContainText('Deathtouch');
+  await expect(keywords).toContainText(
+    'Any amount of damage it deals to a creature is enough to destroy that creature.',
+  );
+  await expect(view.locator('abbr.keyword', { hasText: 'Flying' }).first()).toHaveAttribute(
+    'title',
+    /can't be blocked/,
+  );
 });
 
 test('casting a card puts it in the spotlight for everyone', async () => {

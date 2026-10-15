@@ -37,6 +37,8 @@ export interface Card {
   readonly artist: string | null;
   /** Only for cards with more than one face. */
   readonly faces: readonly CardFace[];
+  /** Its keywords, as Scryfall lists them: "Flying", "Ward", "Scry", "Landfall". */
+  readonly keywords: readonly string[];
 }
 
 export interface Ruling {

@@ -87,6 +87,7 @@ export const SCRYFALL_CARDS = [
     cmc: 4,
     legalities: { commander: 'legal' },
     artist: 'Atraxa Painter',
+    keywords: ['Flying', 'Vigilance', 'Deathtouch', 'Lifelink', 'Proliferate'],
     image_uris: { normal: 'https://cards.scryfall.io/normal/front/a/t/atraxa.jpg?1' },
   },
   {

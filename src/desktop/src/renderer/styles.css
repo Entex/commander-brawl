@@ -3425,3 +3425,31 @@ kbd {
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+/* Keywords in a card's text, and what they mean. */
+abbr.keyword {
+  text-decoration: underline dotted color-mix(in srgb, var(--accent) 70%, transparent);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.card-keywords h4 {
+  margin: 0.4rem 0;
+}
+
+.card-keywords dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.card-keywords dt {
+  font-weight: 700;
+}
+
+.card-keywords dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}

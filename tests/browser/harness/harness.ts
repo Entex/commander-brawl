@@ -122,6 +122,7 @@ const testCard = (name: string): Card => ({
   image: null,
   artist: null,
   faces: [],
+  keywords: [],
 });
 const catalog = new CardIndex(
   ['Rhystic Study', 'Rhystic Tutor', 'Sol Ring', 'Mystic Remora', 'Study Hall'].map(testCard),

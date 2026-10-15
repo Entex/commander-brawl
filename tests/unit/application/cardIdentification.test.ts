@@ -31,6 +31,7 @@ function card(name: string, art: number): Card & { art: number } {
     image: `${name}.jpg`,
     artist: null,
     faces: [],
+    keywords: [],
     art,
   };
 }

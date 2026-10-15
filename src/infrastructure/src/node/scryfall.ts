@@ -36,9 +36,9 @@ interface BulkEntry {
 /** Card layouts that aren't playable cards: art cards, oversized fronts, and Vanguard avatars. */
 const SKIPPED_LAYOUTS = new Set(['art_series', 'front_card', 'vanguard']);
 const IMAGE_PREFIX = /^https:\/\/cards\.scryfall\.io\/[a-z_]+\/(.+)$/;
-const FORMAT_VERSION = 2;
-/** Saved before artists were kept: still used, but replaced as soon as possible. */
-const OLD_FORMAT_VERSION = 1;
+const FORMAT_VERSION = 3;
+/** Saved before artists (1) or keywords (2) were kept: still used, but replaced as soon as possible. */
+const OLD_FORMAT_VERSIONS = [1, 2];
 
 export class ScryfallCards {
   private rulingsByCard: Promise<Map<string, Ruling[]>> | null = null;
@@ -50,8 +50,8 @@ export class ScryfallCards {
     try {
       const raw = JSON.parse(await readFile(join(this.options.dir, 'cards.json'), 'utf8')) as Record<string, unknown>;
       if (!Array.isArray(raw.cards)) return null;
-      if (raw.version === OLD_FORMAT_VERSION) {
-        const cards = (raw.cards as Card[]).map((card) => ({ ...card, artist: null }));
+      if (OLD_FORMAT_VERSIONS.includes(raw.version as number)) {
+        const cards = (raw.cards as Card[]).map((card) => ({ ...card, artist: card.artist ?? null, keywords: [] }));
         return { cards, updatedAt: String(raw.updatedAt), savedAt: 0 };
       }
       if (raw.version !== FORMAT_VERSION) return null;
@@ -189,6 +189,7 @@ export function toCard(raw: unknown): Card | null {
     // When each face has its own picture, the card's picture is the front's.
     artist: (c.image_uris ? c.artist : (rawFaces[0]?.artist ?? c.artist)) ?? null,
     faces,
+    keywords: Array.isArray(c.keywords) ? c.keywords.filter((k): k is string => typeof k === 'string') : [],
   };
 }
 
@@ -214,6 +215,7 @@ interface ScryfallCard extends ScryfallFace {
   readonly cmc?: number;
   readonly legalities?: { readonly commander?: string };
   readonly game_changer?: boolean;
+  readonly keywords?: readonly unknown[];
 }
 
 function stats(face: ScryfallFace): string {
