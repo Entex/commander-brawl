@@ -516,6 +516,8 @@ function whereFrom(lookup: CardLookup): string {
     case 'found':
       if (!lookup.own && lookup.by === lookup.from) return `${by} put it on their battlefield`;
       return `${by} found it on ${lookup.own ? 'your' : `${lookup.from}'s`} battlefield`;
+    case 'board':
+      return `On ${lookup.own ? 'your' : `${lookup.from}'s`} battlefield`;
   }
 }
 

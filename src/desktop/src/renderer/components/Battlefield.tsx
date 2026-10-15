@@ -68,14 +68,16 @@ interface BattlefieldProps {
   onOpenCard(cardId: string): void;
   /** Puts a card from the battlefield in its player's graveyard. */
   onToGraveyard?: (seat: SeatIndex, permanent: Permanent) => void;
+  /** A card clicked: into Cards seen, or (there already) the newest again. */
+  onSeen?: (seat: SeatIndex, permanent: Permanent) => void;
 }
 
 /**
  * What's on the players' battlefields, on their videos, the same for everyone: the cards that were identified (or
  * added) and the tokens, with their counters, and counters and notes put on the table. Drag one to where it is now;
- * click it for what can be done with it. Drawn over the seats, like pings.
+ * click it for what can be done with it (a card clicked is in Cards seen too). Drawn over the seats, like pings.
  */
-export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: BattlefieldProps) {
+export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen }: BattlefieldProps) {
   const ref = useRef<HTMLDivElement>(null);
   const items = itemsOf(game);
   const cards = useCardsById(
@@ -159,7 +161,10 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
     if (event.button !== 0) return;
     // Not a ping, an arrow or a close-up: this is about the item.
     event.stopPropagation();
-    if (readOnly) return;
+    if (readOnly) {
+      seen(item);
+      return;
+    }
     event.preventDefault();
     const start = { x: event.clientX, y: event.clientY };
     const element = event.currentTarget as HTMLElement;
@@ -178,6 +183,7 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
       if (e.type !== 'pointerup') return;
       if (!moved) {
         setOpen((current) => (current === item.key ? null : item.key));
+        seen(item);
         return;
       }
       drop(item, element, e.clientX, e.clientY);
@@ -185,6 +191,11 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
+  };
+
+  /** A card clicked: it's in Cards seen, the newest. */
+  const seen = (item: Item) => {
+    if (item.kind === 'permanent') onSeen?.(item.seat, item.permanent);
   };
 
   const openItem = readOnly || dragging?.key === open ? undefined : items.find((item) => item.key === open);
@@ -211,6 +222,7 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 setOpen((current) => (current === item.key ? null : item.key));
+                seen(item);
               }
             }}
           >

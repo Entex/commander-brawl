@@ -898,8 +898,11 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await friend.page.keyboard.press('Delete');
   await expect(note).toHaveCount(0);
 
-  // Clicked: what can be done with it. Tap one.
+  // Clicked: what can be done with it, and it's in Cards seen, the newest. Tap one.
   await friend.page.getByTestId('board-card').click();
+  const seen = friend.page.getByTestId('card-rail').getByTestId('lookup');
+  await expect(seen.getByTestId('lookup-name')).toHaveText('Soldier');
+  await expect(seen).toContainText("On Host's battlefield");
   await friend.page
     .getByRole('group', { name: 'Soldier: what to do' })
     .getByRole('button', { name: 'Tap one Soldier', exact: true })
@@ -910,6 +913,19 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
     friend.page.getByRole('group', { name: 'Soldier: what to do' }).getByRole('button', { name: 'Graveyard' }),
   ).toHaveCount(0);
   await friend.page.screenshot({ path: test.info().outputPath('battlefield.png') });
+  // Another card comes into Cards seen; clicked again, the token is the newest again, not in the list twice.
+  await friend.page.getByRole('button', { name: 'Cards', exact: true }).click();
+  const cardsPanel = friend.page.getByTestId('cards-panel');
+  await cardsPanel.getByLabel('Search for a card').fill('sol ring');
+  await cardsPanel.getByRole('button', { name: 'Sol Ring' }).click();
+  await cardsPanel.getByRole('button', { name: 'Cast it' }).click();
+  await friend.page.getByTestId('spotlight').getByRole('button', { name: 'Close' }).click();
+  await expect(seen.getByTestId('lookup-name')).toHaveText('Sol Ring');
+  await friend.page.getByTestId('board-card').click();
+  await expect(seen.getByTestId('lookup-name')).toHaveText('Soldier');
+  const earlierSeen = friend.page.getByTestId('card-rail').getByRole('region', { name: 'Earlier' });
+  await expect(earlierSeen.locator('.lookup-row')).toHaveCount(1);
+  await expect(earlierSeen).toContainText('Sol Ring');
 
   // Dragged to where it is now, for everyone.
   const from = await centerOf(friend.page.getByTestId('board-card'));

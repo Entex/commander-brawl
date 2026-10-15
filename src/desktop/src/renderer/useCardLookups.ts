@@ -45,9 +45,12 @@ export interface CardLookup {
   readonly at: number;
   /** What was clicked on their video. Null for a card shown or found. */
   readonly target: CardTarget | null;
-  /** A close-up, a card a player showed (or cast), or a card another player found on a battlefield. */
-  readonly source: 'camera' | 'shown' | 'cast' | 'found';
-  /** Who showed or found it. Null for a close-up. */
+  /**
+   * A close-up, a card a player showed (or cast), a card another player found on a battlefield, or a card clicked on a
+   * battlefield on the videos.
+   */
+  readonly source: 'camera' | 'shown' | 'cast' | 'found' | 'board';
+  /** Who showed or found it. Null for a close-up, or a card clicked on a battlefield. */
   readonly by: string | null;
   /** Found by another player and not taken into the list yet: a suggestion. */
   readonly suggested: boolean;
@@ -97,8 +100,8 @@ export interface CardLookups {
   /** The card is now on its player's battlefield, as this permanent. */
   markPlaced(id: number, permanentId: string): void;
   /**
-   * A card shown everyone, or found by another player (a suggestion). A card shown that's in the list already comes to
-   * the top; a find of a card in the list already isn't suggested.
+   * A card shown everyone, found by another player (a suggestion), or clicked on a battlefield. A card shown or clicked
+   * that's in the list already comes to the top; a find of a card in the list already isn't suggested.
    */
   addKnown(known: KnownCard): void;
   /** A suggestion taken into the list, as the newest. */
@@ -202,8 +205,11 @@ export function useCardLookups(camera: CameraState): CardLookups {
       if (known.source === 'found') {
         if (current.some((l) => lookupCard(l)?.id === known.card.id)) return current;
       } else if (existing) {
-        // Shown again: to the top, as the newest.
-        const moved = { ...existing, at: Date.now(), suggested: false, source: known.source, by: known.by };
+        // Shown again: to the top, as the newest. Clicked on the battlefield: to the top, as it came.
+        const moved: CardLookup =
+          known.source === 'board'
+            ? { ...existing, at: Date.now(), suggested: false, placed: existing.placed ?? known.placed ?? null }
+            : { ...existing, at: Date.now(), suggested: false, source: known.source, by: known.by };
         return [moved, ...current.filter((l) => l !== existing)];
       }
       const lookup: CardLookup = {
@@ -219,7 +225,7 @@ export function useCardLookups(camera: CameraState): CardLookups {
         suggested: known.source === 'found',
         step: { status: 'done', picture: null, guesses: [] },
         chosen: known.card,
-        placed: null,
+        placed: known.placed ?? null,
       };
       return [lookup, ...current].slice(0, MAX_LOOKUPS);
     });
@@ -263,8 +269,11 @@ export interface KnownCard {
   readonly seat: SeatIndex;
   readonly from: string;
   readonly own: boolean;
-  readonly source: 'shown' | 'cast' | 'found';
-  readonly by: string;
+  readonly source: 'shown' | 'cast' | 'found' | 'board';
+  /** Who showed or found it. Null for a card clicked on a battlefield. */
+  readonly by: string | null;
+  /** Clicked on a battlefield: the permanent it is there. */
+  readonly placed?: string;
 }
 
 /** Where the outline found in the video is in the picture of the crop, as fractions of that picture. */

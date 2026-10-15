@@ -175,6 +175,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       from: permanent.id,
     });
   }, []);
+  /** A card on a battlefield clicked: into Cards seen, or (there already) the newest again. A token of no card isn't. */
+  const seeOnBattlefield = (seat: SeatIndex, permanent: Permanent) => {
+    if (!permanent.cardId) return;
+    void cardById(permanent.cardId).then((card) => {
+      if (!card) return;
+      const from = state.seats.find((s) => s.player.seat === seat)?.player.name ?? 'Someone';
+      addKnown({ card, seat, from, own: seat === selfSeat, source: 'board', by: null, placed: permanent.id });
+      setSeenOpen(true);
+    });
+  };
   /** A card from Cards seen into its player's graveyard (off the battlefield, if it's there), and out of the list. */
   const lookupToGraveyard = (lookup: CardLookup, card: Card) => {
     const from = onBattlefield(game?.state ?? null, lookup, card);
@@ -617,6 +627,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               readOnly={readOnly}
               onOpenCard={openCard}
               onToGraveyard={readOnly ? undefined : toGraveyard}
+              onSeen={seeOnBattlefield}
             />
           )}
           <CardOutline key={lookups[0]?.id} lookup={lookups[0] ?? null} />
