@@ -135,6 +135,7 @@ export function SeatTile({
       <div className="seat-info">
         <div className="seat-label">
           <span className="seat-name">{seat.isSelf && !readOnly ? `${seat.player.name} (you)` : seat.player.name}</span>
+          {game && state && <CommanderBadges seat={index} game={game} onOpenCard={onOpenCard} />}
           {active && (
             <span className="badge badge-turn">
               <Icon name="knight-banner" />
@@ -147,7 +148,6 @@ export function SeatTile({
           )}
           {status && <span className="badge badge-warn">{status}</span>}
         </div>
-        {game && state && <CommanderBadges seat={index} game={game} onOpenCard={onOpenCard} />}
         {game && state && (
           <SeatChips seat={seat} game={game} players={players} expanded={nearChips} chipsRef={chipsRef} />
         )}

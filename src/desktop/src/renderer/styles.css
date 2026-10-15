@@ -603,10 +603,12 @@ a {
 
 .seat-label {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
 }
 
+/* Beside the player's name: just the artwork (and tax), with the name and colors while the pointer is on it. */
 .seat-commanders {
   display: flex;
   flex-wrap: wrap;
@@ -617,7 +619,8 @@ a {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 2px 8px 2px 2px;
+  height: 28px;
+  padding: 2px 8px;
   background: rgb(0 0 0 / 0.7);
   border-color: transparent;
   border-radius: 6px;
@@ -625,19 +628,23 @@ a {
   max-width: 100%;
 }
 
+.commander-badge-art {
+  padding: 2px;
+}
+
 .commander-badge:disabled {
   opacity: 1;
-  padding-left: 8px;
 }
 
 .commander-art {
-  width: 40px;
-  height: 30px;
+  width: 34px;
+  height: 24px;
   object-fit: cover;
   border-radius: 4px;
 }
 
 .commander-name {
+  max-width: 11em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -647,9 +654,32 @@ a {
   flex-shrink: 0;
 }
 
+/* With its artwork, a badge folds its name and colors away until the pointer is on it. */
+.commander-badge-art .commander-name,
+.commander-badge-art .commander-colors {
+  display: none;
+}
+
+.commander-badge-art:hover,
+.commander-badge-art:focus-visible {
+  padding-right: 8px;
+}
+
+.commander-badge-art:hover .commander-name,
+.commander-badge-art:focus-visible .commander-name,
+.commander-badge-art:hover .commander-colors,
+.commander-badge-art:focus-visible .commander-colors,
+.clean-view .commander-badge-art .commander-name {
+  display: inline;
+}
+
 .commander-tax {
   color: var(--warn);
   font-weight: 600;
+}
+
+.commander-badge-art .commander-tax {
+  padding-right: 4px;
 }
 
 .seat-name {

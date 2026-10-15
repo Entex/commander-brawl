@@ -11,7 +11,10 @@ interface CommanderBadgesProps {
 
 const COLOR_ORDER = ['W', 'U', 'B', 'R', 'G'];
 
-/** Each of the player's commanders: artwork, name, color identity and commander tax. Click for the card. */
+/**
+ * Each of the player's commanders, small, beside their name: the artwork and commander tax, with the name and color
+ * identity while the pointer is on it. Click for the card.
+ */
 export function CommanderBadges({ seat, game, onOpenCard }: CommanderBadgesProps) {
   const state = game.seats[seat];
   const names = state?.commanders.filter((name) => name !== '') ?? [];
@@ -27,16 +30,19 @@ export function CommanderBadges({ seat, game, onOpenCard }: CommanderBadgesProps
         const colors = card
           ? [...card.colorIdentity].sort((a, b) => COLOR_ORDER.indexOf(a) - COLOR_ORDER.indexOf(b))
           : [];
+        const shownName = card?.name.split(' // ')[0] ?? name;
+        const art = card?.image ?? null;
         return (
           <button
             key={index}
-            className="commander-badge"
+            className={`commander-badge${art ? ' commander-badge-art' : ''}`}
             disabled={!card}
+            aria-label={shownName}
             title={card ? `Show ${card.name}\n${artCredit(card)}` : name}
             onClick={() => card && onOpenCard(card.id)}
           >
-            {card?.image && <img className="commander-art" src={cardImageUrl(card.image, 'art_crop')} alt="" />}
-            <span className="commander-name">{card?.name.split(' // ')[0] ?? name}</span>
+            {art && <img className="commander-art" src={cardImageUrl(art, 'art_crop')} alt="" />}
+            <span className="commander-name">{shownName}</span>
             {colors.length > 0 && (
               <span className="commander-colors">
                 <Symbols text={colors.map((c) => `{${c}}`).join('')} />

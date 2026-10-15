@@ -444,6 +444,12 @@ test('importing decks and playing one', async () => {
   const badge = friend.page.getByTestId('commanders-0').getByRole('button', { name: "Atraxa, Praetors' Voice" });
   await expect(badge).toBeEnabled();
   await expect(badge).toHaveAttribute('title', /Art by Atraxa Painter · © Wizards of the Coast/);
+  // Small, beside the player's name: the art, and the name only while the pointer is on it.
+  await expect(friend.page.locator('.seat-label', { hasText: 'Host' }).getByTestId('commanders-0')).toBeVisible();
+  await expect(badge.locator('.commander-name')).toBeHidden();
+  await badge.hover();
+  await expect(badge.locator('.commander-name')).toBeVisible();
+  await friend.page.screenshot({ path: test.info().outputPath('commander.png') });
   await badge.click();
   await expect(friend.page.getByTestId('card-view')).toContainText('proliferate');
 });
