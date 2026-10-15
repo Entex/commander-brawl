@@ -20,6 +20,7 @@ import { DeckService } from './deckService';
 import { PhoneLinkService } from './phoneLinkService';
 import { TableService } from './tableService';
 import { UpdateService } from './updateService';
+import { windowKey } from './windowKeys';
 
 // Settings for development and tests. Players never need these.
 const env = {
@@ -168,7 +169,6 @@ function createWindow(): BrowserWindow {
     title: 'Commander Brawl',
     backgroundColor: '#101217',
     icon: join(__dirname, 'icon.png'),
-    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       // A video table: keep everything (video, the clip recorder) running while you're in Discord.
@@ -183,6 +183,7 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
   window.webContents.on('will-navigate', (event) => event.preventDefault());
+  if (process.platform !== 'darwin') withoutMenuBar(window);
   window.on('closed', () => {
     if (mainWindow === window) mainWindow = null;
   });
@@ -193,6 +194,36 @@ function createWindow(): BrowserWindow {
   }
   return window;
 }
+
+/**
+ * No menu bar in the window (Windows and Linux): Alt would show it, and Alt is held for Alt+click and Alt+drag on the
+ * videos. The keys of its menu worth having stay: full screen, zoom, and the developer tools.
+ */
+function withoutMenuBar(window: BrowserWindow): void {
+  window.removeMenu();
+  window.webContents.on('before-input-event', (event, input) => {
+    const action = windowKey(input);
+    if (!action) return;
+    event.preventDefault();
+    const contents = window.webContents;
+    const zoom = contents.getZoomLevel();
+    switch (action) {
+      case 'full-screen':
+        return window.setFullScreen(!window.isFullScreen());
+      case 'dev-tools':
+        return contents.toggleDevTools();
+      case 'zoom-in':
+        return contents.setZoomLevel(Math.min(ZOOM_LIMIT, zoom + 0.5));
+      case 'zoom-out':
+        return contents.setZoomLevel(Math.max(-ZOOM_LIMIT, zoom - 0.5));
+      case 'zoom-reset':
+        return contents.setZoomLevel(0);
+    }
+  });
+}
+
+/** How far the window zooms in or out, as Chromium counts zoom levels (about 20% each). */
+const ZOOM_LIMIT = 4;
 
 function registerIpc(
   table: TableService,

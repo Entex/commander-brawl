@@ -1,5 +1,5 @@
 import { chromium, _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -389,6 +389,53 @@ test('a turn order set by hand, or a random first player in that order', async (
   await expect(friend.page.getByTestId('last-change')).toHaveText(
     /^Host picked a random first player: (Host → Friend|Friend → Host)$/,
   );
+});
+
+// Keys as Windows hands them to the window: Playwright's own key presses go straight to the page, never past the
+// window, where the menu bar and the window's own keys are.
+test("no menu bar for Alt to show (Alt+click and Alt+drag are the app's); F11 still makes it full screen", async () => {
+  test.skip(process.platform !== 'win32', 'Posts keys to the window the way Windows does');
+  const { app, page } = await launch('Host');
+  const window = () =>
+    app.evaluate(({ BrowserWindow }) => {
+      const shown = BrowserWindow.getAllWindows()[0]!;
+      return {
+        menuBar: shown.isMenuBarVisible(),
+        fullScreen: shown.isFullScreen(),
+        handle: shown.getNativeWindowHandle().readBigUInt64LE(0).toString(),
+      };
+    });
+  const { handle } = await window();
+  /** Windows messages (a key down and up), each [message, key, details]. */
+  const post = async (messages: readonly (readonly [number, number, number])[]) => {
+    execFileSync('powershell', [
+      '-NoProfile',
+      '-Command',
+      [
+        'Add-Type -Name Post -Namespace W -MemberDefinition \'[DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);\'',
+        ...messages.map(
+          ([message, key, details]) =>
+            `[W.Post]::PostMessage([IntPtr]${handle}, ${message}, [IntPtr]${key}, [IntPtr]([long]${details})) | Out-Null; Start-Sleep -Milliseconds 50`,
+        ),
+      ].join('; '),
+    ]);
+    await page.waitForTimeout(500);
+  };
+  // Alt, down and up (WM_SYSKEYDOWN, WM_SYSKEYUP).
+  await post([
+    [0x104, 0x12, 0x20380001],
+    [0x105, 0x12, 0xe0380001],
+  ]);
+  expect((await window()).menuBar).toBe(false);
+  // F11, down and up (WM_KEYDOWN, WM_KEYUP).
+  const f11 = [
+    [0x100, 0x7a, 0x00570001],
+    [0x101, 0x7a, 0xc0570001],
+  ] as const;
+  await post(f11);
+  await expect.poll(async () => (await window()).fullScreen).toBe(true);
+  await post(f11);
+  await expect.poll(async () => (await window()).fullScreen).toBe(false);
 });
 
 test('keyboard shortcuts at the table', async () => {
@@ -878,12 +925,20 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await friend.page.mouse.wheel(0, -100);
   await expect(host.page.getByTestId('board-marker')).toHaveAccessibleName('2 +1/+1 counters');
 
-  // Dragged onto the tokens, they're the tokens' counters.
+  // Dragged from, it's an arrow, and it stays where it is. Alt+dragged onto the tokens, they're the tokens' counters.
   const onto = await centerOf(friend.page.getByTestId('board-card'));
-  await friend.page.mouse.move(counterAt.x, counterAt.y);
-  await friend.page.mouse.down();
-  await friend.page.mouse.move(onto.x, onto.y, { steps: 8 });
-  await friend.page.mouse.up();
+  const dragCounter = async () => {
+    await friend.page.mouse.move(counterAt.x, counterAt.y);
+    await friend.page.mouse.down();
+    await friend.page.mouse.move(onto.x, onto.y, { steps: 8 });
+    await friend.page.mouse.up();
+  };
+  await dragCounter();
+  await expect(host.page.getByTestId('arrow')).toHaveCount(1);
+  await expect(host.page.getByTestId('board-marker')).toHaveCount(1);
+  await friend.page.keyboard.down('Alt');
+  await dragCounter();
+  await friend.page.keyboard.up('Alt');
   await expect(host.page.getByTestId('board-marker')).toHaveCount(0);
   await expect(tokens).toContainText('2 +1/+1');
 
@@ -894,6 +949,9 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await add.getByRole('button', { name: 'Attacking' }).click();
   const note = host.page.getByTestId('board-marker');
   await expect(note).toHaveAccessibleName('Note: Attacking');
+  // Alt+clicked: what can be done with it.
+  await friend.page.getByTestId('board-marker').click({ modifiers: ['Alt'] });
+  await expect(friend.page.getByRole('group', { name: '“Attacking”: what to do' })).toBeVisible();
   await friend.page.getByTestId('board-marker').hover();
   await friend.page.keyboard.press('Delete');
   await expect(note).toHaveCount(0);
@@ -930,6 +988,7 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await expect(earlierSeen).toContainText('Sol Ring');
 
   // Pointed at like the video under it, for everyone: an arrow from it, an arrow to it, and a ping on it.
+  await expect(host.page.getByTestId('arrow')).toHaveCount(0, { timeout: 10_000 });
   const token = await centerOf(friend.page.getByTestId('board-card'));
   const elsewhere = await onPicture(seatVideo(friend.page, 'Friend (you)'), 0.5, 0.5);
   const arrow = async (start: { x: number; y: number }, end: { x: number; y: number }) => {

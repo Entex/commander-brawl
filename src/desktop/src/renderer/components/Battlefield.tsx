@@ -74,9 +74,10 @@ interface BattlefieldProps {
 
 /**
  * What's on the players' battlefields, on their videos, the same for everyone: the cards that were identified (or
- * added) and the tokens, with their counters, and counters and notes put on the table. A card is Alt+dragged to where
- * it is now, and Alt+clicked for what can be done with it; clicked, it's in Cards seen, and pointed at like the video
- * under it (an arrow from or to it, a ping on it). Counters and notes are dragged and clicked. Drawn over the seats.
+ * added) and the tokens, with their counters, and counters and notes put on the table. Each is Alt+dragged to where it
+ * is now (a counter onto a card: it's that card's), and Alt+clicked for what can be done with it. Otherwise it's pointed
+ * at like the video under it (an arrow from or to it, a ping on it), and a card clicked is in Cards seen. Drawn over
+ * the seats.
  */
 export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen }: BattlefieldProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -160,8 +161,8 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard, onSeen 
 
   const startDrag = (event: ReactPointerEvent, item: Item) => {
     if (event.button !== 0) return;
-    // A card without Alt is the video under it: dragged from, it's an arrow (see PointerLayer); clicked, see onClick.
-    if (item.kind === 'permanent' && !event.altKey) return;
+    // Without Alt it's the video under it: dragged from, it's an arrow (see PointerLayer); a card clicked, see onClick.
+    if (!event.altKey) return;
     // Not a ping, an arrow or a close-up: this is about the item.
     event.stopPropagation();
     if (readOnly) return;
@@ -483,8 +484,8 @@ function MarkerBadge({
       aria-expanded={open}
       title={
         note
-          ? `${text}: drag it to where it goes. Del takes it away.`
-          : `${counterKindName(game, kind)} counters: the wheel counts up and down; drag onto a card to put them on it.`
+          ? `${text}: Alt+drag it to where it goes, Alt+click for more. Del takes it away.`
+          : `${counterKindName(game, kind)} counters: the wheel counts up and down; Alt+drag onto a card to put them on it.`
       }
       data-testid="board-marker"
       data-marker-id={id}
@@ -561,7 +562,7 @@ function MarkerControls({
           ✕
         </button>
       </div>
-      {!note && <p className="hint">Drag it onto a card to put the counters on that card.</p>}
+      {!note && <p className="hint">Alt+drag it onto a card to put the counters on that card.</p>}
     </div>
   );
 }

@@ -30,8 +30,8 @@ const SHORTCUTS: readonly { readonly group: string; readonly keys: readonly (rea
       ['Del', 'Take away the card, counter or note the pointer is on'],
       ['G', 'Put the card the pointer is on in the graveyard'],
       ['Ctrl+drag', 'A close-up of the card in the box drawn'],
-      ['Alt+click', 'Add a token, counter or note at that spot; on a card on the videos, what can be done with it'],
-      ['Alt+drag', 'Move a card on the videos to where it is now'],
+      ['Alt+click', 'Add a token, counter or note at that spot; on one on the videos, what can be done with it'],
+      ['Alt+drag', 'Move a card, counter or note on the videos (a counter onto a card: it goes on the card)'],
     ],
   },
   {
