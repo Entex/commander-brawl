@@ -141,6 +141,12 @@ Deck
     expect(imported.unknown).toEqual(['Not A Real Card']);
   });
 
+  it('adds up a card on more than one line as far as a deck can have it, so the deck can still be saved', () => {
+    const imported = resolveDeck(parseDeckText('60 Mountain (DOM) 262\n50 Mountain (M21) 274'), lookup, 'Mountains');
+    expect(imported.deck.cards).toMatchObject([{ name: 'Mountain', count: 99 }]);
+    expect(toDeckList(imported.deck)).not.toBeNull();
+  });
+
   it('offers the legendary creatures as commanders when the list does not say', () => {
     const imported = resolveDeck(
       parseDeckText('1 Tymna the Weaver\n1 Sol Ring\n1 Winota, Joiner of Forces'),

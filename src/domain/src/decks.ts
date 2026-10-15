@@ -37,6 +37,8 @@ export interface DeckList {
 }
 
 export const MAX_DECK_NAME_LENGTH = 60;
+/** Of one card: a Commander deck has 100 cards, commander included. */
+export const MAX_COPIES = 99;
 /** Generous for Commander (100 cards), but keeps a deck small enough to share with the table. */
 export const MAX_DECK_ENTRIES = 250;
 
@@ -72,6 +74,6 @@ function isDeckCard(value: unknown): value is DeckCard {
     typeof count === 'number' &&
     Number.isInteger(count) &&
     count >= 1 &&
-    count <= 99
+    count <= MAX_COPIES
   );
 }

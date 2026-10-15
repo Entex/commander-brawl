@@ -6,7 +6,9 @@ import {
   randomId,
   type TlsIdentity,
 } from '@commander-brawl/infrastructure/node';
+import type { Writable } from 'node:stream';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { WebSocket } from 'ws';
 import { FlakyNetwork } from '../support/flakyNetwork';
 import { sleep, waitFor } from '../support/wait';
 
@@ -128,6 +130,32 @@ describe('hosting and joining a table', () => {
     const mallory = join({ ...invite, secret: randomId() }, 'Mallory');
     const closed = await waitFor(() => (mallory.connection?.state === 'closed' ? mallory.connection : null));
     expect(closed.reason).toMatch(/invite is wrong/);
+  });
+
+  it("isn't brought down by a stranger sending a message too big, or not a proper one, before saying hello", async () => {
+    const { invite } = await host();
+    const uncaught: unknown[] = [];
+    const onUncaught = (error: unknown) => uncaught.push(error);
+    process.on('uncaughtException', onUncaught);
+    cleanups.push(() => process.off('uncaughtException', onUncaught));
+
+    const stranger = async (send: (ws: WebSocket) => void) => {
+      const ws = new WebSocket(`wss://127.0.0.1:${invite.port}/table`, { rejectUnauthorized: false });
+      ws.on('error', () => undefined);
+      await new Promise((resolve) => ws.once('open', resolve));
+      const closed = new Promise((resolve) => ws.once('close', resolve));
+      send(ws);
+      await closed;
+    };
+    await stranger((ws) => ws.send('x'.repeat(9 * 1024 * 1024)));
+    // A frame of a kind there's no such thing as.
+    await stranger((ws) =>
+      (ws as unknown as { _socket: Writable })._socket.write(Buffer.from([0x8f, 0x80, 0, 0, 0, 0])),
+    );
+
+    expect(uncaught).toEqual([]);
+    // The table goes on.
+    await join(invite, 'Alice').seated();
   });
 
   it('refuses to talk to a computer whose certificate does not match the invite', async () => {

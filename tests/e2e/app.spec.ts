@@ -841,8 +841,9 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   const expected = await onPicture(seatVideo(friend.page, 'Host'), 0.3, 0.3);
   expect(Math.abs(counterAt.x - expected.x)).toBeLessThan(4);
   expect(Math.abs(counterAt.y - expected.y)).toBeLessThan(4);
-  // The wheel counts it up.
+  // The wheel counts it up; scrolling sideways doesn't count it down.
   await counter.hover();
+  await friend.page.mouse.wheel(100, 0);
   await friend.page.mouse.wheel(0, -100);
   await expect(host.page.getByTestId('board-marker')).toHaveAccessibleName('2 +1/+1 counters');
 

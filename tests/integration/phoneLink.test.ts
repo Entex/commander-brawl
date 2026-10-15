@@ -113,6 +113,27 @@ describe('phone link server', () => {
     expect(server.isConnected).toBe(false);
   });
 
+  it("isn't brought down by a message too big from the phone: it closes, and the phone comes back", async () => {
+    const uncaught: unknown[] = [];
+    const onUncaught = (error: unknown) => uncaught.push(error);
+    process.on('uncaughtException', onUncaught);
+    try {
+      const ws = phone();
+      await new Promise((resolve) => ws.once('open', resolve));
+      const closed = new Promise((resolve) => ws.once('close', resolve));
+      ws.send('x'.repeat(11 * 1024 * 1024));
+      await closed;
+      await waitFor(() => events.includes('disconnected'));
+
+      const again = phone();
+      await new Promise((resolve) => again.once('open', resolve));
+      expect(uncaught).toEqual([]);
+      expect(server.isConnected).toBe(true);
+    } finally {
+      process.off('uncaughtException', onUncaught);
+    }
+  });
+
   it('builds QR code links with the token kept out of server logs', () => {
     expect(server.urls(['192.168.1.20'])).toEqual([`https://192.168.1.20:${server.port}/#${TOKEN}`]);
   });

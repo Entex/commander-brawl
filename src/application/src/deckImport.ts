@@ -1,5 +1,6 @@
 import {
   MAX_COMMANDERS,
+  MAX_COPIES,
   MAX_DECK_ENTRIES,
   MAX_DECK_NAME_LENGTH,
   type Card,
@@ -102,7 +103,8 @@ export function resolveDeck(
       byId.set(card.id, {
         id: card.id,
         name: card.name,
-        count: (existing?.count ?? 0) + entry.count,
+        // The same card on more than one line (different printings, say) adds up, as far as a deck can have.
+        count: Math.min(MAX_COPIES, (existing?.count ?? 0) + entry.count),
         ...(printing ? { printing } : {}),
       });
     }
@@ -205,6 +207,6 @@ function parseLine(line: string): ParsedLine | null {
     .replace(/\s*\([A-Z0-9]{2,6}\)(\s+[\w★-]+)?\s*$/i, '') // (CMM) 400
     .replace(/\s*\[[A-Z0-9]{2,6}\]\s*$/i, '') // [CMM]
     .trim();
-  if (!name || count < 1 || count > 99) return null;
+  if (!name || count < 1 || count > MAX_COPIES) return null;
   return printing ? { name, count, commander, skip, printing } : { name, count, commander, skip };
 }

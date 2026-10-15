@@ -45,10 +45,15 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
   };
 
   const save = async (deck: DeckList) => {
-    const saved = await api.decks.save(deck, null);
-    setDecks([saved, ...decks]);
-    setPreview(null);
-    setSource('');
+    setError(null);
+    try {
+      const saved = await api.decks.save(deck, null);
+      setDecks([saved, ...decks]);
+      setPreview(null);
+      setSource('');
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
   };
 
   const play = (deck: DeckList) => {
@@ -119,7 +124,6 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
             <button className="primary" disabled={busy || !source.trim()} onClick={() => void runImport()}>
               {busy ? 'Importing…' : 'Import'}
             </button>
-            {error && <p className="status status-reconnecting">{error}</p>}
             <p className="hint">
               Links from Moxfield, Archidekt, TappedOut, Deckstats and Scryfall are read by{' '}
               <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">
@@ -129,6 +133,8 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
             </p>
           </section>
         )}
+        {/* Under the import, or under the deck it found when saving that didn't work. */}
+        {error && <p className="status status-reconnecting">{error}</p>}
       </div>
     </div>
   );
@@ -206,7 +212,8 @@ export function playDeck(seat: SeatIndex, deck: DeckList): void {
   // The bracket check needs Commander Spellbook, so it follows when it's done instead of holding this up.
   void api.decks
     .analyze(chosen)
-    .then((analysis) => submitGameEvent({ type: 'deck-analyzed', seat, deckName: name, analysis }));
+    .then((analysis) => submitGameEvent({ type: 'deck-analyzed', seat, deckName: name, analysis }))
+    .catch((error: unknown) => console.warn('[decks] could not check the deck', error));
 }
 
 interface DeckPromptProps {

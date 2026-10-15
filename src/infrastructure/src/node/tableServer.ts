@@ -67,6 +67,8 @@ export class TableServer {
     });
     // Room for card snapshots, which are passed between players through the host.
     const sockets = new WebSocketServer({ server, path: TABLE_PATH, maxPayload: 8 * 1024 * 1024 });
+    // The server's own errors come here too (a port that's taken, while listening falls back to another).
+    sockets.on('error', (error) => console.warn('[table] server', error.message));
     const host = new TableHost({
       secret: options.secret,
       reconnectGraceMs: options.reconnectGraceMs ?? 30_000,
@@ -118,6 +120,9 @@ export class TableServer {
     this.alive.add(ws);
     const helloTimer = setTimeout(() => ws.close(TableCloseCode.helloTimeout, 'No hello'), this.helloTimeoutMs);
 
+    // Anyone who can reach the port can send anything, before saying hello too: a message too big, or not a proper
+    // one. The connection closes itself then; unheard, the error would bring the app down.
+    ws.on('error', () => undefined);
     ws.on('pong', () => this.alive.add(ws));
     ws.on('message', (data) => {
       this.alive.add(ws);

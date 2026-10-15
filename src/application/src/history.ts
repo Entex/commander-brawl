@@ -48,7 +48,7 @@ export const BIG_LIFE_SWING = 10;
 
 /** A game that was played to the end (or until the table started a new one). */
 export interface GameRecord {
-  /** The table's log and the game's number in it: the same on every player's computer. */
+  /** The table and the game's number at it: the same on every player's computer. */
   readonly id: string;
   /** On the host's clock, milliseconds since 1970. */
   readonly startedAt: number;

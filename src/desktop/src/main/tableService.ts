@@ -66,62 +66,79 @@ export class TableService {
   private watching = false;
   /** Everyone who sat at the table, by seat, for the game history. */
   private readonly names = new Map<SeatIndex, string>();
+  /** What's being done (hosting, joining, leaving…): the next waits for it, as leaving a table takes a moment. */
+  private busy: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly options: TableServiceOptions) {}
 
-  async host(name: string): Promise<HostInfo> {
-    const playerName = normalizePlayerName(name);
-    await this.leave();
-    return this.startHosting({ secret: randomId(), preferredPort: this.options.preferredPort, playerName });
-  }
-
-  /** The table this app was hosting before it closed, if there is one. */
-  async savedTable(): Promise<SavedTableSummary | null> {
-    const saved = await FileTableStore.load(this.options.tableDir);
-    if (!saved) return null;
-    return {
-      savedAt: saved.savedAt,
-      playerName: saved.playerName,
-      players: saved.members.map((m) => m.player.name).filter((n) => n !== saved.playerName),
-    };
-  }
-
-  /** Opens the saved table again. Friends' apps are still trying to reconnect, so they come straight back. */
-  async resume(): Promise<HostInfo> {
-    const saved = await FileTableStore.load(this.options.tableDir);
-    if (!saved) throw new Error('There is no table to resume.');
-    await this.stop({ notify: true, forget: false });
-    return this.startHosting({
-      secret: saved.secret,
-      preferredPort: saved.port,
-      playerName: saved.playerName,
-      saved,
+  host(name: string): Promise<HostInfo> {
+    return this.inTurn(async () => {
+      const playerName = normalizePlayerName(name);
+      await this.stop({ notify: true, forget: true });
+      return this.startHosting({ secret: randomId(), preferredPort: this.options.preferredPort, playerName });
     });
   }
 
-  async discardSavedTable(): Promise<void> {
-    new FileTableStore(this.options.tableDir).clear();
+  /** The table this app was hosting before it closed, if there is one. */
+  savedTable(): Promise<SavedTableSummary | null> {
+    return this.inTurn(async () => {
+      const saved = await FileTableStore.load(this.options.tableDir);
+      if (!saved) return null;
+      return {
+        savedAt: saved.savedAt,
+        playerName: saved.playerName,
+        players: saved.members.map((m) => m.player.name).filter((n) => n !== saved.playerName),
+      };
+    });
+  }
+
+  /** Opens the saved table again. Friends' apps are still trying to reconnect, so they come straight back. */
+  resume(): Promise<HostInfo> {
+    return this.inTurn(async () => {
+      const saved = await FileTableStore.load(this.options.tableDir);
+      if (!saved) throw new Error('There is no table to resume.');
+      await this.stop({ notify: true, forget: false });
+      return this.startHosting({
+        secret: saved.secret,
+        preferredPort: saved.port,
+        playerName: saved.playerName,
+        saved,
+      });
+    });
+  }
+
+  discardSavedTable(): Promise<void> {
+    return this.inTurn(async () => new FileTableStore(this.options.tableDir).clear());
   }
 
   /** Joins as a player, or (`watch`) as a spectator: no seat, and nothing you do changes the game. */
-  async join(inviteCode: string, name: string, watch = false): Promise<void> {
-    const playerName = normalizePlayerName(name);
-    const invite = decodeInvite(inviteCode);
-    await this.leave();
-    this.connect(invite, playerName, undefined, watch);
+  join(inviteCode: string, name: string, watch = false): Promise<void> {
+    return this.inTurn(async () => {
+      const playerName = normalizePlayerName(name);
+      const invite = decodeInvite(inviteCode);
+      await this.stop({ notify: true, forget: true });
+      this.connect(invite, playerName, undefined, watch);
+    });
   }
 
   /** Leaving on purpose. If you were hosting, the table is over for everyone. */
-  async leave(): Promise<void> {
-    await this.stop({ notify: true, forget: true });
+  leave(): Promise<void> {
+    return this.inTurn(() => this.stop({ notify: true, forget: true }));
   }
 
   /**
    * The app is quitting. A table you host isn't closed: friends keep trying to reconnect,
    * and you can resume it when you open the app again.
    */
-  async shutdown(): Promise<void> {
-    await this.stop({ notify: false, forget: false });
+  shutdown(): Promise<void> {
+    return this.inTurn(() => this.stop({ notify: false, forget: false }));
+  }
+
+  /** After whatever is being done: one table at a time, and the start screen sees a table that was left as gone. */
+  private inTurn<T>(run: () => Promise<T>): Promise<T> {
+    const result = this.busy.then(run);
+    this.busy = result.catch(() => undefined);
+    return result;
   }
 
   send(to: string, data: unknown): void {
@@ -217,7 +234,11 @@ export class TableService {
     const game = this.game;
     const logId = game?.getLogId();
     if (!game || !logId) return;
-    const games = gamesInLog(game.getLog(), logId, (seat) => this.names.get(seat) ?? null);
+    const log = game.getLog();
+    // The table goes by its first change: the same on every computer, and still the same after the host's app
+    // restarted (the log gets a new id then), so a game recorded before isn't recorded again.
+    const table = log[0]?.id ?? logId;
+    const games = gamesInLog(log, table, (seat) => this.names.get(seat) ?? null);
     if (games.length > 0) this.options.gamesFinished(games);
   }
 
@@ -235,8 +256,9 @@ export class TableService {
     this.server = null;
     const store = this.store;
     this.store = null;
-    await Promise.all([releasePort?.().catch(() => undefined), server?.close({ notify })]);
+    // Forgotten at once, not once the server has closed: the start screen, asking right after, has nothing to resume.
     if (forget) store?.clear();
+    await Promise.all([releasePort?.().catch(() => undefined), server?.close({ notify })]);
   }
 
   private connect(invite: Invite, name: string, resumeToken?: string, watch = false): void {

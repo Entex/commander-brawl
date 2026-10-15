@@ -276,7 +276,8 @@ export class TableSession<TTrack> {
     }
     entry.cancelReset ??= this.options.timers.setTimeout(() => {
       entry.cancelReset = null;
-      if (this.links.get(memberId) === entry && entry.state !== 'connected' && this.members.has(memberId)) {
+      // Still at the table: a player, or someone watching.
+      if (this.links.get(memberId) === entry && entry.state !== 'connected' && this.linksTo(memberId)) {
         this.createLink(memberId, entry.generation + 1);
         this.publish();
       }

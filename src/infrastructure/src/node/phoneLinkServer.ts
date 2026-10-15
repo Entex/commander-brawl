@@ -64,8 +64,12 @@ export class PhoneLinkServer {
     const heartbeat = setInterval(() => link.checkHeartbeat(), options.heartbeatMs ?? 5_000);
     const link = new PhoneLinkServer(server, sockets, port, options.token, heartbeat);
 
+    // Errors after it's listening (it's already listening on its port by then) mustn't bring the app down.
+    server.on('error', (error) => console.warn('[phone] server', error.message));
     server.on('upgrade', (request, socket, head) => {
       if (!link.isAuthorized(request)) {
+        // Taken out of the web server's hands, the connection's errors are ours: the other end gone, say.
+        socket.on('error', () => socket.destroy());
         socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
         return;
       }
@@ -112,6 +116,8 @@ export class PhoneLinkServer {
       events.connected();
     }
 
+    // A message too big (a huge photo), or not a proper one: the connection closes itself, and the phone reconnects.
+    ws.on('error', () => undefined);
     ws.on('pong', () => alive.add(ws));
     ws.on('message', (data) => {
       alive.add(ws);

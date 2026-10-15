@@ -22,6 +22,7 @@ import { CUSTOM_KIND_PREFIX, counterKindName } from '../names';
 import { seatColorClass } from '../seatColors';
 import { useCardsById } from '../useCards';
 import { submitGameEvent } from '../useGame';
+import { useGroupedChange } from '../useGroupedChange';
 import { cardSizeOnSeat } from '../cardTarget';
 import { pictureNear, screenAt } from '../videoPoints';
 
@@ -29,6 +30,8 @@ import { pictureNear, screenAt } from '../videoPoints';
 const DRAG_DISTANCE = 6;
 /** Room kept between what's shown and the edges, in pixels. */
 const EDGE = 4;
+/** Scrolled this far (in pixels) counts a counter up or down by one: a mouse wheel's notch, or a bit of a trackpad swipe. */
+const WHEEL_STEP = 50;
 /** How often what's on the videos is placed again, in case their layout changed. */
 const PLACE_EVERY_MS = 250;
 /** A virtual card's width, as a share of its player's picture, before a real card was found there to go by. */
@@ -501,8 +504,12 @@ function MarkerBadge({
   readonly open: boolean;
   readonly readOnly: boolean;
 }) {
-  const { id, kind, count, text } = item.marker;
+  const { id, kind, text } = item.marker;
   const note = kind === NOTE;
+  // Scrolled up or down: one change when the scrolling stops, not one for every bit of a trackpad swipe.
+  const change = useGroupedChange((amount) => submitGameEvent({ type: 'marker-changed', seat: item.seat, id, amount }));
+  const scrolled = useRef(0);
+  const count = Math.max(0, item.marker.count + change.draft);
   const label = note ? text : `${count} ${counterKindName(game, kind)}`;
   return (
     <div
@@ -518,11 +525,18 @@ function MarkerBadge({
       }
       data-testid="board-marker"
       data-marker-id={id}
+      // Scrolled, then dragged onto a card at once: the card gets the counters as scrolled to.
+      onPointerDown={change.flush}
       onWheel={
         readOnly || note
           ? undefined
-          : (event) =>
-              submitGameEvent({ type: 'marker-changed', seat: item.seat, id, amount: event.deltaY < 0 ? 1 : -1 })
+          : (event) => {
+              // Up and down only: scrolling sideways changes nothing. Lines (some mice) are about 40 pixels each.
+              scrolled.current += event.deltaMode === 0 ? event.deltaY : event.deltaY * 40;
+              if (Math.abs(scrolled.current) < WHEEL_STEP) return;
+              change.add(scrolled.current < 0 ? 1 : -1);
+              scrolled.current = 0;
+            }
       }
     >
       {note ? (

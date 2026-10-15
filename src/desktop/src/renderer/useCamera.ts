@@ -111,8 +111,14 @@ export function useCamera(): CameraState {
       track: setPhoneTrack,
       state: (state) => {
         setPhoneState(state);
-        // Scanning the QR code means "use my phone", so switch to it as soon as it's live.
-        if (state === 'live') setSource('phone');
+        // Scanning the QR code means "use my phone", so switch to it as soon as it's live: the webcam goes off, as
+        // when the phone is picked.
+        if (state === 'live') {
+          setSource('phone');
+          webcamTrackRef.current?.stop();
+          webcamTrackRef.current = null;
+          setWebcamTrack(null);
+        }
       },
     });
     receiverRef.current = receiver;

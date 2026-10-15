@@ -201,6 +201,18 @@ describe('TableSession', () => {
     expect(signaling.linkSignals.at(-1)).toEqual({ to: 'b', data: { gen: 1, body: { offer: true } } });
   });
 
+  it('starts a fresh link to someone watching too, when it has not connected in time', () => {
+    welcome('a', [player('a', 0)]);
+    signaling.emit({ type: 'spectator-joined', spectator: { id: 's', name: 'Sam' } });
+    const first = factory.current('s');
+    expect(first.options.initiator).toBe(true);
+
+    timers.advance(RESET_MS);
+
+    expect(first.closed).toBe(true);
+    expect(factory.current('s').options.watcher).toBe(true);
+  });
+
   it('does not reset a link that connected', () => {
     welcome('a', [player('a', 0), player('b', 1)]);
     factory.current('b').options.events.state('connected');
