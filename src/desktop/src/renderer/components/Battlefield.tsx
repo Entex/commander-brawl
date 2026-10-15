@@ -23,7 +23,6 @@ import { seatColorClass } from '../seatColors';
 import { useCardsById } from '../useCards';
 import { submitGameEvent } from '../useGame';
 import { useGroupedChange } from '../useGroupedChange';
-import { cardSizeOnSeat } from '../cardTarget';
 import { pictureNear, screenAt } from '../videoPoints';
 
 /** Moving this far (in pixels) with the button down makes it a drag, not a click. */
@@ -34,7 +33,7 @@ const EDGE = 4;
 const WHEEL_STEP = 50;
 /** How often what's on the videos is placed again, in case their layout changed. */
 const PLACE_EVERY_MS = 250;
-/** A virtual card's width, as a share of its player's picture, before a real card was found there to go by. */
+/** A card's width on a player's video, as a share of their picture's width. */
 const CARD_SHARE = 0.08;
 
 /** Where an item is on screen (its middle), and how wide a card is there. */
@@ -214,18 +213,11 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
               }
             }}
           >
-            {item.kind === 'permanent' && isVirtual(item.permanent) ? (
-              <VirtualCard
+            {item.kind === 'permanent' ? (
+              <BoardCard
                 item={item}
                 image={item.permanent.cardId ? (cards.get(item.permanent.cardId)?.image ?? null) : null}
                 width={placed.get(item.key)?.cardWidth ?? 60}
-                game={game}
-                open={isOpen}
-              />
-            ) : item.kind === 'permanent' ? (
-              <PermanentLabel
-                item={item}
-                image={item.permanent.cardId ? (cards.get(item.permanent.cardId)?.image ?? null) : null}
                 game={game}
                 open={isOpen}
               />
@@ -258,16 +250,16 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
   );
 }
 
-/** Tokens, and cards added by hand: not on the table for the camera to see, so shown as the card itself. */
+/** Tokens, and cards added by hand: not on the table for the camera to see. */
 function isVirtual(permanent: Permanent): boolean {
   return permanent.token || permanent.virtual === true;
 }
 
 /**
- * A virtual card on a player's battlefield: the card's picture, as big as the cards on their table, turned when
- * tapped, with how many (tokens) and its counters on it.
+ * A card on a player's battlefield, on their video: the card's picture (whether it's on their table, like a card from
+ * a close-up, or only in the app, like a token), turned when tapped, with how many (tokens) and its counters on it.
  */
-function VirtualCard({
+function BoardCard({
   item,
   image,
   width,
@@ -296,7 +288,7 @@ function VirtualCard({
       aria-expanded={open}
       title={`${name}: drag it to where it is, click for more. Del takes it away.`}
       data-testid="board-card"
-      data-virtual="true"
+      data-virtual={isVirtual(item.permanent) || undefined}
       data-permanent-id={item.permanent.id}
       data-seat={item.seat}
     >
@@ -318,50 +310,6 @@ function VirtualCard({
           {tapped > 0 && count > 1 && <span className="board-counter board-tapped-count">{tapped} tapped</span>}
         </span>
       )}
-    </div>
-  );
-}
-
-function PermanentLabel({
-  item,
-  image,
-  game,
-  open,
-}: {
-  readonly item: Extract<Item, { kind: 'permanent' }>;
-  readonly image: string | null;
-  readonly game: GameState;
-  readonly open: boolean;
-}) {
-  const { name, token, count, tapped, counters } = item.permanent;
-  const allTapped = tapped > 0 && tapped === count;
-  return (
-    <div
-      className={`board-card ${seatColorClass(item.seat)}${allTapped ? ' board-card-tapped' : ''}${open ? ' board-open' : ''}`}
-      role="button"
-      tabIndex={0}
-      aria-label={name}
-      aria-expanded={open}
-      title={`${name}: drag it to where it is, click for more. Del takes it away.`}
-      data-testid="board-card"
-      data-permanent-id={item.permanent.id}
-      data-seat={item.seat}
-    >
-      {image ? (
-        <img className="board-card-art" src={cardImageUrl(image, 'small')} alt="" draggable={false} />
-      ) : (
-        <Icon name={token ? 'token' : 'card-play'} className="board-card-icon" />
-      )}
-      <span className="board-card-name">
-        {name}
-        {token && count > 1 ? ` ×${count}` : ''}
-        {tapped > 0 && count > 1 ? ` (${tapped} tapped)` : ''}
-      </span>
-      {Object.entries(counters).map(([kind, value]) => (
-        <span key={kind} className="board-counter" title={`${counterKindName(game, kind)} counters`}>
-          {value} {shortKind(game, kind)}
-        </span>
-      ))}
     </div>
   );
 }
@@ -687,7 +635,7 @@ function placeItems(
       const video = layer.parentElement?.querySelector<HTMLVideoElement>(`video.seat-video[data-seat="${item.seat}"]`);
       videos.set(
         item.seat,
-        video ? { video, box: video.getBoundingClientRect(), cardWidth: cardWidthOn(video, item.seat, origin) } : null,
+        video ? { video, box: video.getBoundingClientRect(), cardWidth: cardWidthOn(video, origin) } : null,
       );
     }
     const seat = videos.get(item.seat);
@@ -707,21 +655,12 @@ function placeItems(
   return placed;
 }
 
-/**
- * How wide a card is on a seat's video, on screen: as wide as the cards found there (the short side of the last
- * one), or a share of the picture before any was.
- */
-function cardWidthOn(video: HTMLVideoElement, seat: SeatIndex, origin: DOMRect): number {
+/** How wide a card is on a seat's video, on screen: a share of the picture. */
+function cardWidthOn(video: HTMLVideoElement, origin: DOMRect): number {
   const left = screenAt(video, { x: 0, y: 0.5 }, origin);
   const right = screenAt(video, { x: 1, y: 0.5 }, origin);
-  const top = screenAt(video, { x: 0.5, y: 0 }, origin);
-  const bottom = screenAt(video, { x: 0.5, y: 1 }, origin);
-  if (!left || !right || !top || !bottom) return 60;
-  const pictureWidth = Math.abs(right.x - left.x);
-  const pictureHeight = Math.abs(bottom.y - top.y);
-  const known = cardSizeOnSeat(seat);
-  const width = known ? Math.min(known.width * pictureWidth, known.height * pictureHeight) : pictureWidth * CARD_SHARE;
-  return Math.round(Math.min(220, Math.max(28, width)));
+  if (!left || !right) return 60;
+  return Math.round(Math.min(220, Math.max(28, Math.abs(right.x - left.x) * CARD_SHARE)));
 }
 
 /** What can be done with an item, under it (or over it, near the bottom), all of it inside the layer. */

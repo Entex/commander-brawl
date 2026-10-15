@@ -3078,58 +3078,12 @@ button.response-button:hover:not(:disabled) {
   transform: translate(-50%, -50%);
 }
 
-.board-card,
 .board-marker {
   pointer-events: auto;
   cursor: grab;
   user-select: none;
   touch-action: none;
   box-shadow: 0 2px 10px rgb(0 0 0 / 55%);
-}
-
-.board-card {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  max-width: 14rem;
-  padding: 2px 7px 2px 2px;
-  border: 1px solid color-mix(in srgb, var(--seat, var(--accent)) 70%, transparent);
-  border-left: 3px solid var(--seat, var(--accent));
-  border-radius: 6px;
-  background: rgb(8 9 13 / 0.82);
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.board-card-art {
-  width: 20px;
-  height: 28px;
-  object-fit: cover;
-  border-radius: 2px;
-  transition: transform 0.2s;
-}
-
-.board-card-icon {
-  width: 20px;
-  height: 20px;
-  color: var(--seat, var(--accent));
-}
-
-.board-card-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Tapped: turned sideways, like the card. */
-.board-card-tapped .board-card-art,
-.board-card-tapped .board-card-icon {
-  transform: rotate(90deg);
-}
-
-.board-card-tapped {
-  opacity: 0.75;
 }
 
 .board-counter {
@@ -3168,7 +3122,7 @@ button.response-button:hover:not(:disabled) {
   font-style: italic;
 }
 
-.board-card:focus-visible,
+.board-virtual:focus-visible,
 .board-marker:focus-visible,
 .board-open {
   outline: 2px solid #fff;
@@ -3575,7 +3529,7 @@ abbr.keyword {
   overflow-y: auto;
 }
 
-/* A virtual card (a token, or a card added by hand) on a player's video: the card itself, as big as theirs. */
+/* A card on a player's video (on their table, or a token or a card added by hand): the card itself. */
 .board-virtual {
   position: relative;
   pointer-events: auto;

@@ -687,6 +687,15 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
   const label = host.page.getByTestId('board-card');
   await expect(label).toHaveAccessibleName('Rhystic Study');
+  // Shown as the card, like a token, as big as cards are shown on the videos (not as big as the close-up found it).
+  await expect(label).toHaveClass(/board-virtual/);
+  await expect(label).not.toHaveAttribute('data-virtual');
+  const shown = friend.page.getByTestId('board-card');
+  const pictureLeft = await onPicture(video, 0, 0.5);
+  const pictureRight = await onPicture(video, 1, 0.5);
+  await expect
+    .poll(async () => (await shown.boundingBox())?.width ?? 0)
+    .toBeCloseTo((pictureRight.x - pictureLeft.x) * 0.08, -1);
   // The friend found it: the host gets it suggested for their Cards seen.
   await expect(host.page.getByTestId('seen-suggestions')).toHaveText('1');
   await host.page.getByTestId('seen-toggle').click();
@@ -763,7 +772,10 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(rail).toHaveCount(0);
   await friend.page.getByTestId('seen-toggle').click();
   await expect(friend.page.getByTestId('card-rail')).toBeVisible();
-  // Your own cards too, straight from your own camera.
+  // Your own cards too, straight from your own camera. The card is shown over itself on the video (clicked, it's what
+  // can be done with it), so the cards on the videos go out of the way first (B).
+  await host.page.keyboard.press('b');
+  await expect(host.page.getByTestId('board-card')).toHaveCount(0);
   const own = host.page.locator('.seat', { hasText: 'Host (you)' }).getByTestId('seat-video');
   const ownSpot = await onPicture(own, 0.5, 0.45);
   await host.page.mouse.click(ownSpot.x, ownSpot.y);
