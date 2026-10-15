@@ -1,4 +1,4 @@
-export { artOfArtCrop, artOfCard, artSimilarity } from './artPrint';
+export { artOfArtCrop, artOfCard, artSimilarity, artsOfCard } from './artPrint';
 export type { ArtPrint } from './artPrint';
 export { CARD_RATIO, cardCorners, dominantTilt, findCard, locationOfCorners } from './cardFinder';
 export type { CardLocation, FindCardOptions } from './cardFinder';

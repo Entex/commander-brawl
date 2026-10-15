@@ -1,5 +1,5 @@
 import { normalizeCardName, type Card } from '@commander-brawl/domain';
-import { artOfCard, artSimilarity, type ArtPrint } from './artPrint';
+import { artSimilarity, artsOfCard, type ArtPrint } from './artPrint';
 import { CARD_RATIO, cardCorners, dominantTilt, findCard, locationOfCorners, type CardLocation } from './cardFinder';
 import type { Quad } from './perspective';
 import { extract, toGray, type RgbaImage } from './pixels';
@@ -78,6 +78,11 @@ const NAME_STRIPS = [
 const NAME_STRIP_WIDTH = 480;
 /** How clearly a card's edges have to stand out to trust the outline. */
 const MIN_CLARITY = 0.9;
+/**
+ * A fainter outline is looked into all the same (a card among others on a busy table stands out less), but if what's in
+ * it doesn't say which card it is, the picture's text is read as if there were none.
+ */
+const FAINT_CLARITY = 0.6;
 /** Less, when it's where the card was expected (a busy background makes even a card's edges stand out less). */
 const HINTED_MIN_CLARITY = 0.5;
 /**
@@ -128,23 +133,29 @@ export class CardIdentifier {
   ) {}
 
   async identify(picture: RgbaImage, options: IdentifyOptions = {}): Promise<Identification> {
-    const likely = options.likely ?? [];
     const found = locate(picture, options.expected);
-    if (!found) {
-      // No outline: read whatever text there is, and go by names alone.
-      const upright =
-        options.rotation === 180 ? extract(picture, 0, whole(picture), picture.width, picture.height, 2) : picture;
-      const texts = readable(await this.reader.readPage(upright)).slice(0, 12);
-      const names = texts.length > 0 ? await this.catalog.closest(texts) : [];
-      return { picture: null, guesses: rank(likely, names, texts, new Map()) };
+    if (found) {
+      const result = await this.inOutline(picture, found, options);
+      if (options.expected || found.clarity >= MIN_CLARITY || result.guesses.length > 0) return result;
     }
+    // No outline (or a faint one that told nothing): read whatever text there is, and go by names alone.
+    const upright =
+      options.rotation === 180 ? extract(picture, 0, whole(picture), picture.width, picture.height, 2) : picture;
+    const texts = readable(await this.reader.readPage(upright)).slice(0, 12);
+    const names = texts.length > 0 ? await this.catalog.closest(texts) : [];
+    return { picture: null, guesses: rank(options.likely ?? [], names, texts, new Map()) };
+  }
 
+  /** The card in its outline: its artwork compared, and its name read. */
+  private async inOutline(picture: RgbaImage, found: CardLocation, options: IdentifyOptions): Promise<Identification> {
+    const likely = options.likely ?? [];
     const turns = straightTurns(found, options.rotation ?? 0);
     const views = turns.map((t) => extract(picture, found.angle, found.rect, CARD_WIDTH, CARD_HEIGHT, t));
-    const viewPrints = views.map((view) => artOfCard(view));
+    // Each way up, the artwork looked at a little moved and resized each way too (see artsOfCard).
+    const viewPrints = views.map((view) => artsOfCard(view));
     const art = new Map<string, number>();
     const compare = (card: Card, print: ArtPrint) => {
-      const similarities = viewPrints.map((viewPrint) => artSimilarity(viewPrint, print));
+      const similarities = viewPrints.map((prints) => Math.max(...prints.map((p) => artSimilarity(p, print))));
       // At its most alike: a card's other artwork doesn't take back a match one of them made.
       art.set(card.id, Math.max(art.get(card.id) ?? -Infinity, ...similarities));
       return similarities;
@@ -172,10 +183,11 @@ export class CardIdentifier {
 
     // Which way up the card is: the artwork tells, when it's clearly a likely card's. Otherwise the card's frame (the
     // text box is at the bottom) says which way to read the name first, and the name tells, if it reads one way up.
+    // When nothing tells, the way it's shown (see IdentifyOptions.rotation): the player turned the video to read it.
     const artDecides = bestArt >= ART_DECIDES;
     const frame = uprightness(views[0]!) - uprightness(views[1]!);
     const frameView = Math.abs(frame) >= FRAME_DECIDES ? (frame > 0 ? 0 : 1) : null;
-    const first = artDecides ? artView : (frameView ?? artView);
+    const first = artDecides ? artView : (frameView ?? 0);
 
     // Then the name, the likelier way up first, and the other only if that didn't read as a card. The
     // generous strip first, then just inside the card's frame: the frame's edge in the strip can throw the
@@ -227,20 +239,20 @@ export class CardIdentifier {
         ? nameView
         : bestArt >= ART_DECIDES
           ? artView
-          : (frameView ?? artView);
+          : (frameView ?? 0);
     return { picture: views[view]!, guesses: rank(likely, names, texts, art) };
   }
 }
 
 /**
- * The card's outline in the picture. Without a hint, only one that stands out clearly. With where it's
+ * The card's outline in the picture. Without a hint, one that stands out at all (see FAINT_CLARITY). With where it's
  * expected (from the video), one that stands out less but agrees with that, or else the expected outline
  * itself: the video already found the card there.
  */
 function locate(picture: RgbaImage, expected: Quad | undefined): CardLocation | null {
   if (!expected) {
     const location = findCard(picture);
-    return location && location.clarity >= MIN_CLARITY ? location : null;
+    return location && location.clarity >= FAINT_CLARITY ? location : null;
   }
   const { width, height } = picture;
   const corners = expected.map((c) => ({ x: c.x * width, y: c.y * height })) as unknown as Quad;

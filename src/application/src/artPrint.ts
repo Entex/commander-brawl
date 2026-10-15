@@ -26,6 +26,37 @@ export function artOfCard(card: RgbaImage): ArtPrint {
   return printOf(card, ART_ON_CARD);
 }
 
+/** How far the art part is moved (as a share of the card's height; across, only the smaller ones) and resized. */
+const SHIFTS = [-0.08, -0.04, 0, 0.04, 0.08];
+const SIDEWAYS_SHIFTS = [-0.04, 0, 0.04];
+const SCALES = [0.92, 1, 1.08];
+
+/**
+ * The artwork's print from a straightened picture of the whole card, the part looked at moved and resized a little
+ * each way: an outline found a bit off (around a sleeve, or a card next to it) still has the artwork in it, in one of
+ * them. Compare with all, and take the most alike.
+ */
+export function artsOfCard(card: RgbaImage): ArtPrint[] {
+  const prints: ArtPrint[] = [];
+  for (const scale of SCALES) {
+    const width = ART_ON_CARD.width * scale;
+    const height = ART_ON_CARD.height * scale;
+    for (const dy of SHIFTS) {
+      for (const dx of SIDEWAYS_SHIFTS) {
+        prints.push(
+          printOf(card, {
+            x: ART_ON_CARD.x + (ART_ON_CARD.width - width) / 2 + dx,
+            y: ART_ON_CARD.y + (ART_ON_CARD.height - height) / 2 + dy,
+            width,
+            height,
+          }),
+        );
+      }
+    }
+  }
+  return prints;
+}
+
 /** The artwork's print, from a picture of only the artwork. */
 export function artOfArtCrop(art: RgbaImage): ArtPrint {
   return printOf(art, ART_IN_CROP);
@@ -51,9 +82,9 @@ function printOf(image: RgbaImage, area: { x: number; y: number; width: number; 
   const y0 = Math.floor(area.y * image.height);
   const x1 = Math.max(x0 + COLUMNS, Math.floor((area.x + area.width) * image.width));
   const y1 = Math.max(y0 + ROWS, Math.floor((area.y + area.height) * image.height));
-  for (let y = y0; y < Math.min(y1, image.height); y++) {
+  for (let y = Math.max(0, y0); y < Math.min(y1, image.height); y++) {
     const row = Math.floor(((y - y0) / (y1 - y0)) * ROWS);
-    for (let x = x0; x < Math.min(x1, image.width); x++) {
+    for (let x = Math.max(0, x0); x < Math.min(x1, image.width); x++) {
       const i = (y * image.width + x) * 4;
       if (image.data[i + 3] === 0) continue;
       const cell = row * COLUMNS + Math.floor(((x - x0) / (x1 - x0)) * COLUMNS);

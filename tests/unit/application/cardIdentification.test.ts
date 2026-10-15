@@ -1,6 +1,7 @@
 import {
   CardIdentifier,
   CardIndex,
+  findCard,
   artOfArtCrop,
   nameSimilarity,
   toGray,
@@ -256,6 +257,25 @@ describe('working out which card is in a close-up', () => {
     const art = new Artwork({ 'Sol Ring': [42] });
     await new CardIdentifier(new Reader('Rhystic Study'), catalogPort, art).identify(tablePicture(1), { likely: deck });
     expect(art.alternativesAsked).toEqual([]);
+  });
+
+  it('looks into a card that stands out only a little from a busy table, and finds it by its artwork', async () => {
+    const picture = blank(320, 440, [40, 40, 44]);
+    for (let i = -20; i < 50; i++) {
+      fillRect(picture, { cx: i * 16, cy: 220, width: 8, height: 900, angle: 30 }, [110, 110, 103]);
+    }
+    drawCard(picture, { cx: 160, cy: 220, width: 190, angle: 4, art: artwork(3), nameBar: RED });
+    addNoise(picture, 10);
+    // Fainter than an outline that's trusted at once.
+    const clarity = findCard(picture)!.clarity;
+    expect(clarity).toBeGreaterThan(0.6);
+    expect(clarity).toBeLessThan(0.9);
+
+    const result = await new CardIdentifier(new Reader('—'), catalogPort, new Artwork()).identify(picture, {
+      likely: deck,
+    });
+    expect(result.guesses[0]!.card.name).toBe('Cultivate');
+    expect(result.picture).not.toBeNull();
   });
 
   it("goes by where the video found the card, when its outline doesn't stand out from a busy background", async () => {
