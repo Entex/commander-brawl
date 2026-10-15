@@ -36,7 +36,7 @@ A dropped connection, a phone that locks, or a host app that crashes doesn't end
 - **On the battlefield:** cards, tokens, counters and notes show on each player's video, where they are, for everyone; drag them along, and Alt+click a spot to add one. Each player's graveyard can be searched.
 - **Close-ups:** click a card on any video, or Ctrl+drag (⌘+drag) a box around it. You get a sharp picture straight from that player's camera, and which card it is (read on your computer, offline), and it's put on their battlefield. _Cards seen_ keeps them, with the cards shown to everyone, others' finds, and the combos each card is part of.
 - **Cards:** search every card (Ctrl+K), with rulings and its keywords explained. They come from Scryfall once, then work offline.
-- **Decks and Rule 0:** import a deck from a Moxfield, Archidekt, TappedOut, Deckstats or Scryfall link, or a pasted list. Rule 0 checks each deck against its bracket (Game Changers, combos, land denial, extra turns), and the table warns when someone is one piece away from a combo.
+- **Decks and Rule 0:** import a deck from a Moxfield, Archidekt, TappedOut, Deckstats or Scryfall link, or a pasted list. When a game starts, the app asks which one you're playing: with it, close-ups of your cards are recognized much better. Rule 0 checks each deck against its bracket (Game Changers, combos, land denial, extra turns), and the table warns when someone is one piece away from a combo.
 - **Roll:** dice, coin flips and random players, rolled by the host so everyone can trust the result.
 - **Planechase and Archenemy.**
 - **Recap and History:** who won and the key moments of each game, the game log, and stats per player and deck. Export them to share with friends.

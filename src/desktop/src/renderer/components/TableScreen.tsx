@@ -48,7 +48,7 @@ import { CardRail } from './CardRail';
 import { CardsPanel } from './CardsPanel';
 import { ComboWarnings } from './ComboWarnings';
 import { CountersPanel } from './CountersPanel';
-import { DecksPanel } from './DecksPanel';
+import { DeckPrompt, DecksPanel } from './DecksPanel';
 import { HistoryPanel } from './HistoryPanel';
 import { PointerLayer } from './PointerLayer';
 import { GameOverBanner, RecapView, useLiveRecap } from './RecapView';
@@ -90,6 +90,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     setCardsOpen(true);
   }, []);
   const [decksOpen, setDecksOpen] = useState(false);
+  /** The game the player chose to play without a deck: they're asked again when the next one starts. */
+  const [noDeckFor, setNoDeckFor] = useState<number | null>(null);
   const [rule0Open, setRule0Open] = useState(false);
   const [clockOpen, setClockOpen] = useState(false);
   const [variantsOpen, setVariantsOpen] = useState(false);
@@ -516,6 +518,19 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           }}
         />
       )}
+      {game &&
+        config.askForDeck &&
+        !spectating &&
+        selfSeat !== null &&
+        !decksOpen &&
+        !game.state.seats[selfSeat]?.deck &&
+        noDeckFor !== game.state.number && (
+          <DeckPrompt
+            seat={selfSeat}
+            onImport={() => setDecksOpen(true)}
+            onSkip={() => setNoDeckFor(game.state.number)}
+          />
+        )}
       {decksOpen && (
         <DecksPanel
           seat={selfSeat}

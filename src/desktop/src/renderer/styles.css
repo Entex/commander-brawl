@@ -3453,3 +3453,27 @@ abbr.keyword {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* Asked for your deck when a game starts. */
+.deck-prompt {
+  width: min(520px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.deck-prompt h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.deck-prompt p {
+  margin: 0;
+}
+
+.deck-prompt .row {
+  justify-content: flex-end;
+  margin-top: 0.4rem;
+}

@@ -39,6 +39,8 @@ const env = {
   spellbookApi: process.env.CB_SPELLBOOK_API,
   /** A stand-in for GitHub's API, where new versions are found. Tests set it; otherwise only installed apps look. */
   updatesApi: process.env.CB_UPDATES_API,
+  /** Off: don't ask players for their deck when a game starts. For tests that don't need one. */
+  askForDeck: process.env.CB_DECK_PROMPT !== 'off',
 };
 
 if (env.userDataDir) app.setPath('userData', env.userDataDir);
@@ -200,7 +202,11 @@ function registerIpc(
   history: FileHistoryStore,
   updates: UpdateService,
 ): void {
-  const config: RendererConfig = { version: app.getVersion(), iceServers: env.localOnly ? [] : null };
+  const config: RendererConfig = {
+    version: app.getVersion(),
+    iceServers: env.localOnly ? [] : null,
+    askForDeck: env.askForDeck,
+  };
   handle(Channels.config, () => config);
   handle(Channels.tableHost, (name) => table.host(requireString(name)));
   handle(Channels.tableSaved, () => table.savedTable());

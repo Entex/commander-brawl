@@ -50,6 +50,8 @@ export interface RendererConfig {
   readonly version: string;
   /** null means "use the defaults"; an empty list means "local network only" (used by tests). */
   readonly iceServers: IceServerConfig[] | null;
+  /** Ask a player who has no deck chosen for it when a game starts. */
+  readonly askForDeck: boolean;
 }
 
 export type PhoneLinkEvent =

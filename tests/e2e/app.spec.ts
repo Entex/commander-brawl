@@ -91,6 +91,8 @@ async function launch(
       CB_SAVE_DIR: saveDir,
       CB_SCRYFALL_API: scryfall.apiUrl,
       CB_SPELLBOOK_API: spellbook.apiUrl,
+      // Not asked for a deck when a game starts: most tests don't need one. The test of it turns it on.
+      CB_DECK_PROMPT: 'off',
       ...(options.openFile ? { CB_OPEN_FILE: options.openFile } : {}),
       ...options.env,
     },
@@ -565,6 +567,43 @@ test('importing decks and playing one', async () => {
     'title',
     /can't be blocked/,
   );
+});
+
+test('asked for your deck when a game starts, with the choice to go on without', async () => {
+  const host = await launch('Host', { env: { CB_DECK_PROMPT: 'on' } });
+  await cardsReady(host.page);
+  await host.page.getByTestId('host').click();
+
+  const prompt = host.page.getByRole('dialog', { name: 'Which deck are you playing?' });
+  await expect(prompt).toContainText('close-ups of your cards are recognized much better');
+  await expect(prompt).toContainText("You haven't imported a deck yet.");
+  await prompt.getByRole('button', { name: 'Continue without a deck' }).click();
+  await expect(prompt).toHaveCount(0);
+
+  // Asked again when the next game starts.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'New game' }).click();
+  await host.page.getByRole('menuitem', { name: 'Start a new game?' }).click();
+  await expect(prompt).toBeVisible();
+
+  // Importing one from there, then playing it.
+  await prompt.getByRole('button', { name: 'Import a deck…' }).click();
+  const panel = host.page.getByTestId('decks-panel');
+  await panel.getByLabel('Deck link or list').fill('https://moxfield.com/decks/Y8dZ7');
+  await panel.getByRole('button', { name: 'Import' }).click();
+  await panel.getByRole('button', { name: 'Save deck' }).click();
+  await panel.getByRole('button', { name: 'Done' }).click();
+  await host.page.screenshot({ path: test.info().outputPath('deck-prompt.png') });
+  await prompt.getByTestId('prompt-deck-Atraxa').getByRole('button', { name: 'Play this deck' }).click();
+  await expect(prompt).toHaveCount(0);
+  await expect(host.page.getByTestId('last-change')).toHaveText('Host is playing Atraxa');
+
+  // Playing a deck, nobody asks: not in the next game either (the deck stays).
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'New game' }).click();
+  await host.page.getByRole('menuitem', { name: 'Start a new game?' }).click();
+  await expect(host.page.getByTestId('last-change')).toHaveText('Host started a new game');
+  await expect(prompt).toHaveCount(0);
 });
 
 test('casting a card puts it in the spotlight for everyone', async () => {

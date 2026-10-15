@@ -52,14 +52,7 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
   };
 
   const play = (deck: DeckList) => {
-    if (seat === null) return;
-    const { name, commanders, cards } = deck;
-    const chosen = { name, commanders, cards };
-    submitGameEvent({ type: 'deck-chosen', seat, deck: chosen });
-    // The bracket check needs Commander Spellbook, so it follows when it's done instead of holding this up.
-    void api.decks
-      .analyze(chosen)
-      .then((analysis) => submitGameEvent({ type: 'deck-analyzed', seat, deckName: name, analysis }));
+    if (seat !== null) playDeck(seat, deck);
   };
 
   return (
@@ -200,6 +193,77 @@ function DeckPreview({ imported, onSave, onCancel }: DeckPreviewProps) {
         </button>
       </div>
     </section>
+  );
+}
+
+/** The player at this seat plays this deck: everyone's told, and its bracket check follows. */
+export function playDeck(seat: SeatIndex, deck: DeckList): void {
+  const { name, commanders, cards } = deck;
+  const chosen = { name, commanders, cards };
+  submitGameEvent({ type: 'deck-chosen', seat, deck: chosen });
+  // The bracket check needs Commander Spellbook, so it follows when it's done instead of holding this up.
+  void api.decks
+    .analyze(chosen)
+    .then((analysis) => submitGameEvent({ type: 'deck-analyzed', seat, deckName: name, analysis }));
+}
+
+interface DeckPromptProps {
+  readonly seat: SeatIndex;
+  /** Opens the Decks panel, to import a deck. */
+  onImport(): void;
+  /** Playing without a deck this game. */
+  onSkip(): void;
+}
+
+/**
+ * When a game starts and the player hasn't said which deck they're playing: their saved decks to pick from, why
+ * it's worth it (close-ups of their cards are compared with the deck's cards and artwork), and going on without.
+ */
+export function DeckPrompt({ seat, onImport, onSkip }: DeckPromptProps) {
+  const [decks, setDecks] = useState<readonly SavedDeck[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    void api.decks.list().then((list) => {
+      if (active) setDecks(list);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="overlay" role="dialog" aria-label="Which deck are you playing?">
+      <div className="panel deck-prompt" data-testid="deck-prompt">
+        <h2>
+          <Icon name="card-draw" /> Which deck are you playing?
+        </h2>
+        <p>
+          With your deck, close-ups of your cards are recognized much better: they're compared with the cards in your
+          deck, and their artwork, instead of every card there is. Your commanders show on your seat, and Rule 0 checks
+          the deck too.
+        </p>
+        {decks !== null && decks.length === 0 && <p className="hint">You haven't imported a deck yet.</p>}
+        {decks?.map((deck) => (
+          <div key={deck.id} className="deck-row" data-testid={`prompt-deck-${deck.name}`}>
+            <div className="deck-summary">
+              <strong>{deck.name}</strong>
+              <span className="hint">
+                {deck.commanders.map((c) => c.name).join(' & ') || 'No commander'} · {deckSize(deck)} cards
+              </span>
+            </div>
+            <button className="primary" onClick={() => playDeck(seat, deck)}>
+              Play this deck
+            </button>
+          </div>
+        ))}
+        <div className="row">
+          <button onClick={onImport}>
+            <Icon name="card-draw" /> Import a deck…
+          </button>
+          <button onClick={onSkip}>Continue without a deck</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
