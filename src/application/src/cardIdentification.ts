@@ -145,7 +145,8 @@ export class CardIdentifier {
     const art = new Map<string, number>();
     const compare = (card: Card, print: ArtPrint) => {
       const similarities = viewPrints.map((viewPrint) => artSimilarity(viewPrint, print));
-      art.set(card.id, Math.max(...similarities));
+      // At its most alike: a card's other artwork doesn't take back a match one of them made.
+      art.set(card.id, Math.max(art.get(card.id) ?? -Infinity, ...similarities));
       return similarities;
     };
 
@@ -157,8 +158,6 @@ export class CardIdentifier {
       cards.forEach((card, i) => {
         for (const print of found[i]!) {
           const similarities = compare(card, print);
-          // Kept at its most alike: the card's other artwork doesn't take back a match.
-          art.set(card.id, Math.max(art.get(card.id) ?? -Infinity, ...similarities));
           similarities.forEach((similarity, v) => {
             if (similarity > bestArt) [bestArt, artView] = [similarity, v];
           });
@@ -170,9 +169,12 @@ export class CardIdentifier {
       return print ? [print] : [];
     };
     await compareAll(likely, usual);
-    // Not the usual artwork of any card in the deck: maybe another printing of one (alternative art).
+    // Not the usual artwork of any card in the deck: maybe another printing of one (alternative art). Not basic lands
+    // or tokens: they have hundreds of artworks, and are rarely what a close-up is for.
     const alternatives = this.art.alternatives?.bind(this.art);
-    if (bestArt < ART_DECIDES && alternatives && likely.length > 0) await compareAll(likely, alternatives);
+    const printedMany = (card: Card) => /\bBasic\b/.test(card.typeLine) || /\bToken\b/.test(card.typeLine);
+    const worthIt = likely.filter((card) => !printedMany(card));
+    if (bestArt < ART_DECIDES && alternatives && worthIt.length > 0) await compareAll(worthIt, alternatives);
 
     // Which way up the card is: the artwork tells, when it's clearly a likely card's. Otherwise the card's frame (the
     // text box is at the bottom) says which way to read the name first, and the name tells, if it reads one way up.
@@ -211,7 +213,7 @@ export class CardIdentifier {
     const named = names
       .slice(0, ART_CHECKS)
       .map((match) => match.card)
-      .filter((card) => (art.get(card.id) ?? 0) < ART_DECIDES);
+      .filter((card) => (art.get(card.id) ?? 0) < ART_DECIDES && !printedMany(card));
     if (alternatives && named.length > 0 && nameScore >= NAME_DECIDES) await compareAll(named, alternatives);
 
     const view = artDecides

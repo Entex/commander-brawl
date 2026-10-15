@@ -584,22 +584,31 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
         ...seat,
         markers: seat.markers.filter((m) => m.id !== event.id),
       }));
-    case 'card-to-graveyard':
-      return updateSeat(state, event.seat, (seat) => ({
-        ...seat,
-        graveyard: bury(seat.graveyard, event.card),
-        permanents: event.from === undefined ? seat.permanents : seat.permanents.filter((p) => p.id !== event.from),
+    case 'card-to-graveyard': {
+      // From the battlefield, only if it's still there: put in the graveyard twice (G pressed twice, two players at
+      // once), it goes there once.
+      const seat = state.seats[event.seat];
+      if (!seat || (event.from !== undefined && !seat.permanents.some((p) => p.id === event.from))) return state;
+      return updateSeat(state, event.seat, (s) => ({
+        ...s,
+        graveyard: bury(s.graveyard, event.card),
+        permanents: event.from === undefined ? s.permanents : s.permanents.filter((p) => p.id !== event.from),
       }));
+    }
     case 'graveyard-card-removed': {
-      const card = state.seats[event.seat]?.graveyard.find((c) => c.id === event.id);
-      if (!card) return state;
-      return updateSeat(state, event.seat, (seat) => ({
-        ...seat,
-        graveyard: seat.graveyard.filter((c) => c.id !== event.id),
-        // Back on the battlefield (reanimated): one of it, untapped, not on the video until someone puts it there.
-        permanents: event.returned
-          ? addPermanent(seat.permanents, { id: card.id, name: card.name, cardId: card.cardId, token: false, count: 1 })
-          : seat.permanents,
+      const seat = state.seats[event.seat];
+      const card = seat?.graveyard.find((c) => c.id === event.id);
+      if (!seat || !card) return state;
+      // Back on the battlefield (reanimated): one of it, untapped, not on the video until someone puts it there. Only
+      // if there's room for it there; otherwise it stays in the graveyard.
+      const permanents = event.returned
+        ? addPermanent(seat.permanents, { id: card.id, name: card.name, cardId: card.cardId, token: false, count: 1 })
+        : seat.permanents;
+      if (event.returned && permanents === seat.permanents) return state;
+      return updateSeat(state, event.seat, (s) => ({
+        ...s,
+        graveyard: s.graveyard.filter((c) => c.id !== event.id),
+        permanents,
       }));
     }
     case 'marker-attached': {

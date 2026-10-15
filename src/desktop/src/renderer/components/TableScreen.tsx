@@ -22,11 +22,11 @@ import {
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { HostInfo, RendererConfig } from '../../shared/api';
 import { IpcTableSignaling } from '../api';
-import type { CardTarget } from '../cardTarget';
+import { cardSizeOnSeat, type CardTarget } from '../cardTarget';
 import { describeEvent } from '../describeEvent';
 import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
-import { api } from '../api';
+import { cardById } from '../useCards';
 import { isToken, nextSpot } from './AddToBattlefield';
 import { Battlefield } from './Battlefield';
 import { GraveyardPanel } from './Graveyard';
@@ -743,7 +743,19 @@ function onBattlefield(game: GameState | null, lookup: CardLookup, card: Card): 
   const permanents = game?.seats[lookup.seat]?.permanents ?? [];
   const placed = permanents.find((p) => p.id === lookup.placed);
   if (placed) return placed;
-  return isRepeatable(card) ? undefined : permanents.find((p) => p.cardId === card.id);
+  if (!isRepeatable(card)) return permanents.find((p) => p.cardId === card.id);
+  // One of many (a basic land, a token): the one where it was clicked, if it's there already (clicked again to read
+  // it, or by someone else), not another.
+  const spot = centerOf(lookup);
+  if (!spot) return undefined;
+  const size = cardSizeOnSeat(lookup.seat) ?? { width: 0.08, height: 0.2 };
+  return permanents.find(
+    (p) =>
+      p.cardId === card.id &&
+      p.spot !== null &&
+      Math.abs(p.spot.x - spot.x) <= size.width / 2 &&
+      Math.abs(p.spot.y - spot.y) <= size.height / 2,
+  );
 }
 
 /** Cards a deck can have more than one of. */
@@ -774,7 +786,8 @@ function useCardsFromTheTable(
   self: SeatIndex | null,
   add: (known: KnownCard) => void,
 ): void {
-  const handledUpTo = useRef<number | null>(null);
+  // By each entry's own id: when the host starts a new log (after a restart), its positions start over.
+  const handled = useRef<Set<string> | null>(null);
   const live = game?.live;
   const latest = useRef({ players, self, add });
   useEffect(() => {
@@ -782,13 +795,15 @@ function useCardsFromTheTable(
   });
   useEffect(() => {
     if (!live) return;
-    const newest = live.at(-1)?.seq ?? -1;
-    if (handledUpTo.current === null) {
-      handledUpTo.current = newest;
+    if (handled.current === null) {
+      // Not the ones from before this screen opened.
+      handled.current = new Set(live.map((entry) => entry.id));
       return;
     }
-    const fresh = live.filter((entry) => entry.seq > handledUpTo.current!);
-    handledUpTo.current = Math.max(handledUpTo.current, newest);
+    const fresh = live.filter((entry) => !handled.current!.has(entry.id));
+    for (const entry of fresh) handled.current.add(entry.id);
+    // The live list holds the last few: what's dropped off it can't come back.
+    if (handled.current.size > 200) handled.current = new Set(live.map((entry) => entry.id));
     for (const entry of fresh) {
       const { event, by } = entry;
       const { players, self, add } = latest.current;
@@ -813,14 +828,6 @@ function useCardsFromTheTable(
       }
     }
   }, [live]);
-}
-
-async function cardById(id: string): Promise<Card | null> {
-  try {
-    return (await api.cards.byIds([id]))[0] ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /** Once a looked-up card is known for sure, it's put on the battlefield; once for each look. Not when watching. */

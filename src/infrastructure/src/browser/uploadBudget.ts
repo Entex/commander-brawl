@@ -47,8 +47,12 @@ const WATCHER_LONG_SIDE = 1280;
 const WATCHER_FPS = 20;
 /** Never less than this for a link, however tight it gets: a picture at all. */
 const MIN_LINK_BPS = 300_000;
-/** When a link is held back by bandwidth, the budget is this share of what's getting through. */
+/** When the upload is full, the budget is this share of what's getting through. */
 const BACK_OFF = 0.9;
+/** Cut at most this often: each cut has to show in what's getting through before the next is worth it. */
+const CUT_EVERY_MS = 10_000;
+/** A stream sending this share of the most it may is held back by that, not by the network. */
+const AT_CAP = 0.9;
 /** After this long without any link held back, the budget grows by this much, up to every link's full share. */
 const CALM_MS = 20_000;
 const GROW = 1.2;
@@ -80,6 +84,7 @@ export class UploadBudget {
   /** What all the links together may send. Null: as much as each link's own limit. */
   private total: number | null = null;
   private calmSince: number;
+  private cutAt = Number.NEGATIVE_INFINITY;
   private readonly now: () => number;
   /** How sharp the player chose to send. */
   private sent: SentHeight = 1080;
@@ -134,18 +139,28 @@ export class UploadBudget {
       state.good = 0;
     }
 
+    const now = this.now();
     const all = [...this.links.values()];
     const full = all.reduce((sum, s) => sum + this.limitOf(s), 0);
     // What links reported lately: one that stopped sending (no camera) doesn't count.
-    const fresh = all.filter((s) => s.sample !== null && this.now() - s.at <= FRESH_MS);
-    if (fresh.some((s) => s.sample!.limitation === 'bandwidth')) {
-      // Not room for everything: as much as is getting through now, shared out fairly.
-      const getting = fresh.reduce((sum, s) => sum + s.sample!.sentBps, 0);
-      if (getting > 0) this.total = Math.min(full, Math.max(MIN_LINK_BPS * all.length, getting * BACK_OFF));
-      this.calmSince = this.now();
-    } else if (this.total !== null && this.now() - this.calmSince >= CALM_MS) {
+    const fresh = all.filter((s) => s.sample !== null && now - s.at <= FRESH_MS);
+    // Held back by the network: not a stream at the most it may send, which WebRTC says is "bandwidth" too.
+    const squeezed = fresh.filter(
+      (s) => s.sample!.limitation === 'bandwidth' && s.sample!.sentBps < this.bitrateOf(s) * AT_CAP,
+    );
+    // The upload is full when most streams are held back at once. One alone is that one's connection (a watcher on
+    // poor Wi-Fi, say): WebRTC slows that stream by itself, and the others needn't go slower for it.
+    if (squeezed.length >= 2 && squeezed.length * 2 >= fresh.length) {
+      if (now - this.cutAt >= CUT_EVERY_MS) {
+        // As much as is getting through now, shared out fairly.
+        const getting = fresh.reduce((sum, s) => sum + s.sample!.sentBps, 0);
+        if (getting > 0) this.total = Math.min(full, Math.max(MIN_LINK_BPS * all.length, getting * BACK_OFF));
+        this.cutAt = now;
+      }
+      this.calmSince = now;
+    } else if (this.total !== null && now - this.calmSince >= CALM_MS) {
       this.total *= GROW;
-      this.calmSince = this.now();
+      this.calmSince = now;
       if (this.total >= full) this.total = null;
     }
   }
@@ -155,16 +170,20 @@ export class UploadBudget {
     const { longSide } = SENT[this.sent];
     const state = this.links.get(link);
     if (!state) return { maxBitrateBps: this.playerBps(), maxLongSide: longSide, maxFramerate: undefined };
-    const all = [...this.links.values()];
-    const own = this.limitOf(state);
-    const weights = all.reduce((sum, s) => sum + this.limitOf(s), 0);
-    const share = this.total === null ? own : Math.max(MIN_LINK_BPS, (this.total * own) / weights);
     const side = state.watcher ? Math.min(longSide, WATCHER_LONG_SIDE) : longSide;
     return {
-      maxBitrateBps: Math.round(Math.min(own, share)),
+      maxBitrateBps: this.bitrateOf(state),
       maxLongSide: Math.round(side / SCALES[state.step]!),
       maxFramerate: state.watcher ? WATCHER_FPS : undefined,
     };
+  }
+
+  /** The most a link may send now: its own limit, or its share of the budget. */
+  private bitrateOf(state: LinkState): number {
+    const own = this.limitOf(state);
+    if (this.total === null) return own;
+    const weights = [...this.links.values()].reduce((sum, s) => sum + this.limitOf(s), 0);
+    return Math.round(Math.min(own, Math.max(MIN_LINK_BPS, (this.total * own) / weights)));
   }
 
   private playerBps(): number {

@@ -210,6 +210,26 @@ describe('working out which card is in a close-up', () => {
     expect(art.alternativesAsked).toEqual(expect.arrayContaining(deck.map((c) => c.name)));
   });
 
+  it("keeps a card's best match among its artworks, whichever comes last", async () => {
+    // The matching printing first, then one that looks nothing like it.
+    const art = new Artwork({ 'Sol Ring': [42, 77] });
+    const result = await new CardIdentifier(new Reader('—'), catalogPort, art).identify(tablePicture(42), {
+      likely: deck,
+    });
+    expect(result.guesses[0]!.card.name).toBe('Sol Ring');
+    expect(result.guesses[0]!.score).toBeGreaterThan(0.6);
+  });
+
+  it("doesn't look through basic lands' and tokens' other artwork", async () => {
+    const forest = { ...card('Forest', 50), typeLine: 'Basic Land — Forest' };
+    const art = new Artwork({ Forest: [42] });
+    await new CardIdentifier(new Reader('—'), catalogPort, art).identify(tablePicture(42), {
+      likely: [...deck, forest],
+    });
+    expect(art.alternativesAsked).not.toContain('Forest');
+    expect(art.alternativesAsked).toContain('Sol Ring');
+  });
+
   it("doesn't ask for other artwork when the usual is clearly it", async () => {
     const art = new Artwork({ 'Sol Ring': [42] });
     await new CardIdentifier(new Reader('Rhystic Study'), catalogPort, art).identify(tablePicture(1), { likely: deck });

@@ -17,7 +17,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Icon } from '../icons/Icon';
-import { isTyping } from '../keys';
+import { isTyping, panelOpen } from '../keys';
 import { CUSTOM_KIND_PREFIX, counterKindName } from '../names';
 import { seatColorClass } from '../seatColors';
 import { useCardsById } from '../useCards';
@@ -29,6 +29,8 @@ import { pictureNear, screenAt } from '../videoPoints';
 const DRAG_DISTANCE = 6;
 /** Room kept between what's shown and the edges, in pixels. */
 const EDGE = 4;
+/** How often what's on the videos is placed again, in case their layout changed. */
+const PLACE_EVERY_MS = 250;
 /** A virtual card's width, as a share of its player's picture, before a real card was found there to go by. */
 const CARD_SHARE = 0.08;
 
@@ -89,10 +91,11 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
     latest.current = { items, open };
   });
 
-  // Where each one is on screen depends on the videos' layout, which can change any time: placed every frame.
+  // Where each one is on screen depends on the videos' layout, which can change any time (a window resized, a panel
+  // opened, a seat enlarged): placed at once when what's on the battlefield changes, and a few times a second.
   const layoutKey = items.map((item) => `${item.key}@${item.spot.x},${item.spot.y}`).join('|');
   useEffect(() => {
-    let frame = requestAnimationFrame(function place() {
+    const place = () => {
       const layer = ref.current;
       if (layer) {
         const next = placeItems(layer, latest.current.items, elements.current);
@@ -111,18 +114,27 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
             : nextControls,
         );
       }
-      // Nothing on any video: nothing to place until something is (the layout key changes then).
-      if (latest.current.items.length > 0) frame = requestAnimationFrame(place);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [layoutKey]);
+    };
+    place();
+    // Nothing on any video: nothing to place until something is (the layout key changes then).
+    if (latest.current.items.length === 0) return;
+    const timer = setInterval(place, PLACE_EVERY_MS);
+    // The table resized (the window, a panel opened beside it): at once, not on the next round.
+    const resized = new ResizeObserver(place);
+    if (ref.current) resized.observe(ref.current);
+    return () => {
+      clearInterval(timer);
+      resized.disconnect();
+    };
+  }, [layoutKey, open]);
 
   // Del (or Backspace) takes away the one the pointer is on; G puts a card in the graveyard.
   useEffect(() => {
     if (readOnly) return;
     const onKey = (event: KeyboardEvent) => {
-      const item = hovered.current;
-      if (!item || isTyping(event) || event.ctrlKey || event.metaKey || event.altKey) return;
+      // The one the pointer is on, as it is now: one that's gone (taken away, put in the graveyard) isn't.
+      const item = latest.current.items.find((i) => i.key === hovered.current?.key);
+      if (!item || isTyping(event) || event.ctrlKey || event.metaKey || event.altKey || panelOpen()) return;
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         remove(item);

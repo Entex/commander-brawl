@@ -26,15 +26,43 @@ describe('sharing out what a player sends across their links', () => {
 
   it("shares out what gets through when there isn't room for it all, a player's share bigger than a watcher's", () => {
     const { budget, players, watcher } = table();
-    // About 5 Mbps getting through in all, one stream held back by bandwidth.
+    // About 5 Mbps getting through in all, half the streams held back by bandwidth: the upload is full.
     budget.report(players[0]!, fine(1_500_000));
-    budget.report(players[1]!, fine(1_400_000));
+    budget.report(players[1]!, squeezed(1_400_000, 18));
     budget.report(watcher, fine(600_000));
     budget.report(players[2]!, squeezed(1_500_000, 18));
     const total = [...players, watcher].reduce<number>((sum, link) => sum + budget.planFor(link).maxBitrateBps, 0);
     expect(total).toBeGreaterThan(4_400_000);
     expect(total).toBeLessThan(4_600_000);
     expect(budget.planFor(players[0]!).maxBitrateBps).toBeGreaterThan(budget.planFor(watcher).maxBitrateBps * 2);
+  });
+
+  it("doesn't slow everyone down for one stream held back on its own: a watcher on a poor connection", () => {
+    const { budget, players, watcher } = table();
+    for (let i = 0; i < 10; i++) {
+      for (const link of players) budget.report(link, fine(2_800_000));
+      budget.report(watcher, squeezed(200_000, 12));
+    }
+    expect(budget.planFor(players[0]!).maxBitrateBps).toBe(3_000_000);
+  });
+
+  it("doesn't count a stream held back by the most it may send", () => {
+    const { budget, players } = table();
+    for (let i = 0; i < 5; i++) for (const link of players) budget.report(link, squeezed(2_900_000, 24));
+    expect(budget.planFor(players[0]!).maxBitrateBps).toBe(3_000_000);
+  });
+
+  it("cuts at most every 10 seconds, so it doesn't slide down on its own cuts", () => {
+    const { budget, players, now } = table();
+    for (const link of players) budget.report(link, squeezed(1_000_000, 18));
+    const cut = budget.planFor(players[0]!).maxBitrateBps;
+    // Two seconds on, each sending what it's now allowed (less): not cut again yet.
+    now.t += 2_000;
+    for (const link of players) budget.report(link, squeezed(cut * 0.8, 18));
+    expect(budget.planFor(players[0]!).maxBitrateBps).toBe(cut);
+    now.t += 10_000;
+    for (const link of players) budget.report(link, squeezed(cut * 0.8, 18));
+    expect(budget.planFor(players[0]!).maxBitrateBps).toBeLessThan(cut);
   });
 
   it('grows back when nothing has been held back for a while', () => {

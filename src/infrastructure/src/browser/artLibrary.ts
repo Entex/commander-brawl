@@ -8,6 +8,9 @@ import { imageToRgba } from './pixels';
  * session; the browser keeps the pictures longer. A few downloads at a time, so a whole deck's worth
  * doesn't crowd out the video.
  */
+/** Other artworks of one card compared, at most. */
+const MAX_ALTERNATIVES = 12;
+
 export class ScryfallArtLibrary implements ArtLibrary {
   /** By the picture's path: a card's usual one, or the printing a deck has. */
   private readonly prints = new Map<string, Promise<ArtPrint | null>>();
@@ -34,7 +37,11 @@ export class ScryfallArtLibrary implements ArtLibrary {
   /** The card's other artwork: what players said was it before, then its other printings. */
   async alternatives(card: Card): Promise<readonly ArtPrint[]> {
     const images = this.options.artworks ? await this.options.artworks(card).catch(() => []) : [];
-    const others = images.filter((image) => image !== card.image).map((image) => cardImageUrl(image, 'art_crop'));
+    // The newest few: a card printed many times (Sol Ring) would otherwise be dozens of downloads for one close-up.
+    const others = images
+      .filter((image) => image !== card.image)
+      .slice(0, MAX_ALTERNATIVES)
+      .map((image) => cardImageUrl(image, 'art_crop'));
     const prints = await Promise.all(others.map((url) => this.printAt(url)));
     return [...(this.remembered.get(card.id) ?? []), ...prints.filter((p): p is ArtPrint => p !== null)];
   }

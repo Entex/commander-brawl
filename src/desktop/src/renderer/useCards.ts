@@ -5,6 +5,20 @@ import { api } from './api';
 
 /** Cards already looked up, by name. Commanders don't change often, so this saves asking again. */
 const cache = new Map<string, Card | null>();
+/** Cards already looked up, by id: the same cards, however they were asked for. */
+const byId = new Map<string, Card | null>();
+
+/** A card by its id: known already, or asked for. Null if there's no such card (or no card data). */
+export async function cardById(id: string): Promise<Card | null> {
+  if (byId.has(id)) return byId.get(id) ?? null;
+  try {
+    const card = (await api.cards.byIds([id]))[0] ?? null;
+    byId.set(id, card);
+    return card;
+  } catch {
+    return null;
+  }
+}
 
 /** The cards with these names, once the card data is there. Null for names that aren't cards. */
 export function useCardsByName(names: readonly string[]): readonly (Card | null)[] {
@@ -16,10 +30,15 @@ export function useCardsByName(names: readonly string[]): readonly (Card | null)
     const missing = key.split('\n').filter((name) => name && !cache.has(name));
     if (!ready || missing.length === 0) return;
     let active = true;
-    void api.cards.byNames(missing).then((found) => {
-      missing.forEach((name, i) => cache.set(name, found[i] ?? null));
-      if (active) setVersion((v) => v + 1);
-    });
+    void api.cards.byNames(missing).then(
+      (found) => {
+        missing.forEach((name, i) => cache.set(name, found[i] ?? null));
+        // Known by id too, for the other ways of asking.
+        for (const card of found) if (card) byId.set(card.id, card);
+        if (active) setVersion((v) => v + 1);
+      },
+      () => undefined,
+    );
     return () => {
       active = false;
     };
@@ -47,9 +66,6 @@ export function useCardsReady(): boolean {
   return status === 'usable';
 }
 
-/** Cards already looked up, by id. */
-const byId = new Map<string, Card | null>();
-
 /** The cards with these ids, once the card data is there. Null for ids it doesn't have. */
 export function useCardsById(ids: readonly string[]): ReadonlyMap<string, Card> {
   const key = [...new Set(ids)].sort().join('\n');
@@ -60,10 +76,13 @@ export function useCardsById(ids: readonly string[]): ReadonlyMap<string, Card> 
     const missing = key.split('\n').filter((id) => id && !byId.has(id));
     if (!ready || missing.length === 0) return;
     let active = true;
-    void api.cards.byIds(missing).then((found) => {
-      missing.forEach((id, i) => byId.set(id, found[i] ?? null));
-      if (active) setVersion((v) => v + 1);
-    });
+    void api.cards.byIds(missing).then(
+      (found) => {
+        missing.forEach((id, i) => byId.set(id, found[i] ?? null));
+        if (active) setVersion((v) => v + 1);
+      },
+      () => undefined,
+    );
     return () => {
       active = false;
     };

@@ -1,4 +1,11 @@
-import { applyEvent, newGame, toGameEvent, type GameEvent, type GameState } from '@commander-brawl/domain';
+import {
+  MAX_PERMANENTS,
+  applyEvent,
+  newGame,
+  toGameEvent,
+  type GameEvent,
+  type GameState,
+} from '@commander-brawl/domain';
 import { describe, expect, it } from 'vitest';
 
 const play = (...events: GameEvent[]): GameState =>
@@ -40,6 +47,35 @@ describe('a graveyard', () => {
     game = applyEvent(game, { type: 'graveyard-card-removed', seat: 2, id: 'b', name: 'Sol Ring', returned: false });
     expect(graveyard(game)).toEqual([]);
     expect(permanents(game)).toHaveLength(1);
+  });
+
+  it('takes a card from the battlefield once: asked twice (G pressed twice, two players at once), it goes there once', () => {
+    const onBattlefield: GameEvent = {
+      type: 'permanent-added',
+      seat: 2,
+      permanent: { id: 'p', name: 'Atraxa', cardId: 'atraxa', token: false, count: 1 },
+    };
+    const game = play(
+      onBattlefield,
+      { type: 'card-to-graveyard', seat: 2, card: card('g1', 'Atraxa'), from: 'p' },
+      { type: 'card-to-graveyard', seat: 2, card: card('g2', 'Atraxa'), from: 'p' },
+    );
+    expect(graveyard(game).map((c) => c.id)).toEqual(['g1']);
+  });
+
+  it("keeps a card that can't go back to a full battlefield", () => {
+    const full = Array.from({ length: MAX_PERMANENTS }, (_, i): GameEvent => ({
+      type: 'permanent-added',
+      seat: 2,
+      permanent: { id: `p${i}`, name: 'Goblin', cardId: null, token: true, count: 1 },
+    }));
+    const game = play(
+      ...full,
+      { type: 'card-to-graveyard', seat: 2, card: card('a', 'Atraxa') },
+      { type: 'graveyard-card-removed', seat: 2, id: 'a', name: 'Atraxa', returned: true },
+    );
+    expect(graveyard(game).map((c) => c.id)).toEqual(['a']);
+    expect(permanents(game)).toHaveLength(MAX_PERMANENTS);
   });
 
   it('is empty in a new game', () => {
