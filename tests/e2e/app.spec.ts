@@ -660,26 +660,90 @@ async function cardCamera(): Promise<string> {
   }
 }
 
-test('"Wait, I have a response!" flashes on every screen', async () => {
+test('"Wait, I have a response!" on every screen until someone says it\'s resolved', async () => {
   const { host, friend } = await hostAndFriend();
 
   await friend.page.keyboard.press('w');
 
-  await expect(host.page.getByTestId('response-banner')).toHaveText('Friend: “Wait, I have a response!”');
+  const call = host.page.getByTestId('call');
+  await expect(call).toHaveText(/^Friend: “Wait, I have a response!”\s*Resolved$/);
   await expect(host.page.locator('.seat-responding')).toContainText('Friend');
   await host.page.screenshot({ path: test.info().outputPath('response.png') });
-  await expect(friend.page.getByTestId('response-banner')).toHaveText('You asked everyone to wait');
-  // No calling again right away, and nothing to undo: it didn't change the game.
+  await expect(friend.page.getByTestId('call')).toContainText('You asked everyone to wait');
+  // No calling again right away, and nothing to undo: it's not a change to the game.
   await expect(friend.page.getByRole('button', { name: 'Wait!' })).toBeDisabled();
   await expect(friend.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
   await expect(host.page.getByTestId('last-change')).toHaveText('Friend: “Wait, I have a response!”');
 
-  // It doesn't get in the way of the buttons under it, and goes by itself after a few seconds.
+  // It doesn't get in the way of the buttons under it, and doesn't go by itself.
   await host.page.getByRole('button', { name: 'Random turn order' }).click();
   await expect(host.page.getByTestId('last-change')).toContainText('shuffled the turn order');
-  await expect(host.page.getByTestId('response-banner')).toHaveCount(0, { timeout: 10_000 });
-  await expect(friend.page.getByTestId('response-banner')).toHaveCount(0);
-  await expect(friend.page.getByRole('button', { name: 'Wait!' })).toBeEnabled();
+  await expect(friend.page.getByRole('button', { name: 'Wait!' })).toBeEnabled({ timeout: 5_000 });
+  await host.page.waitForTimeout(8_500);
+  await expect(call).toHaveCount(1);
+  await expect(friend.page.getByTestId('call')).toHaveCount(1);
+
+  await call.getByRole('button', { name: 'Resolved' }).click();
+  await expect(friend.page.getByTestId('call')).toHaveCount(0);
+  await expect(friend.page.getByTestId('last-change')).toHaveText("Host resolved Friend's wait");
+  await expect(host.page.locator('.seat-responding')).toHaveCount(0);
+});
+
+test("stops on someone else's phase, and trigger reminders", async () => {
+  const { host, friend } = await hostAndFriend();
+  await host.page.getByRole('button', { name: 'Set the order…' }).click();
+  await host.page.getByRole('dialog', { name: 'Turn order' }).getByRole('button', { name: 'Host goes first' }).click();
+  await expect(friend.page.getByTestId('turn')).toContainText("Host's turn");
+
+  // The friend asks the host to stop at combat; everyone sees it on the phases.
+  await friend.page.getByTestId('phases').getByRole('button', { name: 'Stop at combat' }).click();
+  await expect(host.page.getByTestId('phases').getByTestId('phase-stop')).toHaveCount(1);
+  await expect(friend.page.getByTestId('phases').getByRole('button', { name: "Don't stop at combat" })).toBeVisible();
+
+  // Passing the turn ends at combat instead, until the stop is resolved.
+  await host.page.keyboard.press('Space');
+  await expect(host.page.getByTestId('phases').locator('.phase-current')).toHaveText('Combat');
+  await expect(host.page.getByTestId('turn')).toContainText('Your turn');
+  await expect(host.page.getByTestId('call')).toContainText('Friend asked to stop at your combat');
+  await expect(friend.page.getByTestId('call')).toContainText("You asked to stop at Host's combat");
+  await host.page.keyboard.press('Space');
+  const unresolved = host.page.getByRole('dialog', { name: 'Not resolved yet' });
+  await expect(unresolved).toContainText('Friend asked to stop at your combat');
+  await unresolved.getByRole('button', { name: 'Keep waiting' }).click();
+  await expect(unresolved).toHaveCount(0);
+  await friend.page.getByTestId('call').getByRole('button', { name: 'Resolved' }).click();
+  await expect(host.page.getByTestId('call')).toHaveCount(0);
+
+  // A reminder on every upkeep, set by the host: it comes up when the friend's turn starts.
+  await host.page.getByRole('button', { name: /^Reminders/ }).click();
+  const reminders = host.page.getByRole('dialog', { name: 'Reminders' });
+  await reminders.getByLabel('Phase').selectOption('upkeep');
+  await reminders.getByLabel('Reminder text').fill('Rhystic Study: pay 1?');
+  await reminders.getByRole('button', { name: 'Add the reminder' }).click();
+  await expect(friend.page.getByRole('button', { name: 'Reminders (1)' })).toBeVisible();
+  await host.page.keyboard.press('Space');
+  await expect(friend.page.getByTestId('turn')).toContainText('Your turn');
+  await expect(friend.page.getByTestId('call')).toHaveText(
+    /Reminder \(your upkeep\): Rhystic Study: pay 1\? · set by Host/,
+  );
+  await friend.page.screenshot({ path: test.info().outputPath('reminder.png') });
+
+  // Moving on with it open: asked first, and going on resolves it.
+  await friend.page.keyboard.press('Control+Space');
+  await friend.page
+    .getByRole('dialog', { name: 'Not resolved yet' })
+    .getByRole('button', { name: 'Resolve and go on' })
+    .click();
+  await expect(host.page.getByTestId('phases').locator('.phase-current')).toHaveText('Draw');
+  await expect(host.page.getByTestId('call')).toHaveCount(0);
+
+  // Taken away again.
+  await friend.page.getByRole('button', { name: 'Reminders (1)' }).click();
+  await friend.page
+    .getByRole('dialog', { name: 'Reminders' })
+    .getByRole('button', { name: 'Take away the reminder for every upkeep' })
+    .click();
+  await expect(host.page.getByRole('button', { name: 'Reminders', exact: true })).toBeVisible();
 });
 
 test('pings and arrows on the videos, in the same spot for everyone, also on a flipped video', async () => {
@@ -779,16 +843,21 @@ test('phases of the turn, a turn timer that a response pauses, and a chess clock
   await other.page.keyboard.press('Control+Space');
   await expect(active.page.getByTestId('turn')).toContainText('Your turn');
   await expect(active.page.getByTestId('phases').locator('.phase-current')).toHaveText('Draw');
-  // Only the active player moves the turn along.
-  await expect(other.page.getByTestId('phases').getByRole('button')).toHaveCount(0);
+  // Only the active player moves the turn along; the others can only ask them to stop at a phase still to come.
+  await expect(other.page.getByTestId('phases').getByRole('button')).toHaveCount(4);
+  await expect(other.page.getByTestId('phases').getByRole('button', { name: /^Stop at / })).toHaveCount(4);
 
-  // "Wait, I have a response!" stops the clock until the active player moves on.
+  // "Wait, I have a response!" stops the clock until it's resolved: moving on asks first.
   await other.page.keyboard.press('w');
   await expect(active.page.getByTestId('clock')).toContainText('Paused');
   const paused = await active.page.getByTestId('clock').textContent();
   await active.page.waitForTimeout(1_500);
   await expect(active.page.getByTestId('clock')).toHaveText(paused!);
   await active.page.getByTestId('phases').getByRole('button', { name: 'Combat' }).click();
+  await active.page
+    .getByRole('dialog', { name: 'Not resolved yet' })
+    .getByRole('button', { name: 'Resolve and go on' })
+    .click();
   await expect(other.page.getByTestId('clock')).not.toContainText('Paused');
   await expect(other.page.getByTestId('phases')).toContainText('Attackers');
   await other.page.screenshot({ path: test.info().outputPath('turn.png') });

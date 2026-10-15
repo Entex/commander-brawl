@@ -1,19 +1,23 @@
 import {
   COMBAT_STEPS,
+  PHASES,
   nextPhase,
+  reminderApplies,
   timeLeft,
   type Clock,
   type ClockKind,
+  type GameEvent,
   type GameState,
   type Phase,
   type SeatIndex,
 } from '@commander-brawl/domain';
 import { useEffect, useRef, useState } from 'react';
-import { PHASE_LABELS, formatClock, seatName, type Players } from '../names';
+import { PHASE_LABELS, PHASE_NAMES, formatClock, seatName, type Players } from '../names';
 import { Icon, type GameIconName } from '../icons/Icon';
 import { isTyping, panelOpen } from '../keys';
 import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
+import { describeCall } from './ResponseCalls';
 
 /** The phases shown in the strip; combat opens up into its steps while it's on. */
 const STRIP: readonly Phase[] = ['upkeep', 'draw', 'main1', 'combat', 'main2', 'end'];
@@ -43,7 +47,10 @@ interface TurnControlsProps {
 export function TurnControls({ game, players, hostClockOffset, readOnly = false }: TurnControlsProps) {
   const self = players.find((p) => p.isSelf)?.player.seat;
   const [ordering, setOrdering] = useState(false);
-  useTurnKeys(game, self ?? null, !readOnly);
+  /** A move the active player asked for while there were calls to deal with: asked about first. */
+  const [held, setHeld] = useState<GameEvent | null>(null);
+  const move = (event: GameEvent) => (game.calls.length > 0 ? setHeld(event) : submitGameEvent(event));
+  useTurnKeys(game, self ?? null, !readOnly, move);
   if (game.turnOrder === null || game.activeSeat === null) {
     if (readOnly) return <span className="hint">The game hasn't started yet.</span>;
     return (
@@ -73,7 +80,16 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
         Turn {game.turn} · Round {game.round} ·{' '}
         <strong className="turn-whose">{yours ? 'Your turn' : `${seatName(players, game.activeSeat)}'s turn`}</strong>
       </span>
-      {game.phase && <PhaseStrip phase={game.phase} canChange={yours} />}
+      {game.phase && (
+        <PhaseStrip
+          game={game}
+          players={players}
+          self={self ?? null}
+          canChange={yours}
+          canStop={!readOnly && !yours && self !== undefined}
+          onMove={(phase) => move({ type: 'phase-set', phase })}
+        />
+      )}
       {game.clock && (
         <ClockControl clock={game.clock} seat={game.activeSeat} hostClockOffset={hostClockOffset} readOnly={readOnly} />
       )}
@@ -81,11 +97,63 @@ export function TurnControls({ game, players, hostClockOffset, readOnly = false 
         <button
           className="primary"
           title="Pass the turn (Space)"
-          onClick={() => submitGameEvent({ type: 'turn-passed', from: game.activeSeat! })}
+          onClick={() => move({ type: 'turn-passed', from: game.activeSeat! })}
         >
           Pass turn <Icon name="next-button" />
         </button>
       )}
+      {held && (
+        <UnresolvedCalls
+          game={game}
+          players={players}
+          self={self ?? null}
+          onGoOn={() => {
+            for (const call of game.calls) {
+              submitGameEvent({ type: 'call-resolved', id: call.id, kind: call.kind, seat: call.seat });
+            }
+            submitGameEvent(held);
+            setHeld(null);
+          }}
+          onWait={() => setHeld(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Moving on while a wait, reminder or stop isn't resolved: the active player is asked first. */
+function UnresolvedCalls({
+  game,
+  players,
+  self,
+  onGoOn,
+  onWait,
+}: {
+  readonly game: GameState;
+  readonly players: Players;
+  readonly self: SeatIndex | null;
+  onGoOn(): void;
+  onWait(): void;
+}) {
+  return (
+    <div className="overlay" role="dialog" aria-label="Not resolved yet" onClick={onWait}>
+      <div className="panel unresolved-panel" onClick={(event) => event.stopPropagation()}>
+        <h2>
+          <Icon name="hand" /> Not resolved yet
+        </h2>
+        <ul>
+          {game.calls.map((call) => (
+            <li key={call.id}>{describeCall(call, players, self)}</li>
+          ))}
+        </ul>
+        <div className="row">
+          {/* Focused, so Enter goes on. */}
+          <button className="primary" autoFocus onClick={onGoOn}>
+            Resolve and go on
+          </button>
+          <button onClick={onWait}>Keep waiting</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -157,10 +225,15 @@ function TurnOrderPanel({ players, onClose }: { readonly players: Players; onClo
  * Spotlight). Not while typing, or with a panel open. At the table Space does nothing else, or it would press the
  * button clicked last (like "Lose 1 life") again.
  */
-function useTurnKeys(game: GameState, self: SeatIndex | null, enabled: boolean): void {
-  const latest = useRef({ game, self });
+function useTurnKeys(
+  game: GameState,
+  self: SeatIndex | null,
+  enabled: boolean,
+  move: (event: GameEvent) => void,
+): void {
+  const latest = useRef({ game, self, move });
   useEffect(() => {
-    latest.current = { game, self };
+    latest.current = { game, self, move };
   });
   useEffect(() => {
     if (!enabled) return;
@@ -171,13 +244,13 @@ function useTurnKeys(game: GameState, self: SeatIndex | null, enabled: boolean):
       event.preventDefault();
       pressed = true;
       if (event.repeat) return;
-      const { game, self } = latest.current;
+      const { game, self, move } = latest.current;
       if (game.activeSeat === null || game.activeSeat !== self) return;
       if (!event.ctrlKey) {
-        submitGameEvent({ type: 'turn-passed', from: game.activeSeat });
+        move({ type: 'turn-passed', from: game.activeSeat });
       } else {
         const next = game.phase && nextPhase(game.phase);
-        if (next) submitGameEvent({ type: 'phase-set', phase: next });
+        if (next) move({ type: 'phase-set', phase: next });
       }
     };
     // A button presses itself when Space is let go.
@@ -196,34 +269,103 @@ function useTurnKeys(game: GameState, self: SeatIndex | null, enabled: boolean):
   }, [enabled]);
 }
 
-/** Where the active player is in their turn. They can click ahead (or back); everyone else just sees it. */
-function PhaseStrip({ phase, canChange }: { readonly phase: Phase; readonly canChange: boolean }) {
+/**
+ * Where the active player is in their turn. They can click ahead (or back). On someone else's turn, clicking a phase
+ * still to come asks them to stop there (or doesn't any more). Phases someone asked to stop at are marked for everyone.
+ */
+function PhaseStrip({
+  game,
+  players,
+  self,
+  canChange,
+  canStop,
+  onMove,
+}: {
+  readonly game: GameState;
+  readonly players: Players;
+  readonly self: SeatIndex | null;
+  readonly canChange: boolean;
+  readonly canStop: boolean;
+  onMove(phase: Phase): void;
+}) {
+  const phase = game.phase!;
   const inCombat = COMBAT_STEPS.includes(phase);
   const shown = STRIP.flatMap((p) => (p === 'combat' && inCombat ? COMBAT_STEPS : [p]));
+  const active = game.activeSeat!;
+  const stops = game.reminders.filter((r) => r.stop && reminderApplies(r, active, game.turn));
   return (
     <div
       className="phases"
       role="group"
       aria-label="Phase of the turn"
-      title={canChange ? 'Click a phase to go there, or Ctrl+Space for the next one' : undefined}
+      title={
+        canChange
+          ? 'Click a phase to go there, or Ctrl+Space for the next one'
+          : canStop
+            ? 'Click a phase still to come to ask them to stop there'
+            : undefined
+      }
       data-testid="phases"
     >
       {shown.map((p) => {
         const className = `phase${p === phase ? ' phase-current' : ''}${COMBAT_STEPS.includes(p) ? ' phase-combat' : ''}`;
-        return canChange ? (
-          <button
-            key={p}
-            className={className}
-            aria-pressed={p === phase}
-            onClick={() => p !== phase && submitGameEvent({ type: 'phase-set', phase: p })}
+        const stopsHere = stops.filter((r) => r.phase === p);
+        const mark = stopsHere.length > 0 && (
+          <span
+            className="phase-stop"
+            title={`${stopsHere.map((r) => seatName(players, r.seat)).join(' and ')} asked to stop here`}
+            data-testid="phase-stop"
           >
-            <Icon name={PHASE_ICONS[p]} />
-            {PHASE_LABELS[p]}
-          </button>
-        ) : (
+            <Icon name="stop-sign" />
+          </span>
+        );
+        if (canChange) {
+          return (
+            <button key={p} className={className} aria-pressed={p === phase} onClick={() => p !== phase && onMove(p)}>
+              <Icon name={PHASE_ICONS[p]} />
+              {PHASE_LABELS[p]}
+              {mark}
+            </button>
+          );
+        }
+        const mine = stopsHere.find((r) => r.seat === self && r.turn === game.turn);
+        if (canStop && self !== null && PHASES.indexOf(p) > PHASES.indexOf(phase)) {
+          const name = PHASE_NAMES[p].replace(/^the /, '');
+          return (
+            <button
+              key={p}
+              className={`${className} phase-stoppable`}
+              aria-pressed={mine !== undefined}
+              aria-label={mine ? `Don't stop at ${name}` : `Stop at ${name}`}
+              onClick={() =>
+                mine
+                  ? submitGameEvent({ type: 'reminder-removed', id: mine.id })
+                  : submitGameEvent({
+                      type: 'reminder-set',
+                      reminder: {
+                        id: crypto.randomUUID(),
+                        seat: self,
+                        phase: p,
+                        turns: [active],
+                        turn: game.turn,
+                        text: '',
+                        once: true,
+                        stop: true,
+                      },
+                    })
+              }
+            >
+              <Icon name={PHASE_ICONS[p]} />
+              {PHASE_LABELS[p]}
+              {mark}
+            </button>
+          );
+        }
+        return (
           <span key={p} className={className} aria-current={p === phase ? 'step' : undefined}>
             <Icon name={PHASE_ICONS[p]} />
             {PHASE_LABELS[p]}
+            {mark}
           </span>
         );
       })}

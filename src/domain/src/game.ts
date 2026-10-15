@@ -7,6 +7,18 @@ import {
   type CustomCounter,
 } from './customCounters';
 import { isBracket, toDeckAnalysis, type Bracket, type DeckAnalysis } from './brackets';
+import {
+  MAX_CALLS,
+  MAX_REMINDERS,
+  isCallId,
+  phasesBetween,
+  reminderApplies,
+  reminderCallId,
+  toReminder,
+  type Call,
+  type Reminder,
+  type ReminderState,
+} from './calls';
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
 import { canVenture, isDungeonId, isLastRoom, type DayNight, type DungeonPosition } from './markers';
 import {
@@ -122,6 +134,12 @@ export interface GameState {
   readonly archenemy: Archenemy | null;
   /** The turn timer or chess clock, if the table uses one. */
   readonly clock: Clock | null;
+  /** Waits, reminders and stops that came up and aren't resolved yet, oldest first. */
+  readonly calls: readonly Call[];
+  /** Trigger reminders and stops still to come. */
+  readonly reminders: readonly ReminderState[];
+  /** The clock was paused for the calls, and runs again once they're all resolved. */
+  readonly clockHeld: boolean;
 }
 
 /**
@@ -174,10 +192,15 @@ export type GameEvent =
       readonly reason: 'cast' | 'show';
     }
   /**
-   * "Wait, I have a response!": the player wants to respond before the game moves on. Flashes on every
-   * screen; like a card shown, it doesn't change the game.
+   * "Wait, I have a response!": the player wants to respond before the game moves on. It's a call (with the id the
+   * player made up for it) until someone says it's resolved. Older ones without an id only flashed on every screen.
    */
-  | { readonly type: 'response-called' }
+  | { readonly type: 'response-called'; readonly call?: string; readonly seat?: SeatIndex }
+  /** A trigger reminder, or a stop, on a phase. */
+  | { readonly type: 'reminder-set'; readonly reminder: Reminder }
+  | { readonly type: 'reminder-removed'; readonly id: string }
+  /** A call was dealt with. What it was (kind, seat) is said for the log. */
+  | { readonly type: 'call-resolved'; readonly id: string; readonly kind?: Call['kind']; readonly seat?: SeatIndex }
   /** The active player moved on to this step of their turn (or back to it). */
   | { readonly type: 'phase-set'; readonly phase: Phase }
   /** Starts a turn timer or chess clock from scratch, or (null) does away with it. */
@@ -293,6 +316,9 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
     archenemy: previous?.archenemy ? { ...previous.archenemy, index: -1, ongoing: [] } : null,
     // Same clock as last game, started over once the first turn begins.
     clock: previous?.clock ? newClock(previous.clock.settings, null, 0) : null,
+    calls: [],
+    reminders: [],
+    clockHeld: false,
   };
 }
 
@@ -383,21 +409,49 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
     case 'seat-picked':
       return state;
     case 'response-called':
-      // Waiting for a response isn't anyone's time running out.
-      return state.clock ? { ...state, clock: pauseClock(state.clock, at) } : state;
+      if (event.call === undefined || event.seat === undefined) {
+        // Waiting for a response isn't anyone's time running out.
+        return state.clock ? { ...state, clock: pauseClock(state.clock, at) } : state;
+      }
+      return raiseCall(state, { id: event.call, kind: 'wait', seat: event.seat, text: '', ...whereInTurn(state) }, at);
+    case 'reminder-set':
+      return state.reminders.length >= MAX_REMINDERS || state.reminders.some((r) => r.id === event.reminder.id)
+        ? state
+        : { ...state, reminders: [...state.reminders, { ...event.reminder, lastTurn: null }] };
+    case 'reminder-removed':
+      return { ...state, reminders: state.reminders.filter((r) => r.id !== event.id) };
+    case 'call-resolved': {
+      const calls = state.calls.filter((call) => call.id !== event.id);
+      if (calls.length === state.calls.length) return state;
+      // The last one dealt with: the clock runs again, if it stopped for them.
+      const resume = calls.length === 0 && state.clockHeld && state.clock !== null && state.activeSeat !== null;
+      return resume
+        ? { ...state, calls, clock: runClock(state.clock!, state.activeSeat!, at), clockHeld: false }
+        : { ...state, calls };
+    }
     case 'phase-set': {
-      // Moving on means the response (or break) is over.
-      const clock =
-        state.clock?.paused && state.activeSeat !== null ? runClock(state.clock, state.activeSeat, at) : state.clock;
-      return { ...state, phase: event.phase, clock };
+      // Moving on goes through the phases in between: reminders on them come up, and a stop ends the move there.
+      const forward = state.activeSeat !== null && state.phase !== null;
+      const moved = forward ? enterPhases(state, phasesBetween(state.phase, event.phase), at) : null;
+      const next = moved ? moved.state : state;
+      const phase = moved?.stoppedAt ?? event.phase;
+      // Moving on means a break is over, but not the calls still to deal with.
+      const resume = next.clock?.paused && next.activeSeat !== null && next.calls.length === 0;
+      return resume
+        ? { ...next, phase, clock: runClock(next.clock!, next.activeSeat!, at), clockHeld: false }
+        : { ...next, phase };
     }
     case 'clock-set':
-      return { ...state, clock: event.settings ? newClock(event.settings, state.activeSeat, at) : null };
+      return {
+        ...state,
+        clock: event.settings ? newClock(event.settings, state.activeSeat, at) : null,
+        clockHeld: false,
+      };
     case 'clock-paused':
-      return state.clock ? { ...state, clock: pauseClock(state.clock, at) } : state;
+      return state.clock ? { ...state, clock: pauseClock(state.clock, at), clockHeld: false } : state;
     case 'clock-resumed':
       return state.clock && state.activeSeat !== null && !state.clock.running
-        ? { ...state, clock: runClock(state.clock, state.activeSeat, at) }
+        ? { ...state, clock: runClock(state.clock, state.activeSeat, at), clockHeld: false }
         : state;
     case 'monarch-set':
       return { ...state, monarch: event.seat };
@@ -467,7 +521,7 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
     case 'turn-order-set':
     case 'turn-order-chosen': {
       const first = event.order.find((seat) => !isOut(state, seat)) ?? event.order[0] ?? null;
-      return {
+      const started: GameState = {
         ...state,
         storm: 0,
         planechase: state.planechase && { ...state.planechase, rollsThisTurn: 0 },
@@ -477,29 +531,95 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
         round: 1,
         phase: first === null ? null : PHASES_START,
         clock: state.clock && first !== null ? newClock(state.clock.settings, first, at) : state.clock,
+        clockHeld: false,
       };
+      return holdClock(enterPhases(started, [PHASES_START], at).state, at);
     }
     case 'turn-passed': {
-      const passed = passTurn(state, event.from);
-      if (passed === state || passed.activeSeat === null) return passed;
+      if (state.activeSeat !== event.from) return state;
+      // The rest of the turn first: reminders on its phases come up, and a stop keeps the turn there.
+      const rest = state.phase === null ? null : enterPhases(state, phasesBetween(state.phase, null), at);
+      if (rest?.stoppedAt) return { ...rest.state, phase: rest.stoppedAt };
+      const ended = rest ? rest.state : state;
+      const passed = passTurn(ended, event.from);
+      if (passed === ended || passed.activeSeat === null) return passed;
       // The untap step: the new active player's permanents untap.
       const untapped = updateSeat(passed, passed.activeSeat, (seat) => ({
         ...seat,
         permanents: untapAll(seat.permanents),
       }));
-      return {
+      const next: GameState = {
         ...untapped,
         phase: PHASES_START,
         storm: 0,
         planechase: passed.planechase && { ...passed.planechase, rollsThisTurn: 0 },
         clock: passed.clock ? clockForTurn(passed.clock, passed.activeSeat, at) : null,
+        clockHeld: false,
+        // Reminders and stops for a turn that's over are gone.
+        reminders: passed.reminders.filter((r) => r.turn === null || r.turn >= passed.turn),
       };
+      return holdClock(enterPhases(next, [PHASES_START], at).state, at);
     }
     case 'new-game':
       return newGame(event.startingLife, state.number + 1, state);
     case 'undo':
       return state;
   }
+}
+
+/** Where the game is now, for a call that comes up. */
+function whereInTurn(state: GameState): Pick<Call, 'phase' | 'activeSeat' | 'turn'> {
+  return { phase: state.phase, activeSeat: state.activeSeat, turn: state.turn };
+}
+
+/** A call comes up. While there are calls to deal with, nobody's time runs out: the clock holds. */
+function raiseCall(state: GameState, call: Call, at: number): GameState {
+  if (state.calls.length >= MAX_CALLS || state.calls.some((c) => c.id === call.id)) return state;
+  return holdClock({ ...state, calls: [...state.calls, call] }, at);
+}
+
+/** Pauses a running clock while there are calls, to run again once they're resolved. */
+function holdClock(state: GameState, at: number): GameState {
+  return state.calls.length > 0 && state.clock?.running
+    ? { ...state, clock: pauseClock(state.clock, at), clockHeld: true }
+    : state;
+}
+
+/**
+ * The active player goes through these phases of their turn, in order: reminders on them come up as calls (once a
+ * turn each), and the first stop among them ends the way there (stoppedAt).
+ */
+function enterPhases(
+  state: GameState,
+  phases: readonly Phase[],
+  at: number,
+): { readonly state: GameState; readonly stoppedAt: Phase | null } {
+  const active = state.activeSeat;
+  const turn = state.turn;
+  if (active === null) return { state, stoppedAt: null };
+  let current = state;
+  for (const phase of phases) {
+    const due = current.reminders.filter(
+      (r) => r.phase === phase && r.lastTurn !== turn && reminderApplies(r, active, turn),
+    );
+    if (due.length === 0) continue;
+    for (const reminder of due) {
+      const kind = reminder.stop ? 'stop' : 'reminder';
+      const id = reminderCallId(reminder, turn);
+      current = raiseCall(
+        current,
+        { id, kind, seat: reminder.seat, text: reminder.text, phase, activeSeat: active, turn },
+        at,
+      );
+    }
+    const fired = new Set(due.map((r) => r.id));
+    const reminders = current.reminders.flatMap((r) =>
+      !fired.has(r.id) ? [r] : r.once ? [] : [{ ...r, lastTurn: turn }],
+    );
+    current = { ...current, reminders };
+    if (due.some((r) => r.stop)) return { state: current, stoppedAt: phase };
+  }
+  return { state: current, stoppedAt: null };
 }
 
 /** Hands the turn to the next player in the order who isn't out. */
@@ -668,7 +788,25 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     case 'undo':
       return isEventId(value.target) ? { type: 'undo', target: value.target } : null;
     case 'response-called':
-      return { type: 'response-called' };
+      return isCallId(value.call) && isSeatIndex(value.seat)
+        ? { type: 'response-called', call: value.call, seat: value.seat }
+        : { type: 'response-called' };
+    case 'reminder-set': {
+      const reminder = toReminder(value.reminder);
+      return reminder ? { type: 'reminder-set', reminder } : null;
+    }
+    case 'reminder-removed':
+      return isCallId(value.id) ? { type: 'reminder-removed', id: value.id } : null;
+    case 'call-resolved': {
+      if (!isCallId(value.id) && !isReminderCallId(value.id)) return null;
+      const kind = value.kind === 'wait' || value.kind === 'reminder' || value.kind === 'stop' ? value.kind : undefined;
+      return {
+        type: 'call-resolved',
+        id: value.id as string,
+        ...(kind ? { kind } : {}),
+        ...(isSeatIndex(value.seat) ? { seat: value.seat } : {}),
+      };
+    }
     case 'phase-set':
       return isPhase(value.phase) ? { type: 'phase-set', phase: value.phase } : null;
     case 'clock-set': {
@@ -785,6 +923,11 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     default:
       return null;
   }
+}
+
+/** A reminder's call: the reminder's id, "@", and the turn. */
+function isReminderCallId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}@\d{1,6}$/.test(value);
 }
 
 function counterMaximum(counter: PlayerCounter): number {

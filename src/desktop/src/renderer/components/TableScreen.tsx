@@ -32,7 +32,8 @@ import { PointerLayer } from './PointerLayer';
 import { GameOverBanner, RecapView, useLiveRecap } from './RecapView';
 import { ClockPanel, TurnControls } from './Turn';
 import { VariantsBar, VariantsPanel } from './Variants';
-import { ResponseBanner, ResponseButton, useResponseCalls } from './ResponseCalls';
+import { CallsBanner, ResponseButton, respondingSeats } from './ResponseCalls';
+import { RemindersButton } from './Reminders';
 import { RollBanner, RollMenu } from './Rolls';
 import { Rule0Panel } from './Rule0Panel';
 import { Spotlight } from './Spotlight';
@@ -74,11 +75,10 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const selfSeat = state.seats.find((s) => s.isSelf)?.player.seat ?? null;
   useShortcut('k', () => setCardsOpen(true));
   const undoTarget = useUndoTarget(game, state);
-  const responseCalls = useResponseCalls(game);
   const { marks: pointerMarks, point } = usePointers(session);
   const recap = useLiveRecap(game, state.seats);
   const clips = useClips();
-  const responding = new Set(responseCalls.map((call) => call.by.seat));
+  const responding = respondingSeats(game?.state ?? null);
   const [copied, setCopied] = useState(false);
   // Watching: you see everything and change nothing, and your camera isn't sent.
   const spectating = state.spectating;
@@ -321,7 +321,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
       {/* Its own row, so the turn and Pass turn are never squeezed out by the toolbar on a narrow window. */}
       {game && (
         <div className="status-bar">
-          {!spectating && <ResponseButton />}
+          {!spectating && <ResponseButton seat={selfSeat} />}
           {clips.recording && (
             <button onClick={clips.save} title="Save the last half minute of the table as a video">
               <Icon name="clapperboard" /> Last {CLIP_SECONDS} s
@@ -338,6 +338,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             </button>
           )}
           {!spectating && <RollMenu game={game.state} players={state.seats} />}
+          {!spectating && <RemindersButton game={game.state} players={state.seats} selfSeat={selfSeat} />}
           <button onClick={() => setRule0Open(true)}>
             <Icon name="scales" /> Rule 0
           </button>
@@ -421,7 +422,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           onArea={(seat, from, to, rotation) => lookAt(seat, cardInArea(from, to), rotation)}
           selfSeat={selfSeat}
         >
-          <ResponseBanner calls={responseCalls} self={selfSeat} />
+          {game && <CallsBanner game={game.state} players={state.seats} self={selfSeat} readOnly={readOnly} />}
           <RollBanner game={game} players={state.seats} />
           {recap.record && recap.banner && (
             <GameOverBanner record={recap.record} onView={recap.view} onClose={recap.close} />

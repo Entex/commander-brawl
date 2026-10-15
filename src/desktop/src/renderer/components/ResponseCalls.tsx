@@ -1,23 +1,16 @@
 import type { GameView, LoggedEvent } from '@commander-brawl/application';
-import type { SeatIndex } from '@commander-brawl/domain';
+import type { Call, GameState, SeatIndex } from '@commander-brawl/domain';
 import { useEffect, useState } from 'react';
-import { Icon } from '../icons/Icon';
+import { Icon, type GameIconName } from '../icons/Icon';
 import { isTyping } from '../keys';
+import { PHASE_NAMES, seatName, type Players } from '../names';
 import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 
-/** How long a call to wait flashes on every screen. */
-const SHOW_FOR_MS = 8_000;
+/** How long a call is big, in the middle of the table, before it settles to a smaller size. */
+const BIG_FOR_MS = 8_000;
 /** Pressing again right away doesn't call again. */
 const COOLDOWN_MS = 3_000;
-
-/**
- * Calls to wait ("I have a response!") as they come in, oldest first. Each shows for a few seconds; ones from
- * before this screen opened aren't shown.
- */
-export function useResponseCalls(game: GameView | null): readonly LoggedEvent[] {
-  return useFreshLive(game, (entry) => entry.event.type === 'response-called', SHOW_FOR_MS);
-}
 
 /**
  * Live events of one kind as they come in, oldest first, each shown for `showForMs` after the newest one
@@ -40,36 +33,94 @@ export function useFreshLive(
   return visible;
 }
 
+/** The seats of players waiting for a response they asked for. */
+export function respondingSeats(game: GameState | null): ReadonlySet<SeatIndex> {
+  return new Set((game?.calls ?? []).filter((call) => call.kind === 'wait').map((call) => call.seat));
+}
+
 /**
- * Big, on every screen: who wants everyone to wait. Clicks go through it, so it never covers a button (like
- * Pass turn) at the moment it matters.
+ * On every screen, in the middle of the table: the calls still to deal with (waits, reminders that came up, stops
+ * reached), each with Resolved. Big when it comes up, then smaller. Clicks go through it, except on its buttons, so it
+ * never covers a button (like Pass turn) at the moment it matters.
  */
-export function ResponseBanner({
-  calls,
+export function CallsBanner({
+  game,
+  players,
   self,
+  readOnly,
 }: {
-  readonly calls: readonly LoggedEvent[];
+  readonly game: GameState;
+  readonly players: Players;
   readonly self: SeatIndex | null;
+  readonly readOnly: boolean;
 }) {
-  if (calls.length === 0) return null;
-  const others = [...new Set(calls.filter((c) => c.by.seat !== self).map((c) => c.by.name))];
-  // In the color of whoever called last (when it's just one of them).
-  const caller = others.length === 1 ? calls.findLast((c) => c.by.seat !== self)?.by.seat : undefined;
-  const text =
-    others.length === 0
-      ? 'You asked everyone to wait'
-      : others.length === 1
-        ? `${others[0]}: “Wait, I have a response!”`
-        : `${others.join(' and ')} have responses. Wait!`;
+  if (game.calls.length === 0) return null;
   return (
-    <div className={`response-banner ${seatColorClass(caller)}`} role="alert" data-testid="response-banner">
-      <Icon name="hand" /> {text}
+    <div className="calls" data-testid="calls">
+      {game.calls.map((call) => (
+        <CallRow key={call.id} call={call} players={players} self={self} readOnly={readOnly} />
+      ))}
     </div>
   );
 }
 
+const CALL_ICONS: Record<Call['kind'], GameIconName> = { wait: 'hand', reminder: 'ringing-bell', stop: 'stop-sign' };
+
+function CallRow({
+  call,
+  players,
+  self,
+  readOnly,
+}: {
+  readonly call: Call;
+  readonly players: Players;
+  readonly self: SeatIndex | null;
+  readonly readOnly: boolean;
+}) {
+  const [big, setBig] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setBig(false), BIG_FOR_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div
+      className={`call call-${call.kind}${big ? ' call-big' : ''} ${seatColorClass(call.seat)}`}
+      role="alert"
+      data-testid="call"
+    >
+      <Icon name={CALL_ICONS[call.kind]} />
+      <span className="call-text">{describeCall(call, players, self)}</span>
+      {!readOnly && (
+        <button
+          className="call-resolve"
+          onClick={() => submitGameEvent({ type: 'call-resolved', id: call.id, kind: call.kind, seat: call.seat })}
+        >
+          <Icon name="check-mark" /> Resolved
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** "Alex: “Wait, I have a response!”", "Reminder for Alex's upkeep: Rhystic Study tax?", "Robin asked to stop here". */
+export function describeCall(call: Call, players: Players, self: SeatIndex | null): string {
+  const who = call.seat === self ? 'You' : seatName(players, call.seat);
+  const where =
+    call.phase === null || call.activeSeat === null
+      ? ''
+      : `${call.activeSeat === self ? 'your' : `${seatName(players, call.activeSeat)}'s`} ${PHASE_NAMES[call.phase].replace(/^the /, '')}`;
+  switch (call.kind) {
+    case 'wait':
+      return call.seat === self ? 'You asked everyone to wait' : `${who}: “Wait, I have a response!”`;
+    case 'stop':
+      return `${who} asked to stop at ${where}${call.text ? `: ${call.text}` : ''}`;
+    case 'reminder':
+      return `Reminder${where ? ` (${where})` : ''}${call.text ? `: ${call.text}` : ''} · set by ${who}`;
+  }
+}
+
 /** "Wait, I have a response!", for when the game is moving on and you want to respond first. Also the W key. */
-export function ResponseButton() {
+export function ResponseButton({ seat }: { readonly seat: SeatIndex | null }) {
   const [coolingDown, setCoolingDown] = useState(false);
 
   useEffect(() => {
@@ -84,10 +135,11 @@ export function ResponseButton() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [coolingDown]);
+  });
 
   function call() {
-    submitGameEvent({ type: 'response-called' });
+    if (seat === null) return;
+    submitGameEvent({ type: 'response-called', call: crypto.randomUUID(), seat });
     setCoolingDown(true);
   }
 
@@ -95,7 +147,7 @@ export function ResponseButton() {
     <button
       className="response-button"
       onClick={call}
-      disabled={coolingDown}
+      disabled={coolingDown || seat === null}
       title="Ask everyone to wait: you have a response (W)"
     >
       <Icon name="hand" /> Wait!

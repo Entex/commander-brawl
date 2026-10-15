@@ -143,8 +143,14 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'counter-changed':
     case 'commander-cast':
       return [event.seat];
-    case 'card-shown':
+    case 'reminder-set':
+      return [...new Set([event.reminder.seat, ...event.reminder.turns])];
     case 'response-called':
+      return event.seat === undefined ? [] : [event.seat];
+    case 'call-resolved':
+      return event.seat === undefined ? [] : [event.seat];
+    case 'card-shown':
+    case 'reminder-removed':
     case 'phase-set':
     case 'clock-set':
     case 'clock-paused':

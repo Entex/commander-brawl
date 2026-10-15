@@ -1,5 +1,5 @@
 import type { LoggedEvent } from '@commander-brawl/application';
-import { DUNGEONS, type GameState, type SeatIndex } from '@commander-brawl/domain';
+import { DUNGEONS, type GameState, type Reminder, type SeatIndex } from '@commander-brawl/domain';
 import {
   COUNTER_NAMES,
   PHASE_NAMES,
@@ -97,6 +97,19 @@ export function describeEvent(
       return event.reason === 'cast' ? `${by.name} cast ${event.card.name}` : `${by.name} showed ${event.card.name}`;
     case 'response-called':
       return `${by.name}: “Wait, I have a response!”`;
+    case 'reminder-set': {
+      const { reminder } = event;
+      const when = describeReminderTime(reminder, players);
+      if (reminder.stop && !reminder.text) return `${by.name} asked to stop at ${when}`;
+      return `${by.name} set a reminder for ${when}${reminder.text ? `: ${reminder.text}` : ''}`;
+    }
+    case 'reminder-removed':
+      return `${by.name} took a reminder away`;
+    case 'call-resolved': {
+      const whose = event.seat === undefined ? 'a' : `${seatName(players, event.seat)}'s`;
+      const what = event.kind === 'wait' ? 'wait' : event.kind === 'stop' ? 'stop' : 'reminder';
+      return `${by.name} resolved ${whose} ${what}`;
+    }
     case 'phase-set':
       return `${by.name} moved to ${PHASE_NAMES[event.phase]}`;
     case 'clock-set':
@@ -181,6 +194,15 @@ export function describeEvent(
       return target ? `${by.name} undid “${describeEvent(target, players, game)}”` : `${by.name} undid a change`;
     }
   }
+}
+
+/** When a reminder comes up: "Alex's combat", "every upkeep", "Alex's and Robin's end step". */
+export function describeReminderTime(reminder: Reminder, players: Players): string {
+  const phase = PHASE_NAMES[reminder.phase].replace(/^the /, '');
+  if (reminder.turns.length === 0) return `every ${phase}`;
+  const whose = reminder.turns.map((seat) => `${seatName(players, seat)}'s`);
+  const list = whose.length === 1 ? whose[0] : `${whose.slice(0, -1).join(', ')} and ${whose.at(-1)}`;
+  return `${list} ${phase}`;
 }
 
 /** "Robin rolled a d20: 17", "Robin flipped a coin: heads", "Robin picked a random opponent: Alex". */
