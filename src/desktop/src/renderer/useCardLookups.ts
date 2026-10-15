@@ -243,17 +243,27 @@ function inCrop(outline: Quad, crop: CropRect): Quad {
   })) as unknown as Quad;
 }
 
-/** The deck's cards (with the artwork of the printings the deck list names), their artwork starting to load. */
+/**
+ * The deck's cards (with the artwork of the printings the deck list names), and the tokens they make: a close-up of
+ * one of those isn't of a card in the deck. Their artwork starting to load.
+ */
 async function deckCards(deck: DeckList): Promise<Card[]> {
   try {
     const entries = [...deck.commanders, ...deck.cards];
-    const found = await api.cards.byIds(entries.map((card) => card.id));
+    const ids = entries.map((card) => card.id);
+    const [found, tokens] = await Promise.all([
+      api.cards.byIds(ids),
+      api.cards.tokens(ids).catch(() => [] as readonly Card[]),
+    ]);
     const printed = entries.filter((entry) => entry.printing);
     const images = printed.length > 0 ? await api.cards.printings(printed.map((e) => e.printing!)).catch(() => []) : [];
     const imageOf = new Map(printed.map((entry, i) => [entry.id, images[i] ?? null]));
-    const cards = found
-      .filter((card): card is Card => card !== null)
-      .map((card) => ({ ...card, image: imageOf.get(card.id) ?? card.image }));
+    const cards = [
+      ...found
+        .filter((card): card is Card => card !== null)
+        .map((card) => ({ ...card, image: imageOf.get(card.id) ?? card.image })),
+      ...tokens.filter((token) => !ids.includes(token.id)),
+    ];
     for (const card of cards) void artLibrary.print(card);
     return cards;
   } catch {

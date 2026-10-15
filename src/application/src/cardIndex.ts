@@ -1,5 +1,6 @@
 import { normalizeCardName, type Card } from '@commander-brawl/domain';
 import { similarityOfNormalized } from './cardIdentification';
+import { isTokenCard, type TokenSpec } from './tokens';
 
 interface Entry {
   readonly card: Card;
@@ -28,6 +29,8 @@ export class CardIndex {
   private byPair: Map<string, number[]> | null = null;
   /** For each card, how many pairs a text needs in common with its names to be compared with them. */
   private pairsNeeded: number[] = [];
+  /** The tokens, by their whole names, and by their faces' names. Made when first needed. */
+  private tokensByName: { readonly whole: Map<string, Card[]>; readonly faces: Map<string, Card[]> } | null = null;
 
   constructor(cards: readonly Card[]) {
     this.entries = cards.map((card) => {
@@ -65,6 +68,42 @@ export class CardIndex {
       .filter((entry) => entry.card.layout === layout)
       .map((entry) => entry.card)
       .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * The tokens these say (see tokensMadeBy): by name (a token of just that name before one with it on a face, like
+   * Treasure before Vampire // Treasure), of the size said, and of the colors said if any of them is. At most
+   * `perKind` of each.
+   */
+  tokens(specs: readonly TokenSpec[], perKind = 6): Card[] {
+    const { whole, faces } = (this.tokensByName ??= this.tokenIndex());
+    const found = new Map<string, Card>();
+    for (const spec of specs) {
+      const name = normalizeCardName(spec.name);
+      const named = whole.get(name) ?? faces.get(name) ?? [];
+      const sized = spec.stats === null ? named : named.filter((card) => card.stats === spec.stats);
+      const colors = spec.colors === null ? null : [...spec.colors].sort().join();
+      const colored = sized.filter((card) => [...card.colorIdentity].sort().join() === colors);
+      for (const card of (colored.length > 0 ? colored : sized).slice(0, perKind)) found.set(card.id, card);
+    }
+    return [...found.values()];
+  }
+
+  private tokenIndex(): { whole: Map<string, Card[]>; faces: Map<string, Card[]> } {
+    const whole = new Map<string, Card[]>();
+    const faces = new Map<string, Card[]>();
+    const add = (index: Map<string, Card[]>, name: string, card: Card) => {
+      const list = index.get(name);
+      if (list) list.push(card);
+      else index.set(name, [card]);
+    };
+    for (const entry of this.entries) {
+      if (!isTokenCard(entry.card)) continue;
+      const [name, ...faceNames] = entry.names;
+      add(whole, name!, entry.card);
+      for (const face of faceNames) add(faces, face, entry.card);
+    }
+    return { whole, faces };
   }
 
   /**

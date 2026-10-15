@@ -145,6 +145,8 @@ export interface DesktopApi {
     byNames(names: readonly string[]): Promise<readonly (Card | null)[]>;
     /** The cards with these ids (as in deck lists), null where there's no such card. */
     byIds(ids: readonly string[]): Promise<readonly (Card | null)[]>;
+    /** The tokens these cards make (a deck's), as their own cards. */
+    tokens(ids: readonly string[]): Promise<readonly Card[]>;
     /** The pictures of these printings (as Card.image is), null where it can't be had. Asks Scryfall. */
     printings(printings: readonly Printing[]): Promise<readonly (string | null)[]>;
     /** Every artwork of these cards (as Card.image is), by card: their other printings. Asks Scryfall. */
@@ -219,6 +221,7 @@ export const Channels = {
   cardsSearch: 'cards:search',
   cardsByNames: 'cards:by-names',
   cardsByIds: 'cards:by-ids',
+  cardsTokens: 'cards:tokens',
   cardsPrintings: 'cards:printings',
   cardsArtworks: 'cards:artworks',
   cardsClosest: 'cards:closest',

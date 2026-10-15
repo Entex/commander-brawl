@@ -1,4 +1,4 @@
-import { CardIndex, type NameMatch } from '@commander-brawl/application';
+import { CardIndex, tokensMadeBy, type NameMatch } from '@commander-brawl/application';
 import type { Card, Printing, Ruling } from '@commander-brawl/domain';
 import { ScryfallCards } from '@commander-brawl/infrastructure/node';
 import type { CardDataStatus, CardDetails } from '../shared/api';
@@ -15,6 +15,8 @@ export interface CardServiceOptions {
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 const RESULTS = 20;
 const CLOSEST = 10;
+/** Tokens of a deck, at most: a few for each card that makes some. */
+const DECK_TOKENS = 60;
 
 /** Every card, kept on this computer and refreshed weekly, so searching is instant and works offline. */
 export class CardService {
@@ -63,6 +65,17 @@ export class CardService {
 
   byIds(ids: readonly string[]): (Card | null)[] {
     return ids.map((id) => this.index?.get(id) ?? null);
+  }
+
+  /** The tokens these cards (a deck's) make, as their own cards: a close-up of one is compared with them too. */
+  tokens(ids: readonly string[]): Card[] {
+    const index = this.index;
+    if (!index) return [];
+    const specs = ids.flatMap((id) => {
+      const card = index.get(id);
+      return card ? tokensMadeBy(card) : [];
+    });
+    return index.tokens(specs).slice(0, DECK_TOKENS);
   }
 
   /** Planes and phenomena, or schemes: the decks of Planechase and Archenemy. */

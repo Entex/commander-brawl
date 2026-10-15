@@ -9,6 +9,7 @@ import {
   type SeatIndex,
   type Spot,
 } from '@commander-brawl/domain';
+import { isTokenCard } from '@commander-brawl/application';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Icon } from '../icons/Icon';
@@ -341,7 +342,7 @@ export function useCardSearch(typed: string): readonly Card[] {
 }
 
 export function isToken(card: Card): boolean {
-  return card.layout === 'token' || card.layout === 'double_faced_token' || card.typeLine.startsWith('Token');
+  return isTokenCard(card);
 }
 
 /** A spot for something added without one clicked: low on the picture, beside what's there. */

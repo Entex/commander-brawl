@@ -676,6 +676,11 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
   await expect(lookup).toContainText('Likely');
   await expect(friend.page.getByTestId('card-outline')).toContainText('Rhystic Study');
+  // On the video it's shown as the card, as big as the card the close-up found there.
+  const found = (await friend.page.locator('polygon.card-outline-line').boundingBox())!;
+  const shown = friend.page.getByTestId('board-card');
+  await expect.poll(async () => ((await shown.boundingBox())?.width ?? 0) / found.width).toBeGreaterThan(0.9);
+  expect((await shown.boundingBox())!.width / found.width).toBeLessThan(1.1);
   // What their camera saw: the whole card, cut out and straightened.
   const photo = lookup.locator('img[alt="Host\'s camera"]').first();
   await expect
@@ -687,15 +692,9 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
   const label = host.page.getByTestId('board-card');
   await expect(label).toHaveAccessibleName('Rhystic Study');
-  // Shown as the card, like a token, as big as cards are shown on the videos (not as big as the close-up found it).
+  // Shown as the card, like a token, not as a label.
   await expect(label).toHaveClass(/board-virtual/);
   await expect(label).not.toHaveAttribute('data-virtual');
-  const shown = friend.page.getByTestId('board-card');
-  const pictureLeft = await onPicture(video, 0, 0.5);
-  const pictureRight = await onPicture(video, 1, 0.5);
-  await expect
-    .poll(async () => (await shown.boundingBox())?.width ?? 0)
-    .toBeCloseTo((pictureRight.x - pictureLeft.x) * 0.08, -1);
   // The friend found it: the host gets it suggested for their Cards seen.
   await expect(host.page.getByTestId('seen-suggestions')).toHaveText('1');
   await host.page.getByTestId('seen-toggle').click();
@@ -734,6 +733,14 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
   await expect(label).toHaveAccessibleName('Rhystic Study');
 
+  // Shown over itself on the video, the card is clicked for what can be done with it. To look at it again, the cards
+  // on the videos go out of the way first (B).
+  await shown.click();
+  await expect(friend.page.getByRole('group', { name: 'Rhystic Study: what to do' })).toBeVisible();
+  await shown.click();
+  await friend.page.keyboard.press('b');
+  await expect(shown).toHaveCount(0);
+
   // Another look: the newest is shown, the earlier ones are listed below and can be shown again.
   const lower = await onPicture(video, 0.5, 0.6);
   await friend.page.mouse.click(lower.x, lower.y);
@@ -766,6 +773,9 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(rail.getByRole('region', { name: 'Earlier' }).locator('.lookup-row')).toHaveCount(2);
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
   await expect(host.page.getByTestId('arrow')).toHaveCount(0);
+  // The cards on the videos back.
+  await friend.page.keyboard.press('b');
+  await expect(shown).toHaveCount(1);
 
   // Out of the way and back.
   await rail.getByRole('button', { name: 'Hide cards seen' }).click();

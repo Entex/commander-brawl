@@ -3529,7 +3529,7 @@ abbr.keyword {
   overflow-y: auto;
 }
 
-/* A card on a player's video (on their table, or a token or a card added by hand): the card itself. */
+/* A card on a player's video (on their table, or a token or a card added by hand): the card itself, as big as theirs. */
 .board-virtual {
   position: relative;
   pointer-events: auto;

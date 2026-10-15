@@ -35,6 +35,7 @@ const api: DesktopApi = {
     search: (query) => ipcRenderer.invoke(Channels.cardsSearch, query),
     byNames: (names) => ipcRenderer.invoke(Channels.cardsByNames, names),
     byIds: (ids) => ipcRenderer.invoke(Channels.cardsByIds, ids),
+    tokens: (ids) => ipcRenderer.invoke(Channels.cardsTokens, ids),
     printings: (printings) => ipcRenderer.invoke(Channels.cardsPrintings, printings),
     artworks: (ids) => ipcRenderer.invoke(Channels.cardsArtworks, ids),
     closest: (texts) => ipcRenderer.invoke(Channels.cardsClosest, texts),

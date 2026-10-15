@@ -15,6 +15,8 @@ export type {
   TextReader,
 } from './cardIdentification';
 export { CardIndex, editDistance } from './cardIndex';
+export { isTokenCard, tokensMadeBy } from './tokens';
+export type { TokenSpec } from './tokens';
 export { chooseCommanders, couldBeCommander, parseDeckText, resolveDeck } from './deckImport';
 export type { ImportedDeck, RawDeck, RawDeckEntry } from './deckImport';
 export { GameSync, HostGameLog, MAX_LOG_LENGTH, replayLog, undoneIds } from './gameLog';

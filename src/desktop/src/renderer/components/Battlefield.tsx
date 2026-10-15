@@ -22,6 +22,7 @@ import { CUSTOM_KIND_PREFIX, counterKindName } from '../names';
 import { seatColorClass } from '../seatColors';
 import { useCardsById } from '../useCards';
 import { submitGameEvent } from '../useGame';
+import { cardSizeOnSeat } from '../cardTarget';
 import { useGroupedChange } from '../useGroupedChange';
 import { pictureNear, screenAt } from '../videoPoints';
 
@@ -33,7 +34,7 @@ const EDGE = 4;
 const WHEEL_STEP = 50;
 /** How often what's on the videos is placed again, in case their layout changed. */
 const PLACE_EVERY_MS = 250;
-/** A card's width on a player's video, as a share of their picture's width. */
+/** A card's width, as a share of its player's picture, before a real card was found there to go by. */
 const CARD_SHARE = 0.08;
 
 /** Where an item is on screen (its middle), and how wide a card is there. */
@@ -635,7 +636,7 @@ function placeItems(
       const video = layer.parentElement?.querySelector<HTMLVideoElement>(`video.seat-video[data-seat="${item.seat}"]`);
       videos.set(
         item.seat,
-        video ? { video, box: video.getBoundingClientRect(), cardWidth: cardWidthOn(video, origin) } : null,
+        video ? { video, box: video.getBoundingClientRect(), cardWidth: cardWidthOn(video, item.seat, origin) } : null,
       );
     }
     const seat = videos.get(item.seat);
@@ -655,12 +656,21 @@ function placeItems(
   return placed;
 }
 
-/** How wide a card is on a seat's video, on screen: a share of the picture. */
-function cardWidthOn(video: HTMLVideoElement, origin: DOMRect): number {
+/**
+ * How wide a card is on a seat's video, on screen: as wide as the cards found there (the short side of the last
+ * one), or a share of the picture before any was.
+ */
+function cardWidthOn(video: HTMLVideoElement, seat: SeatIndex, origin: DOMRect): number {
   const left = screenAt(video, { x: 0, y: 0.5 }, origin);
   const right = screenAt(video, { x: 1, y: 0.5 }, origin);
-  if (!left || !right) return 60;
-  return Math.round(Math.min(220, Math.max(28, Math.abs(right.x - left.x) * CARD_SHARE)));
+  const top = screenAt(video, { x: 0.5, y: 0 }, origin);
+  const bottom = screenAt(video, { x: 0.5, y: 1 }, origin);
+  if (!left || !right || !top || !bottom) return 60;
+  const pictureWidth = Math.abs(right.x - left.x);
+  const pictureHeight = Math.abs(bottom.y - top.y);
+  const known = cardSizeOnSeat(seat);
+  const width = known ? Math.min(known.width * pictureWidth, known.height * pictureHeight) : pictureWidth * CARD_SHARE;
+  return Math.round(Math.min(220, Math.max(28, width)));
 }
 
 /** What can be done with an item, under it (or over it, near the bottom), all of it inside the layer. */

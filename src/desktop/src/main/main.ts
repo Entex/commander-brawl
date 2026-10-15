@@ -270,6 +270,7 @@ function registerIpc(
     cards.byNames(Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 20) : []),
   );
   handle(Channels.cardsByIds, (ids) => cards.byIds(stringList(ids, MAX_DECK_ENTRIES + MAX_COMMANDERS, 64)));
+  handle(Channels.cardsTokens, (ids) => cards.tokens(stringList(ids, MAX_DECK_ENTRIES + MAX_COMMANDERS, 64)));
   handle(Channels.cardsPrintings, (printings) =>
     cards.printings(
       (Array.isArray(printings) ? printings : [])

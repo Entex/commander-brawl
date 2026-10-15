@@ -230,6 +230,28 @@ describe('working out which card is in a close-up', () => {
     expect(art.alternativesAsked).toContain('Sol Ring');
   });
 
+  it("finds a token the deck makes, which isn't in the deck: by its artwork, or by its name", async () => {
+    const goblin = { ...card('Goblin', 60), layout: 'token', typeLine: 'Token Creature — Goblin' };
+    const withTokens = new CardIndex([...deck, ...others, goblin]);
+    const port: CardCatalog = { closest: async (texts) => withTokens.closest(texts) };
+    // The name not read: the artwork tells, as it's compared with the deck's tokens too.
+    const byArt = await new CardIdentifier(new Reader('—'), port, new Artwork()).identify(tablePicture(60), {
+      likely: [...deck, goblin],
+    });
+    expect(byArt.guesses[0]!.card.name).toBe('Goblin');
+    expect(byArt.guesses[0]!.score).toBeGreaterThan(0.6);
+
+    // Another printing of the token: its name says it, without looking through the deck's other artwork first (a lot
+    // of pictures to download).
+    const art = new Artwork();
+    const byName = await new CardIdentifier(new Reader('Goblin'), port, art).identify(tablePicture(61), {
+      likely: [...deck, goblin],
+    });
+    expect(byName.guesses[0]!.card.name).toBe('Goblin');
+    expect(byName.guesses[0]!.score).toBeGreaterThan(0.6);
+    expect(art.alternativesAsked).toEqual([]);
+  });
+
   it("doesn't ask for other artwork when the usual is clearly it", async () => {
     const art = new Artwork({ 'Sol Ring': [42] });
     await new CardIdentifier(new Reader('Rhystic Study'), catalogPort, art).identify(tablePicture(1), { likely: deck });

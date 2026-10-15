@@ -49,7 +49,7 @@ export interface Identification {
 }
 
 export interface IdentifyOptions {
-  /** Cards the player is likely to have out: their deck. Compared by artwork too, and preferred. */
+  /** Cards the player is likely to have out: their deck, and its tokens. Compared by artwork too, and preferred. */
   readonly likely?: readonly Card[];
   /** The picture is shown turned this way; cards are tried that way up first. */
   readonly rotation?: 0 | 180;
@@ -169,12 +169,6 @@ export class CardIdentifier {
       return print ? [print] : [];
     };
     await compareAll(likely, usual);
-    // Not the usual artwork of any card in the deck: maybe another printing of one (alternative art). Not basic lands
-    // or tokens: they have hundreds of artworks, and are rarely what a close-up is for.
-    const alternatives = this.art.alternatives?.bind(this.art);
-    const printedMany = (card: Card) => /\bBasic\b/.test(card.typeLine) || /\bToken\b/.test(card.typeLine);
-    const worthIt = likely.filter((card) => !printedMany(card));
-    if (bestArt < ART_DECIDES && alternatives && worthIt.length > 0) await compareAll(worthIt, alternatives);
 
     // Which way up the card is: the artwork tells, when it's clearly a likely card's. Otherwise the card's frame (the
     // text box is at the bottom) says which way to read the name first, and the name tells, if it reads one way up.
@@ -201,6 +195,17 @@ export class CardIdentifier {
         if (score > nameScore + 0.05) [nameScore, nameView] = [score, v];
         if (score >= GOOD_NAME) break reading;
       }
+    }
+
+    // Not the usual artwork of any card in the deck, and no name read well enough to say which card: maybe another
+    // printing of one (alternative art). Only then, as that's a lot of pictures to download: a name read well says
+    // which card's other printings to look at (below). Not basic lands or tokens: they have hundreds of artworks, and
+    // are rarely what a close-up is for.
+    const alternatives = this.art.alternatives?.bind(this.art);
+    const printedMany = (card: Card) => /\bBasic\b/.test(card.typeLine) || /\bToken\b/.test(card.typeLine);
+    const worthIt = likely.filter((card) => !printedMany(card));
+    if (bestArt < ART_DECIDES && nameScore < GOOD_NAME && alternatives && worthIt.length > 0) {
+      await compareAll(worthIt, alternatives);
     }
 
     // The artwork of the best name matches too, when they aren't among the likely cards; their other printings too,
