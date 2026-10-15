@@ -99,6 +99,8 @@ export {
 } from './permanents';
 export type { NewPermanent, Permanent, PlacedMarker, Spot } from './permanents';
 export { comboThreats } from './combos';
+export { MAX_GRAVEYARD } from './graveyards';
+export type { GraveCard } from './graveyards';
 export {
   MAX_CALLS,
   MAX_REMINDERS,

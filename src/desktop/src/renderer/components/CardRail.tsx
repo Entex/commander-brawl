@@ -12,6 +12,11 @@ interface CardRailProps {
   onOpenCard(cardId: string): void;
   /** Puts the card on its player's battlefield, where it was clicked. Not when watching. */
   onTrack?: (lookup: CardLookup, card: Card) => void;
+  /** Puts the card in its player's graveyard (off the battlefield) and out of the list. Not when watching. */
+  onToGraveyard?: (lookup: CardLookup, card: Card) => void;
+  /** How many cards are in a player's graveyard, as far as the table knows. */
+  graveyardSize(seat: SeatIndex): number;
+  onOpenGraveyard(seat: SeatIndex): void;
   /** The player says which card a lookup is. */
   onChoose(lookupId: number, card: Card): void;
   /** Search for the card a lookup is, when none of the guesses is it. */
@@ -29,7 +34,18 @@ const MAX_OTHERS = 4;
  * probably is and the other guesses to pick instead, and the earlier ones below. With cards from more than one
  * player, it can show just one player's.
  */
-export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onRemove, onClose }: CardRailProps) {
+export function CardRail({
+  lookups,
+  onOpenCard,
+  onTrack,
+  onToGraveyard,
+  graveyardSize,
+  onOpenGraveyard,
+  onChoose,
+  onSearch,
+  onRemove,
+  onClose,
+}: CardRailProps) {
   const now = useNow(30_000);
   const [picked, setPicked] = useState<number | null>(null);
   const [only, setOnly] = useState<SeatIndex | null>(null);
@@ -75,12 +91,19 @@ export function CardRail({ lookups, onOpenCard, onTrack, onChoose, onSearch, onR
           ))}
         </div>
       )}
+      {filter !== null && (
+        <button className="card-rail-graveyard" onClick={() => onOpenGraveyard(filter)}>
+          <Icon name="graveyard" />{' '}
+          {`${players.find((p) => p.seat === filter)?.name === 'You' ? 'Your' : 'Their'} graveyard (${graveyardSize(filter)})`}
+        </button>
+      )}
       <FeaturedLookup
         key={featured.id}
         lookup={featured}
         now={now}
         onOpenCard={onOpenCard}
         onTrack={onTrack}
+        onToGraveyard={onToGraveyard}
         onChoose={onChoose}
         onSearch={onSearch}
         onRemove={() => onRemove([featured.id])}
@@ -137,6 +160,7 @@ function FeaturedLookup({
   now,
   onOpenCard,
   onTrack,
+  onToGraveyard,
   onChoose,
   onSearch,
   onRemove,
@@ -145,6 +169,7 @@ function FeaturedLookup({
   readonly now: number;
   onOpenCard(cardId: string): void;
   onTrack: ((lookup: CardLookup, card: Card) => void) | undefined;
+  onToGraveyard: ((lookup: CardLookup, card: Card) => void) | undefined;
   onChoose(lookupId: number, card: Card): void;
   onSearch(lookupId: number): void;
   onRemove(): void;
@@ -251,6 +276,15 @@ function FeaturedLookup({
               aria-label={lookup.placed ? `${card.name} is on the battlefield` : `Put ${card.name} on the battlefield`}
             >
               <Icon name="pin" /> {lookup.placed ? 'On the battlefield' : 'Put on the battlefield'}
+            </button>
+          )}
+          {onToGraveyard && (
+            <button
+              onClick={() => onToGraveyard(lookup, card)}
+              title="Into their graveyard (off the battlefield), and out of this list"
+              aria-label={`Put ${card.name} in the graveyard`}
+            >
+              <Icon name="graveyard" /> Graveyard
             </button>
           )}
         </div>

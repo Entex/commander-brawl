@@ -28,11 +28,13 @@ interface SeatDetailsProps {
   readonly players: Players;
   /** Shows a card in the Cards panel. */
   onOpenCard(cardId: string): void;
+  /** Opens their graveyard. */
+  onOpenGraveyard?: (() => void) | undefined;
   onClose(): void;
 }
 
 /** Everything about one player's game that doesn't fit on the video. */
-export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDetailsProps) {
+export function SeatDetails({ seat, game, players, onOpenCard, onOpenGraveyard, onClose }: SeatDetailsProps) {
   const state = game.seats[seat];
   if (!state) return null;
   const opponents = players.filter((p) => p.player.seat !== seat);
@@ -47,6 +49,14 @@ export function SeatDetails({ seat, game, players, onOpenCard, onClose }: SeatDe
         <h3>{seatName(players, seat)}</h3>
         <button onClick={onClose}>Close</button>
       </header>
+
+      {onOpenGraveyard && (
+        <section>
+          <button onClick={onOpenGraveyard}>
+            <Icon name="graveyard" /> Graveyard ({state.graveyard.length})
+          </button>
+        </section>
+      )}
 
       {state.deck && (
         <section>

@@ -59,6 +59,8 @@ interface SeatTileProps {
   /** The cards and counters with a spot show on the videos (not hidden): the seat doesn't list them again. */
   readonly boardShown?: boolean;
   readonly selfSeat?: SeatIndex | null;
+  /** Opens this player's graveyard. */
+  onOpenGraveyard?: () => void;
 }
 
 const LINK_TEXT: Partial<Record<SeatView<MediaStreamTrack>['link'], string>> = {
@@ -83,6 +85,7 @@ export function SeatTile({
   onLook,
   boardShown = false,
   selfSeat = null,
+  onOpenGraveyard,
 }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -238,6 +241,7 @@ export function SeatTile({
           game={game}
           players={players}
           onOpenCard={onOpenCard}
+          onOpenGraveyard={onOpenGraveyard}
           onClose={() => setDetailsOpen(false)}
         />
       )}

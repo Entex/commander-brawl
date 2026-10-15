@@ -15,6 +15,7 @@ import {
   isUndoable,
   type Card,
   type GameState,
+  type Permanent,
   type SeatIndex,
   type Spot,
 } from '@commander-brawl/domain';
@@ -27,6 +28,7 @@ import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
 import { isToken } from './AddToBattlefield';
 import { Battlefield } from './Battlefield';
+import { GraveyardPanel } from './Graveyard';
 import { CLIP_SECONDS, useClips } from '../clips';
 import { lookupCard, sureCard, useCardLookups, type CardLookup } from '../useCardLookups';
 import { usePointers } from '../usePointers';
@@ -96,6 +98,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [clean, setClean] = useState(false);
   const [enlargeActive, setEnlargeActive] = useEnlargeActive();
   const [boardShown, setBoardShown] = useBoardShown();
+  /** Whose graveyard is open. */
+  const [graveyardOf, setGraveyardOf] = useState<SeatIndex | null>(null);
   const readOnly = spectating || clean;
   useEffect(() => {
     if (!clean) return;
@@ -133,6 +137,30 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   );
   // A card that's known for sure goes on the battlefield by itself: everyone sees it on the video.
   usePlaceSureCards(lookups, spectating, track);
+  /** From the battlefield into its player's graveyard; a token just stops being. */
+  const toGraveyard = useCallback((seat: SeatIndex, permanent: Permanent) => {
+    if (permanent.token) {
+      submitGameEvent({ type: 'permanent-removed', seat, id: permanent.id });
+      return;
+    }
+    submitGameEvent({
+      type: 'card-to-graveyard',
+      seat,
+      card: { id: crypto.randomUUID(), name: permanent.name, cardId: permanent.cardId },
+      from: permanent.id,
+    });
+  }, []);
+  /** A card from Cards seen into its player's graveyard (off the battlefield, if it's there), and out of the list. */
+  const lookupToGraveyard = (lookup: CardLookup, card: Card) => {
+    const from = onBattlefield(game?.state ?? null, lookup, card);
+    submitGameEvent({
+      type: 'card-to-graveyard',
+      seat: lookup.seat,
+      card: { id: crypto.randomUUID(), name: card.name, cardId: card.id },
+      ...(from ? { from: from.id } : {}),
+    });
+    removeLookups([lookup.id]);
+  };
   /** The player says which card it is. Already on the battlefield, it's that card there too. */
   const choose = (lookupId: number, card: Card) => {
     const lookup = lookups.find((l) => l.id === lookupId);
@@ -436,6 +464,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
         />
       )}
 
+      {game && graveyardOf !== null && (
+        <GraveyardPanel
+          seat={graveyardOf}
+          game={game.state}
+          players={state.seats}
+          readOnly={spectating}
+          onOpenCard={openCard}
+          onClose={() => setGraveyardOf(null)}
+        />
+      )}
       {game && <Spotlight game={game} />}
       {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
       {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
@@ -480,12 +518,20 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 onLook={(target, rotation) => lookAt(seat.player.seat, target, rotation)}
                 boardShown={boardShown}
                 selfSeat={selfSeat}
+                onOpenGraveyard={() => setGraveyardOf(seat.player.seat)}
               />
             ) : focused ? null : (
               <EmptySeat key={`empty-${index}`} index={index} />
             ),
           )}
-          {game && boardShown && <Battlefield game={game.state} readOnly={readOnly} onOpenCard={openCard} />}
+          {game && boardShown && (
+            <Battlefield
+              game={game.state}
+              readOnly={readOnly}
+              onOpenCard={openCard}
+              onToGraveyard={readOnly ? undefined : toGraveyard}
+            />
+          )}
           <CardOutline key={lookups[0]?.id} lookup={lookups[0] ?? null} />
         </PointerLayer>
         {seenOpen && lookups.length > 0 && (
@@ -496,6 +542,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
               openCard(id);
             }}
             onTrack={spectating ? undefined : track}
+            onToGraveyard={spectating ? undefined : lookupToGraveyard}
+            graveyardSize={(seat) => game?.state.seats[seat]?.graveyard.length ?? 0}
+            onOpenGraveyard={setGraveyardOf}
             onChoose={choose}
             onSearch={(id) => {
               setCorrecting(id);
@@ -583,8 +632,7 @@ function arrangeSeats<T extends SeatView<MediaStreamTrack>>(
 function placeOnBattlefield(game: GameState | null, lookup: CardLookup, card: Card): string | null {
   if (!game) return null;
   const spot = centerOf(lookup);
-  const seat = game.seats[lookup.seat];
-  const same = isRepeatable(card) ? undefined : seat?.permanents.find((p) => p.cardId === card.id);
+  const same = onBattlefield(game, lookup, card);
   if (same) {
     submitGameEvent({ type: 'permanent-moved', seat: lookup.seat, id: same.id, spot });
     return same.id;
@@ -596,6 +644,17 @@ function placeOnBattlefield(game: GameState | null, lookup: CardLookup, card: Ca
     permanent: { id, name: card.name, cardId: card.id, token: isToken(card), count: 1, spot },
   });
   return id;
+}
+
+/**
+ * The card of a close-up on its player's battlefield, if it's there: the one it was put there as, or (one of a kind)
+ * the one there with that name.
+ */
+function onBattlefield(game: GameState | null, lookup: CardLookup, card: Card): Permanent | undefined {
+  const permanents = game?.seats[lookup.seat]?.permanents ?? [];
+  const placed = permanents.find((p) => p.id === lookup.placed);
+  if (placed) return placed;
+  return isRepeatable(card) ? undefined : permanents.find((p) => p.cardId === card.id);
 }
 
 /** Cards a deck can have more than one of. */

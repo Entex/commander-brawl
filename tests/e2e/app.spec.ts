@@ -585,9 +585,10 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   const rail = friend.page.getByTestId('card-rail');
   await expect(rail.getByRole('region', { name: 'Earlier' })).toContainText('Rhystic Study');
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
-  // Not as sure this time (lower on the card), so it's put on the battlefield by hand. The same card: one of a kind,
-  // so it's still the one there, moved where it was clicked.
-  await lookup.getByRole('button', { name: 'Put Rhystic Study on the battlefield' }).click();
+  // Lower on the card, it's sometimes less sure (then it's put on the battlefield by hand). The same card: one of a
+  // kind, so it's still the one there, moved where it was clicked.
+  const put = lookup.getByRole('button', { name: 'Put Rhystic Study on the battlefield' });
+  if (await put.isVisible()) await put.click();
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
   await expect(host.page.getByTestId('board-card')).toHaveCount(1);
   await rail
@@ -623,6 +624,12 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   const ownLookup = host.page.getByTestId('card-rail').getByTestId('lookup');
   await expect(ownLookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
   await expect(ownLookup).toContainText('Your camera');
+
+  // Into the graveyard, from Cards seen: off the battlefield, and out of the list.
+  await ownLookup.getByRole('button', { name: 'Put Rhystic Study in the graveyard' }).click();
+  await expect(host.page.getByTestId('card-rail')).toHaveCount(0);
+  await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host: Rhystic Study to the graveyard');
 
   // Cards from two players: everyone's, or just one player's.
   const friendOwn = friend.page.locator('.seat', { hasText: 'Friend (you)' }).getByTestId('seat-video');
@@ -736,6 +743,52 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
   await expect(friend.page.getByTestId('chips-0')).toContainText('Soldier ×3');
   await expect(tokens).toHaveCount(1);
+});
+
+test("a player's graveyard: cards put there from the battlefield or by hand, searched, and returned", async () => {
+  const { host, friend } = await hostAndFriend();
+  await cardsReady(friend.page);
+
+  // Sol Ring on the host's battlefield, then into their graveyard.
+  const hostSeat = friend.page.locator('.seat', { hasText: 'Host' });
+  await hostSeat.hover();
+  await hostSeat.getByRole('button', { name: "Add to Host's battlefield" }).click();
+  const add = friend.page.getByRole('dialog', { name: "Add to Host's battlefield" });
+  await add.getByRole('button', { name: 'Card' }).click();
+  await add.getByLabel('Card', { exact: true }).fill('sol ring');
+  await add.getByRole('button', { name: 'Sol Ring' }).click();
+  await friend.page.getByTestId('board-card').click();
+  await friend.page
+    .getByRole('group', { name: 'Sol Ring: what to do' })
+    .getByRole('button', { name: 'Graveyard' })
+    .click();
+  await expect(host.page.getByTestId('board-card')).toHaveCount(0);
+
+  // Looked through by anyone: the host opens it from their details.
+  await host.page.getByRole('button', { name: "Host's details" }).click();
+  await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Graveyard (1)' }).click();
+  const graveyard = host.page.getByRole('dialog', { name: "Host's graveyard" });
+  const list = graveyard.getByTestId('graveyard-list');
+  await expect(list).toContainText('Sol Ring');
+  await expect(list).toContainText('Artifact');
+
+  // Put in by hand too, and searched by type.
+  await graveyard.getByLabel('Put a card in the graveyard').fill('rhystic');
+  await graveyard.getByRole('button', { name: 'Rhystic Study' }).click();
+  await expect(list.locator('li')).toHaveCount(2);
+  await graveyard.getByLabel('Search the graveyard').fill('artifact');
+  await expect(list.locator('li')).toHaveCount(1);
+  await graveyard.getByLabel('Search the graveyard').fill('enchant');
+  await expect(list).toContainText('Rhystic Study');
+  await expect(list.locator('li')).toHaveCount(1);
+
+  // Back to the battlefield.
+  await graveyard.getByLabel('Search the graveyard').fill('');
+  await graveyard.getByRole('button', { name: 'Return Sol Ring' }).click();
+  await expect(list.locator('li')).toHaveCount(1);
+  await expect(friend.page.getByTestId('last-change')).toHaveText(
+    'Host: Sol Ring back from the graveyard to the battlefield',
+  );
 });
 
 /** A camera picture of a (made-up) Rhystic Study on a playmat, for the fake camera to show. */

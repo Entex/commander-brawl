@@ -200,6 +200,12 @@ export function describeEvent(
       return `${who(event.seat)} took a counter or note off the table`;
     case 'marker-attached':
       return `${who(event.seat)} put counters on ${permanentName(event.seat, event.to)}`;
+    case 'card-to-graveyard':
+      return `${who(event.seat)}: ${event.card.name} to the graveyard`;
+    case 'graveyard-card-removed':
+      return event.returned
+        ? `${who(event.seat)}: ${event.name} back from the graveyard to the battlefield`
+        : `${who(event.seat)} took ${event.name} out of the graveyard`;
     case 'turn-order-set': {
       const order = event.order.map((seat) => seatName(players, seat)).join(' → ');
       return event.firstOnly

@@ -20,6 +20,7 @@ import {
   type ReminderState,
 } from './calls';
 import { MAX_COMMANDERS, toDeckList, type DeckList } from './decks';
+import { bury, toGraveCard, type GraveCard } from './graveyards';
 import { canVenture, isDungeonId, isLastRoom, type DayNight, type DungeonPosition } from './markers';
 import {
   NOTE,
@@ -113,6 +114,8 @@ export interface SeatGameState {
   readonly permanents: readonly Permanent[];
   /** Counters and notes on spots of their battlefield (on their video), not on a card. */
   readonly markers: readonly PlacedMarker[];
+  /** The cards someone put in their graveyard, newest first. */
+  readonly graveyard: readonly GraveCard[];
 }
 
 /** Everything about the game in progress. Kept per seat, so it survives a player reconnecting. */
@@ -274,6 +277,16 @@ export type GameEvent =
   | { readonly type: 'marker-removed'; readonly seat: SeatIndex; readonly id: string }
   /** A counter on the table put on a card (permanent `to`): it's that card's from now on. */
   | { readonly type: 'marker-attached'; readonly seat: SeatIndex; readonly id: string; readonly to: string }
+  /** Into the player's graveyard: from the battlefield (permanent `from`, which leaves it), or just put there. */
+  | { readonly type: 'card-to-graveyard'; readonly seat: SeatIndex; readonly card: GraveCard; readonly from?: string }
+  /** Out of the graveyard (`name` is said for the log): gone, or (`returned`) back onto the battlefield. */
+  | {
+      readonly type: 'graveyard-card-removed';
+      readonly seat: SeatIndex;
+      readonly id: string;
+      readonly name: string;
+      readonly returned: boolean;
+    }
   /** The checks on a deck are in. Only counts while that deck is still the one being played. */
   | {
       readonly type: 'deck-analyzed';
@@ -328,6 +341,7 @@ export function newGame(startingLife = STARTING_LIFE, number = 1, previous?: Gam
       citysBlessing: false,
       permanents: [],
       markers: [],
+      graveyard: [],
     })),
     customCounters: previous?.customCounters ?? [],
     tableCounters: {},
@@ -570,6 +584,24 @@ export function applyEvent(state: GameState, event: GameEvent, at = 0): GameStat
         ...seat,
         markers: seat.markers.filter((m) => m.id !== event.id),
       }));
+    case 'card-to-graveyard':
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        graveyard: bury(seat.graveyard, event.card),
+        permanents: event.from === undefined ? seat.permanents : seat.permanents.filter((p) => p.id !== event.from),
+      }));
+    case 'graveyard-card-removed': {
+      const card = state.seats[event.seat]?.graveyard.find((c) => c.id === event.id);
+      if (!card) return state;
+      return updateSeat(state, event.seat, (seat) => ({
+        ...seat,
+        graveyard: seat.graveyard.filter((c) => c.id !== event.id),
+        // Back on the battlefield (reanimated): one of it, untapped, not on the video until someone puts it there.
+        permanents: event.returned
+          ? addPermanent(seat.permanents, { id: card.id, name: card.name, cardId: card.cardId, token: false, count: 1 })
+          : seat.permanents,
+      }));
+    }
     case 'marker-attached': {
       const seat = state.seats[event.seat];
       const marker = seat?.markers.find((m) => m.id === event.id);
@@ -1023,6 +1055,20 @@ export function toGameEvent(raw: unknown): GameEvent | null {
     case 'marker-attached':
       return isSeatIndex(value.seat) && isPermanentId(value.id) && isPermanentId(value.to)
         ? { type: 'marker-attached', seat: value.seat, id: value.id, to: value.to }
+        : null;
+    case 'card-to-graveyard': {
+      const card = toGraveCard(value.card);
+      if (!card || !isSeatIndex(value.seat)) return null;
+      if (value.from === undefined) return { type: 'card-to-graveyard', seat: value.seat, card };
+      return isPermanentId(value.from) ? { type: 'card-to-graveyard', seat: value.seat, card, from: value.from } : null;
+    }
+    case 'graveyard-card-removed':
+      return isSeatIndex(value.seat) &&
+        isPermanentId(value.id) &&
+        typeof value.name === 'string' &&
+        value.name.length <= 160 &&
+        typeof value.returned === 'boolean'
+        ? { type: 'graveyard-card-removed', seat: value.seat, id: value.id, name: value.name, returned: value.returned }
         : null;
     case 'new-game':
       return isWholeNumber(value.startingLife) && value.startingLife > 0 && value.startingLife <= MAX_STARTING_LIFE

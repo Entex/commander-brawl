@@ -243,7 +243,7 @@ function NotePicker({ onPick }: { onPick(text: string): void }) {
 }
 
 /** Cards whose names match what's typed (two letters or more), a moment after typing stops. */
-function useCardSearch(typed: string): readonly Card[] {
+export function useCardSearch(typed: string): readonly Card[] {
   const [found, setFound] = useState<{ readonly query: string; readonly cards: readonly Card[] }>({
     query: '',
     cards: [],

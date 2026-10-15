@@ -140,6 +140,8 @@ function seatsIn(event: GameEvent): SeatIndex[] {
     case 'marker-moved':
     case 'marker-removed':
     case 'marker-attached':
+    case 'card-to-graveyard':
+    case 'graveyard-card-removed':
     case 'citys-blessing-set':
     case 'life-changed':
     case 'deck-chosen':
