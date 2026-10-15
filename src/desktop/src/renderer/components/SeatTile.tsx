@@ -482,16 +482,35 @@ export function EmptySeat({ index }: { readonly index: number }) {
   );
 }
 
+/**
+ * The video between you and this player: what comes from them (↓) and what you send them (↑), and why what you
+ * send is held back, if it is: no room on your connection, or your computer can't keep up.
+ */
 function StatsLine({ stats }: { readonly stats: LinkStats }) {
   const video = stats.inbound;
+  const sent = stats.outbound;
+  const held =
+    sent?.limitation === 'bandwidth'
+      ? ` · held back: not enough upload${stats.availableKbps ? ` (room for ${(stats.availableKbps / 1000).toFixed(1)} Mbps)` : ''}`
+      : sent?.limitation === 'cpu'
+        ? ' · held back: this computer is busy'
+        : '';
   return (
-    <div className="seat-stats">
-      {video
-        ? `${video.width}×${video.height} · ${video.fps} fps · ${(video.kbps / 1000).toFixed(1)} Mbps`
-        : 'no video'}
-      {video && video.lossPercent > 0 ? ` · ${video.lossPercent}% lost` : ''}
-      {stats.roundTripMs !== null ? ` · ${stats.roundTripMs} ms` : ''}
-      {stats.route === 'relay' ? ' · relayed' : ''}
+    <div className="seat-stats" data-testid="seat-stats">
+      <div>
+        ↓{' '}
+        {video
+          ? `${video.width}×${video.height} · ${video.fps} fps · ${(video.kbps / 1000).toFixed(1)} Mbps`
+          : 'no video'}
+        {video && video.lossPercent > 0 ? ` · ${video.lossPercent}% lost` : ''}
+        {stats.roundTripMs !== null ? ` · ${stats.roundTripMs} ms` : ''}
+        {stats.route === 'relay' ? ' · relayed' : ''}
+      </div>
+      {sent && (
+        <div>
+          ↑ {sent.width}×{sent.height} · {sent.fps} fps · {(sent.kbps / 1000).toFixed(1)} Mbps{held}
+        </div>
+      )}
     </div>
   );
 }

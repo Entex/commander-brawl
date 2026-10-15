@@ -55,6 +55,7 @@ export class LinkStatsReader {
         ? 'relay'
         : 'direct';
     const rtt = num(pair, 'currentRoundTripTime');
+    const available = num(pair, 'availableOutgoingBitrate');
 
     const inbound = inboundRtp
       ? this.video(
@@ -76,7 +77,13 @@ export class LinkStatsReader {
         )
       : null;
 
-    return { route, roundTripMs: rtt === null ? null : Math.round(rtt * 1000), inbound, outbound };
+    return {
+      route,
+      roundTripMs: rtt === null ? null : Math.round(rtt * 1000),
+      inbound,
+      outbound: outbound && outboundRtp ? { ...outbound, limitation: limitationOf(outboundRtp) } : outbound,
+      availableKbps: available === null ? null : Math.round(available / 1000),
+    };
   }
 
   private video(
@@ -110,6 +117,20 @@ export class LinkStatsReader {
       kbps: Math.max(0, Math.round(kbps)),
       lossPercent: Math.round(lossPercent * 10) / 10,
     };
+  }
+}
+
+/** What WebRTC says is holding the video sent back. */
+function limitationOf(stats: Record<string, unknown>): VideoStats['limitation'] {
+  switch (stats.qualityLimitationReason) {
+    case 'bandwidth':
+      return 'bandwidth';
+    case 'cpu':
+      return 'cpu';
+    case 'other':
+      return 'other';
+    default:
+      return null;
   }
 }
 

@@ -40,6 +40,8 @@ export interface VideoStats {
   readonly kbps: number;
   /** Share of packets lost since the previous sample, 0–100. */
   readonly lossPercent: number;
+  /** For video sent: what's holding it back, if anything (not enough room on the connection, or the computer). */
+  readonly limitation?: 'bandwidth' | 'cpu' | 'other' | null;
 }
 
 export interface LinkStats {
@@ -48,6 +50,8 @@ export interface LinkStats {
   readonly roundTripMs: number | null;
   readonly inbound: VideoStats | null;
   readonly outbound: VideoStats | null;
+  /** How much this connection could send, as WebRTC estimates it, in kbit/s. */
+  readonly availableKbps?: number | null;
 }
 
 export interface PeerLinkEvents<TTrack> {
@@ -70,6 +74,8 @@ export interface PeerLinkOptions<TTrack> {
   readonly initiator: boolean;
   readonly localTrack: TTrack | null;
   readonly events: PeerLinkEvents<TTrack>;
+  /** The other side only watches: video goes to them, a smaller picture is enough. */
+  readonly watcher?: boolean;
 }
 
 export interface PeerLinkFactory<TTrack> {

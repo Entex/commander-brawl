@@ -112,6 +112,8 @@ describe('TableSession', () => {
     welcome('a', [player('a', 0), player('b', 1)]);
     signaling.emit({ type: 'spectator-joined', spectator: { id: 's', name: 'Sam' } });
     expect(factory.links.map((l) => l.options.remoteId)).toEqual(['b', 's']);
+    // The spectator only watches: they get a smaller picture than a player.
+    expect(factory.links.map((l) => l.options.watcher)).toEqual([false, true]);
     expect(session.getState()).toMatchObject({ spectating: false, spectators: [{ id: 's', name: 'Sam' }] });
     expect(session.getState().seats.map((seat) => seat.player.id)).toEqual(['a', 'b']);
 

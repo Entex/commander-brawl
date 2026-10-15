@@ -243,6 +243,7 @@ export class TableSession<TTrack> {
       remoteId: memberId,
       initiator,
       localTrack: this.localTrack,
+      watcher: this.spectators.has(memberId),
       events: {
         signal: (body) => {
           if (isCurrent()) this.signaling.send(memberId, { gen: generation, body } satisfies Envelope);

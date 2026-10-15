@@ -6,14 +6,22 @@ import type {
   PeerLinkOptions,
 } from '@commander-brawl/application';
 import { LinkStatsReader } from './stats';
+import { UploadBudget, type SendPlan } from './uploadBudget';
 
 export interface WebRtcConfig {
   readonly iceServers: RTCIceServer[];
   /** Upper limit for the video we send to one player. */
   readonly maxBitrateBps: number;
+  /** Upper limit for the video we send to one watcher. */
+  readonly watcherBitrateBps?: number;
   /** How long a dropped connection may try to recover by itself before we restart it. */
   readonly disconnectGraceMs?: number;
+  /** How often each link checks how its video is getting through, and adjusts. */
+  readonly checkEveryMs?: number;
 }
+
+/** A watcher's video: they don't need it sharp enough for close-ups. */
+const WATCHER_BITRATE_BPS = 1_200_000;
 
 /**
  * A public STUN server: Cloudflare's, which they offer free to anyone. It only tells a computer its own public
@@ -24,10 +32,18 @@ export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.cloudflar
 type LinkSignal = { readonly description: RTCSessionDescriptionInit } | { readonly candidate: RTCIceCandidateInit };
 
 export class WebRtcPeerLinkFactory implements PeerLinkFactory<MediaStreamTrack> {
-  constructor(private readonly config: WebRtcConfig) {}
+  /** What this player sends, shared out across all their links. */
+  private readonly budget: UploadBudget;
+
+  constructor(private readonly config: WebRtcConfig) {
+    this.budget = new UploadBudget({
+      playerBps: config.maxBitrateBps,
+      watcherBps: config.watcherBitrateBps ?? WATCHER_BITRATE_BPS,
+    });
+  }
 
   create(options: PeerLinkOptions<MediaStreamTrack>): PeerLink<MediaStreamTrack> {
-    return new WebRtcPeerLink(options, this.config);
+    return new WebRtcPeerLink(options, this.config, this.budget);
   }
 }
 
@@ -41,6 +57,9 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
   private readonly polite: boolean;
   private readonly initiator: boolean;
   private readonly stats = new LinkStatsReader();
+  /** Its own, so the rates it works out aren't thrown off by the stats shown on screen. */
+  private readonly checkStats = new LinkStatsReader();
+  private checkTimer: ReturnType<typeof setInterval> | null = null;
   private transceiver: RTCRtpTransceiver | null = null;
   private localTrack: MediaStreamTrack | null;
   private makingOffer = false;
@@ -51,8 +70,10 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
   constructor(
     options: PeerLinkOptions<MediaStreamTrack>,
     private readonly config: WebRtcConfig,
+    private readonly budget: UploadBudget,
   ) {
     this.events = options.events;
+    budget.join(this, options.watcher ?? false);
     this.initiator = options.initiator;
     this.polite = !options.initiator;
     this.localTrack = options.localTrack;
@@ -72,11 +93,13 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
       // A single two-way video channel. The other side adopts it when the offer arrives.
       this.transceiver = this.pc.addTransceiver('video', {
         direction: 'sendrecv',
-        sendEncodings: [{ maxBitrate: config.maxBitrateBps }],
+        sendEncodings: [encodingFor(budget.planFor(this))],
       });
       if (this.localTrack) void this.replaceTrack(this.localTrack);
     }
     this.events.state('connecting');
+    // How the video gets through, now and then: the budget shares out what there's room for.
+    this.checkTimer = setInterval(() => void this.check(), config.checkEveryMs ?? 2_000);
   }
 
   async handleSignal(data: unknown): Promise<void> {
@@ -109,7 +132,26 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
     if (this.closed) return;
     this.closed = true;
     this.clearDisconnectTimer();
+    if (this.checkTimer) clearInterval(this.checkTimer);
+    this.budget.leave(this);
     this.pc.close();
+  }
+
+  /** Reports how the video sent is getting through, and sends as the budget then says. */
+  private async check(): Promise<void> {
+    if (this.closed || !this.localTrack || this.pc.connectionState !== 'connected') return;
+    try {
+      const { outbound } = this.checkStats.read(await this.pc.getStats());
+      if (!outbound) return;
+      this.budget.report(this, {
+        sentBps: outbound.kbps * 1000,
+        fps: outbound.fps,
+        limitation: outbound.limitation ?? null,
+      });
+      await this.tuneSender();
+    } catch (error) {
+      console.warn('[peer-link] check', error);
+    }
   }
 
   private async handleDescription(description: RTCSessionDescriptionInit): Promise<void> {
@@ -159,18 +201,30 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
   }
 
   /**
-   * Caps the bitrate. Sender parameters change while a negotiation is in progress, so this only
-   * runs when it has settled; handleDescription calls it again once it has.
+   * Sends as the budget says: how many bits, how big a picture, how many frames. Sender parameters change while a
+   * negotiation is in progress, so this only runs when it has settled; handleDescription calls it again once it has.
    */
   private async tuneSender(): Promise<void> {
     const sender = this.transceiver?.sender;
     if (!sender || this.closed || this.pc.signalingState !== 'stable') return;
     const params = sender.getParameters();
     if (!params.encodings || params.encodings.length === 0) return;
+    const wanted = encodingFor(this.budget.planFor(this));
     let changed = false;
     for (const encoding of params.encodings) {
-      if (encoding.maxBitrate !== this.config.maxBitrateBps) {
-        encoding.maxBitrate = this.config.maxBitrateBps;
+      // Small changes in the bitrate aren't worth telling the encoder about.
+      const bitrate = encoding.maxBitrate ?? 0;
+      if (Math.abs(bitrate - wanted.maxBitrate!) > wanted.maxBitrate! * 0.05) {
+        encoding.maxBitrate = wanted.maxBitrate;
+        changed = true;
+      }
+      if ((encoding.scaleResolutionDownBy ?? 1) !== wanted.scaleResolutionDownBy) {
+        encoding.scaleResolutionDownBy = wanted.scaleResolutionDownBy;
+        changed = true;
+      }
+      if (encoding.maxFramerate !== wanted.maxFramerate) {
+        if (wanted.maxFramerate === undefined) delete encoding.maxFramerate;
+        else encoding.maxFramerate = wanted.maxFramerate;
         changed = true;
       }
     }
@@ -217,6 +271,15 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
     if (this.disconnectTimer) clearTimeout(this.disconnectTimer);
     this.disconnectTimer = null;
   }
+}
+
+/** The sender's encoding for a plan. */
+function encodingFor(plan: SendPlan): RTCRtpEncodingParameters {
+  return {
+    maxBitrate: plan.maxBitrateBps,
+    scaleResolutionDownBy: plan.scaleResolutionDownBy,
+    ...(plan.maxFramerate === undefined ? {} : { maxFramerate: plan.maxFramerate }),
+  };
 }
 
 function isLinkSignal(data: unknown): data is LinkSignal {

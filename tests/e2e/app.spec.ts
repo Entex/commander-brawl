@@ -158,6 +158,14 @@ test('a host and a friend see each other', async () => {
   await expectVideoFrom(host.page, 'Friend');
   await expectVideoFrom(friend.page, 'Host');
 
+  // Stats: the video from them, and the video sent to them.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitemcheckbox', { name: 'Show stats' }).click();
+  await host.page.keyboard.press('Escape');
+  const stats = host.page.locator('.seat', { hasText: 'Friend' }).getByTestId('seat-stats');
+  await expect(stats).toContainText(/↓ \d+×\d+ · \d+ fps/, { timeout: 10_000 });
+  await expect(stats).toContainText(/↑ \d+×\d+ · \d+ fps/);
+
   await friend.page.getByRole('button', { name: 'Menu' }).click();
   await friend.page.getByRole('menuitem', { name: 'Leave' }).click();
   await expect(host.page.locator('.seat:not(.seat-free)')).toHaveCount(1);
