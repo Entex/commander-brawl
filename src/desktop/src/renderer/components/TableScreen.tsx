@@ -76,7 +76,7 @@ interface TableScreenProps {
 const MAX_BITRATE_BPS = 3_000_000;
 
 export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: TableScreenProps) {
-  const session = useTableSession(config);
+  const { session, links } = useTableSession(config);
   const state = useSessionState(session);
   const game = useGame();
   const [showStats, setShowStats] = useState(false);
@@ -128,6 +128,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   useEffect(() => {
     void session.setLocalTrack(spectating ? null : camera.track);
   }, [session, camera.track, spectating]);
+  // As sharp as the player chose to send.
+  useEffect(() => links.setSentHeight(camera.sent), [links, camera.sent]);
 
   // Cards clicked on the players' videos (yours too): outlined there, and shown in a column beside the table.
   const {
@@ -163,12 +165,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   );
   // A card that's known for sure goes on the battlefield by itself: everyone sees it on the video.
   usePlaceSureCards(lookups, spectating, track);
-  /** From the battlefield into its player's graveyard; a token just stops being. */
+  /** From the battlefield into its player's graveyard. Only cards: a token isn't a card to put there. */
   const toGraveyard = useCallback((seat: SeatIndex, permanent: Permanent) => {
-    if (permanent.token) {
-      submitGameEvent({ type: 'permanent-removed', seat, id: permanent.id });
-      return;
-    }
+    if (permanent.token) return;
     submitGameEvent({
       type: 'card-to-graveyard',
       seat,
@@ -208,6 +207,16 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   useEffect(() => session.setCameraStatus(status), [session, status]);
 
   const getStats = useCallback((memberId: string) => session.getStats(memberId), [session]);
+  /** Every link's stats: what you send to each player and watcher. */
+  const getSentStats = useCallback(async () => {
+    const current = session.getState();
+    const ids = [
+      ...current.seats.filter((seat) => !seat.isSelf).map((seat) => seat.player.id),
+      ...current.spectators.map((spectator) => spectator.id),
+    ];
+    const all = await Promise.all(ids.map((id) => session.getStats(id)));
+    return all.filter((stats): stats is NonNullable<typeof stats> => stats !== null);
+  }, [session]);
 
   const copyInvite = async () => {
     if (!host) return;
@@ -218,9 +227,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
 
   const seats = arrangeSeats(state.seats, game?.state.turnOrder ?? null);
   const activeSeat = game?.state.activeSeat ?? null;
-  // The seat that gets most of the screen, if any: the active player's, with that setting on (not on your own turn).
-  const focusedSeat =
-    pinnedSeat ?? (enlargeActive && activeSeat !== null && activeSeat !== selfSeat ? activeSeat : null);
+  // The seat that gets most of the screen, if any: one enlarged with its number key, or the active player's, with
+  // that setting on.
+  const focusedSeat = pinnedSeat ?? (enlargeActive && activeSeat !== null ? activeSeat : null);
   const focused = focusedSeat !== null && seats.some((seat) => seat?.player.seat === focusedSeat);
   const othersShown = seats.filter((seat) => seat && seat.player.seat !== focusedSeat).length;
 
@@ -417,7 +426,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 <button
                   role="menuitemcheckbox"
                   aria-checked={enlargeActive}
-                  title="The player whose turn it is gets most of the screen (not on your own turn)"
+                  title="The player whose turn it is gets most of the screen, from the first turn"
                   onClick={() => setEnlargeActive(!enlargeActive)}
                 >
                   <Icon name="expand" /> Enlarge the active player
@@ -590,6 +599,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 readOnly={readOnly}
                 showStats={showStats}
                 getStats={getStats}
+                getSentStats={seat.isSelf ? getSentStats : undefined}
+                cameraTrack={seat.isSelf ? camera.rawTrack : null}
                 onOpenCard={openCard}
                 onLook={(target, rotation) => lookAt(seat.player.seat, target, rotation)}
                 boardShown={boardShown}
@@ -974,7 +985,10 @@ function LastChange({
 }) {
   // Things the app does by itself (like checking a deck) stay in the log, but aren't news here; neither are
   // phases, which show next to the turn.
-  const last = game?.recent.findLast((entry) => !QUIET_EVENTS.has(entry.event.type));
+  const last = game?.recent.findLast(
+    (entry) =>
+      !QUIET_EVENTS.has(entry.event.type) && !(entry.event.type === 'reminder-set' && entry.event.reminder.hidden),
+  );
   if (!game || !last) return null;
   return (
     <span className="last-change" data-testid="last-change">
@@ -1036,32 +1050,35 @@ function ConnectionBanner({ state, unconfirmed, onLeave }: ConnectionBannerProps
 }
 
 /** One session per visit to a table: the screen is mounted when you host or join, and unmounted when you leave. */
-function useTableSession(config: RendererConfig): TableSession<MediaStreamTrack> {
+function useTableSession(config: RendererConfig): {
+  readonly session: TableSession<MediaStreamTrack>;
+  readonly links: WebRtcPeerLinkFactory;
+} {
+  const [links] = useState(
+    () =>
+      new WebRtcPeerLinkFactory({
+        iceServers: config.iceServers ? config.iceServers.map((server) => ({ ...server })) : DEFAULT_ICE_SERVERS,
+        maxBitrateBps: MAX_BITRATE_BPS,
+      }),
+  );
   const [session] = useState(
     () =>
-      new TableSession(
-        new IpcTableSignaling(),
-        new WebRtcPeerLinkFactory({
-          iceServers: config.iceServers ? config.iceServers.map((server) => ({ ...server })) : DEFAULT_ICE_SERVERS,
-          maxBitrateBps: MAX_BITRATE_BPS,
-        }),
-        {
-          timers: {
-            setTimeout: (callback, ms) => {
-              const handle = window.setTimeout(callback, ms);
-              return () => window.clearTimeout(handle);
-            },
-            now: () => Date.now(),
+      new TableSession(new IpcTableSignaling(), links, {
+        timers: {
+          setTimeout: (callback, ms) => {
+            const handle = window.setTimeout(callback, ms);
+            return () => window.clearTimeout(handle);
           },
-          linkResetMs: 15_000,
+          now: () => Date.now(),
         },
-      ),
+        linkResetMs: 15_000,
+      }),
   );
   useEffect(() => {
     session.start();
     return () => session.dispose();
   }, [session]);
-  return session;
+  return { session, links };
 }
 
 function useSessionState(session: TableSession<MediaStreamTrack>): TableSessionState<MediaStreamTrack> {

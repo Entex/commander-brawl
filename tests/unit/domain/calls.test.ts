@@ -118,13 +118,25 @@ describe('a trigger reminder', () => {
     expect(game.reminders).toEqual([]);
   });
 
-  it('comes up for phases skipped over, and for the rest of a turn passed early', () => {
+  it('stops the game at its phase: moving past it ends there, and so does passing the turn early', () => {
     let game = play(newGame(), reminder('c', { phase: 'combat' }), reminder('e', { phase: 'end' }), order(0, 1));
     game = applyEvent(game, phase('main2'));
+    expect(game.phase).toBe('combat');
     expect(game.calls.map((c) => c.id)).toEqual(['c@1']);
+    game = applyEvent(game, resolve('c@1'));
+    // Passing the turn goes to the end step's reminder first; passing again passes it.
     game = applyEvent(game, pass(0));
-    expect(game.calls.map((c) => c.id)).toEqual(['c@1', 'e@1']);
+    expect(game).toMatchObject({ activeSeat: 0, phase: 'end' });
+    expect(game.calls.map((c) => c.id)).toEqual(['e@1']);
+    game = applyEvent(game, pass(0));
     expect(game.activeSeat).toBe(1);
+  });
+
+  it('can be kept to its setter until it comes up', () => {
+    const hidden = reminder('h', { hidden: true });
+    expect(toGameEvent(hidden)).toEqual(hidden);
+    const game = play(newGame(), hidden, order(1, 0));
+    expect(game.calls.map((c) => c.id)).toEqual(['h@1']);
   });
 
   it('can be taken away before it comes up', () => {

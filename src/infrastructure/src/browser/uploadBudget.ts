@@ -18,21 +18,32 @@ export interface SendSample {
 /** How a link should send right now. */
 export interface SendPlan {
   readonly maxBitrateBps: number;
-  /** 1: the camera's own size (at most 1080p); 1.5: 720p from 1080p; 2: 540p. */
-  readonly scaleResolutionDownBy: number;
+  /** The picture's longer side, at most, in pixels: 1920 for 1080p. A bigger camera picture is made smaller. */
+  readonly maxLongSide: number;
   readonly maxFramerate: number | undefined;
 }
 
+/** How sharp the video sent to the others is, as the height of a 16:9 picture. */
+export type SentHeight = 480 | 720 | 1080;
+export const SENT_HEIGHTS: readonly SentHeight[] = [480, 720, 1080];
+
+/** Each sent quality's picture (its longer side) and its share of the bitrate 1080p gets. */
+const SENT: Record<SentHeight, { readonly longSide: number; readonly share: number }> = {
+  480: { longSide: 854, share: 0.35 },
+  720: { longSide: 1280, share: 0.6 },
+  1080: { longSide: 1920, share: 1 },
+};
+
 export interface UploadBudgetOptions {
-  /** The most one player gets. */
+  /** The most one player gets, at 1080p. */
   readonly playerBps: number;
   /** The most one watcher gets: they don't need video sharp enough for close-ups. */
   readonly watcherBps: number;
   readonly now?: () => number;
 }
 
-/** A watcher's picture is made this much smaller, and gets at most this many frames a second. */
-const WATCHER_SCALE = 1.5;
+/** A watcher's picture is at most this big (its longer side: 720p), at most this many frames a second. */
+const WATCHER_LONG_SIDE = 1280;
 const WATCHER_FPS = 20;
 /** Never less than this for a link, however tight it gets: a picture at all. */
 const MIN_LINK_BPS = 300_000;
@@ -70,10 +81,24 @@ export class UploadBudget {
   private total: number | null = null;
   private calmSince: number;
   private readonly now: () => number;
+  /** How sharp the player chose to send. */
+  private sent: SentHeight = 1080;
 
   constructor(private readonly options: UploadBudgetOptions) {
     this.now = options.now ?? (() => Date.now());
     this.calmSince = this.now();
+  }
+
+  /** How sharp the video sent is to be: the picture's size, and the bitrate that goes with it. */
+  setSentHeight(height: SentHeight): void {
+    if (height === this.sent) return;
+    this.sent = height;
+    // A fresh start: what didn't fit at one size says little about another.
+    this.total = null;
+  }
+
+  get sentHeight(): SentHeight {
+    return this.sent;
   }
 
   /** A link starts sending: to a player, or a watcher. */
@@ -127,21 +152,26 @@ export class UploadBudget {
 
   /** How a link should send now. */
   planFor(link: object): SendPlan {
+    const { longSide } = SENT[this.sent];
     const state = this.links.get(link);
-    if (!state) return { maxBitrateBps: this.options.playerBps, scaleResolutionDownBy: 1, maxFramerate: undefined };
+    if (!state) return { maxBitrateBps: this.playerBps(), maxLongSide: longSide, maxFramerate: undefined };
     const all = [...this.links.values()];
     const own = this.limitOf(state);
     const weights = all.reduce((sum, s) => sum + this.limitOf(s), 0);
     const share = this.total === null ? own : Math.max(MIN_LINK_BPS, (this.total * own) / weights);
-    const scale = SCALES[state.step]! * (state.watcher ? WATCHER_SCALE : 1);
+    const side = state.watcher ? Math.min(longSide, WATCHER_LONG_SIDE) : longSide;
     return {
       maxBitrateBps: Math.round(Math.min(own, share)),
-      scaleResolutionDownBy: scale,
+      maxLongSide: Math.round(side / SCALES[state.step]!),
       maxFramerate: state.watcher ? WATCHER_FPS : undefined,
     };
   }
 
+  private playerBps(): number {
+    return Math.round(this.options.playerBps * SENT[this.sent].share);
+  }
+
   private limitOf(state: LinkState): number {
-    return state.watcher ? this.options.watcherBps : this.options.playerBps;
+    return state.watcher ? Math.min(this.options.watcherBps, this.playerBps()) : this.playerBps();
   }
 }

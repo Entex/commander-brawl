@@ -6,7 +6,7 @@ import type {
   PeerLinkOptions,
 } from '@commander-brawl/application';
 import { LinkStatsReader } from './stats';
-import { UploadBudget, type SendPlan } from './uploadBudget';
+import { UploadBudget, type SendPlan, type SentHeight } from './uploadBudget';
 
 export interface WebRtcConfig {
   readonly iceServers: RTCIceServer[];
@@ -34,6 +34,7 @@ type LinkSignal = { readonly description: RTCSessionDescriptionInit } | { readon
 export class WebRtcPeerLinkFactory implements PeerLinkFactory<MediaStreamTrack> {
   /** What this player sends, shared out across all their links. */
   private readonly budget: UploadBudget;
+  private readonly links = new Set<WebRtcPeerLink>();
 
   constructor(private readonly config: WebRtcConfig) {
     this.budget = new UploadBudget({
@@ -43,7 +44,16 @@ export class WebRtcPeerLinkFactory implements PeerLinkFactory<MediaStreamTrack> 
   }
 
   create(options: PeerLinkOptions<MediaStreamTrack>): PeerLink<MediaStreamTrack> {
-    return new WebRtcPeerLink(options, this.config, this.budget);
+    const link = new WebRtcPeerLink(options, this.config, this.budget, () => this.links.delete(link));
+    this.links.add(link);
+    return link;
+  }
+
+  /** How sharp the video sent to the others is to be, for every link from now on. */
+  setSentHeight(height: SentHeight): void {
+    if (height === this.budget.sentHeight) return;
+    this.budget.setSentHeight(height);
+    for (const link of this.links) link.retune();
   }
 }
 
@@ -71,6 +81,7 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
     options: PeerLinkOptions<MediaStreamTrack>,
     private readonly config: WebRtcConfig,
     private readonly budget: UploadBudget,
+    private readonly onClosed: () => void = () => undefined,
   ) {
     this.events = options.events;
     budget.join(this, options.watcher ?? false);
@@ -93,7 +104,7 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
       // A single two-way video channel. The other side adopts it when the offer arrives.
       this.transceiver = this.pc.addTransceiver('video', {
         direction: 'sendrecv',
-        sendEncodings: [encodingFor(budget.planFor(this))],
+        sendEncodings: [encodingFor(budget.planFor(this), this.localTrack)],
       });
       if (this.localTrack) void this.replaceTrack(this.localTrack);
     }
@@ -134,7 +145,13 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
     this.clearDisconnectTimer();
     if (this.checkTimer) clearInterval(this.checkTimer);
     this.budget.leave(this);
+    this.onClosed();
     this.pc.close();
+  }
+
+  /** Sends as the budget now says (the player chose how sharp). */
+  retune(): void {
+    void this.tuneSender();
   }
 
   /** Reports how the video sent is getting through, and sends as the budget then says. */
@@ -209,7 +226,7 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
     if (!sender || this.closed || this.pc.signalingState !== 'stable') return;
     const params = sender.getParameters();
     if (!params.encodings || params.encodings.length === 0) return;
-    const wanted = encodingFor(this.budget.planFor(this));
+    const wanted = encodingFor(this.budget.planFor(this), this.localTrack);
     let changed = false;
     for (const encoding of params.encodings) {
       // Small changes in the bitrate aren't worth telling the encoder about.
@@ -218,7 +235,7 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
         encoding.maxBitrate = wanted.maxBitrate;
         changed = true;
       }
-      if ((encoding.scaleResolutionDownBy ?? 1) !== wanted.scaleResolutionDownBy) {
+      if (Math.abs((encoding.scaleResolutionDownBy ?? 1) - wanted.scaleResolutionDownBy!) > 0.01) {
         encoding.scaleResolutionDownBy = wanted.scaleResolutionDownBy;
         changed = true;
       }
@@ -273,11 +290,13 @@ class WebRtcPeerLink implements PeerLink<MediaStreamTrack> {
   }
 }
 
-/** The sender's encoding for a plan. */
-function encodingFor(plan: SendPlan): RTCRtpEncodingParameters {
+/** The sender's encoding for a plan: the camera's picture made smaller, if it's bigger than the plan allows. */
+function encodingFor(plan: SendPlan, track: MediaStreamTrack | null): RTCRtpEncodingParameters {
+  const { width, height } = track?.getSettings() ?? {};
+  const longSide = width && height ? Math.max(width, height) : 1920;
   return {
     maxBitrate: plan.maxBitrateBps,
-    scaleResolutionDownBy: plan.scaleResolutionDownBy,
+    scaleResolutionDownBy: Math.max(1, Math.round((longSide / plan.maxLongSide) * 100) / 100),
     ...(plan.maxFramerate === undefined ? {} : { maxFramerate: plan.maxFramerate }),
   };
 }

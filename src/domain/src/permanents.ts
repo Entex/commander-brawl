@@ -23,6 +23,8 @@ export interface Permanent {
   readonly counters: Readonly<Record<string, number>>;
   /** Where it is on its player's camera picture. Null: only in the list. */
   readonly spot: Spot | null;
+  /** Not a card the camera sees (a token, or a card added by hand): shown on the video as the card itself. */
+  readonly virtual?: boolean;
 }
 
 /** The counters that come up most, offered first. */
@@ -53,6 +55,7 @@ export interface NewPermanent {
   readonly count: number;
   /** Where it is on the player's video (earlier versions didn't say). */
   readonly spot?: Spot | null;
+  readonly virtual?: boolean;
 }
 
 /** Reads untrusted data as a spot on a picture. Null if it isn't one. */
@@ -69,6 +72,7 @@ export function toNewPermanent(raw: unknown): NewPermanent | null {
   const rawSpot = (raw as Record<string, unknown>).spot;
   const spot = rawSpot === undefined || rawSpot === null ? null : toSpot(rawSpot);
   if (rawSpot !== undefined && rawSpot !== null && spot === null) return null;
+  const virtual = (raw as Record<string, unknown>).virtual === true;
   const valid =
     typeof id === 'string' &&
     id.length > 0 &&
@@ -83,7 +87,15 @@ export function toNewPermanent(raw: unknown): NewPermanent | null {
     count >= 1 &&
     count <= (token ? MAX_TOKENS_IN_GROUP : 1);
   if (!valid) return null;
-  return spot ? { id, name: name.trim(), cardId, token, count, spot } : { id, name: name.trim(), cardId, token, count };
+  return {
+    id,
+    name: name.trim(),
+    cardId,
+    token,
+    count,
+    ...(spot ? { spot } : {}),
+    ...(virtual ? { virtual } : {}),
+  };
 }
 
 export function isCounterKind(value: unknown): value is string {

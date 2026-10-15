@@ -332,7 +332,11 @@ test('a shuffled turn order, passed around the table', async () => {
 
   // The player who's waiting has the active player's seat take most of the screen.
   await second.page.getByRole('button', { name: 'Menu' }).click();
-  await second.page.getByRole('menuitemcheckbox', { name: 'Enlarge the active player' }).click();
+  const enlarge = second.page.getByRole('menuitemcheckbox', { name: 'Enlarge the active player' });
+  await expect(enlarge).toHaveAttribute('aria-checked', 'false');
+  await enlarge.click();
+  await expect(enlarge).toHaveAttribute('aria-checked', 'true');
+  await second.page.screenshot({ path: test.info().outputPath('menu.png') });
   await second.page.keyboard.press('Escape');
   const firstName = first === host ? 'Host' : 'Friend';
   const big = second.page.locator('.seat[data-focused="true"]');
@@ -345,9 +349,9 @@ test('a shuffled turn order, passed around the table', async () => {
 
   await first.page.getByRole('button', { name: 'Pass turn' }).click();
 
-  // On your own turn, the seats are as usual.
+  // On your own turn, it's your seat.
   await expect(second.page.getByTestId('turn')).toContainText('Turn 2 · Round 1 · Your turn');
-  await expect(second.page.locator('.seat[data-focused="true"]')).toHaveCount(0);
+  await expect(second.page.locator('.seat[data-focused="true"]')).toContainText(first === host ? 'Friend' : 'Host');
   await expect(first.page.getByRole('button', { name: 'Pass turn' })).toHaveCount(0);
   await expect(first.page.locator('.seat[data-active="true"]')).toHaveCount(1);
 });
@@ -629,6 +633,18 @@ test('casting a card puts it in the spotlight for everyone', async () => {
   const lookup = friend.page.getByTestId('card-rail').getByTestId('lookup');
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
   await expect(lookup).toContainText('Host cast it');
+
+  // Cast another: the first is under Earlier, and can go to the graveyard from there.
+  await host.page.getByRole('button', { name: 'Cards' }).click();
+  await panel.getByLabel('Search for a card').fill('sol ring');
+  await panel.getByRole('button', { name: 'Sol Ring' }).click();
+  await panel.getByRole('button', { name: 'Cast it' }).click();
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Sol Ring');
+  const earlier = friend.page.getByTestId('card-rail').getByRole('region', { name: 'Earlier' });
+  await friend.page.screenshot({ path: test.info().outputPath('rail.png') });
+  await earlier.getByRole('button', { name: 'Put Rhystic Study in the graveyard' }).click();
+  await expect(earlier).toHaveCount(0);
+  await expect(host.page.getByTestId('last-change')).toHaveText("Friend put Rhystic Study in Host's graveyard");
 });
 
 test("clicking a card on a player's video, yours too: outlined there, and which card it is beside the table", async () => {
@@ -752,7 +768,7 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await ownLookup.getByRole('button', { name: 'Put Rhystic Study in the graveyard' }).click();
   await expect(host.page.getByTestId('card-rail')).toHaveCount(0);
   await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
-  await expect(friend.page.getByTestId('last-change')).toHaveText('Host: Rhystic Study to the graveyard');
+  await expect(friend.page.getByTestId('last-change')).toHaveText('Host put Rhystic Study in their graveyard');
 
   // Cards from two players: everyone's, or just one player's.
   const friendOwn = friend.page.locator('.seat', { hasText: 'Friend (you)' }).getByTestId('seat-video');
@@ -794,12 +810,15 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   await hostSeat.getByRole('button', { name: "Add to Host's battlefield" }).click();
   const add = friend.page.getByRole('dialog', { name: "Add to Host's battlefield" });
   await add.getByRole('button', { name: 'Token' }).click();
-  await add.getByLabel('Token', { exact: true }).fill('soldier');
+  await friend.page.screenshot({ path: test.info().outputPath('token-picker.png') });
+  // Common tokens are offered before anything is typed.
   await add.getByLabel('How many tokens').fill('3');
-  await add.getByRole('button', { name: 'Soldier', exact: true }).click();
+  await add.getByRole('button', { name: '1/1 Soldier' }).click();
+  // A token is shown as the card itself, not a label.
   const tokens = host.page.getByTestId('board-card');
   await expect(tokens).toHaveAccessibleName('Soldier');
-  await expect(tokens).toContainText('Soldier ×3');
+  await expect(tokens).toHaveAttribute('data-virtual', 'true');
+  await expect(tokens).toContainText('×3');
 
   // The host Alt+clicks a spot on their own video for a +1/+1 counter: there for the friend too.
   await host.page.keyboard.down('Alt');
@@ -846,7 +865,11 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
     .getByRole('group', { name: 'Soldier: what to do' })
     .getByRole('button', { name: 'Tap one Soldier', exact: true })
     .click();
-  await expect(tokens).toContainText('(1 tapped)');
+  await expect(tokens).toContainText('1 tapped');
+  // A token isn't a card to put in a graveyard.
+  await expect(
+    friend.page.getByRole('group', { name: 'Soldier: what to do' }).getByRole('button', { name: 'Graveyard' }),
+  ).toHaveCount(0);
   await friend.page.screenshot({ path: test.info().outputPath('battlefield.png') });
 
   // Dragged to where it is now, for everyone.
@@ -970,10 +993,12 @@ test("stops on someone else's phase, and trigger reminders", async () => {
   await host.page.getByRole('dialog', { name: 'Turn order' }).getByRole('button', { name: 'Host goes first' }).click();
   await expect(friend.page.getByTestId('turn')).toContainText("Host's turn");
 
-  // The friend asks the host to stop at combat; everyone sees it on the phases.
+  // The friend asks the host to stop at combat. Only the friend sees it coming.
   await friend.page.getByTestId('phases').getByRole('button', { name: 'Stop at combat' }).click();
-  await expect(host.page.getByTestId('phases').getByTestId('phase-stop')).toHaveCount(1);
+  await expect(friend.page.getByTestId('phases').getByTestId('phase-stop')).toHaveCount(1);
   await expect(friend.page.getByTestId('phases').getByRole('button', { name: "Don't stop at combat" })).toBeVisible();
+  await expect(host.page.getByTestId('last-change')).not.toContainText('stop');
+  await expect(host.page.getByTestId('phases').getByTestId('phase-stop')).toHaveCount(0);
 
   // Passing the turn ends at combat instead, until the stop is resolved.
   await host.page.keyboard.press('Space');
@@ -994,6 +1019,11 @@ test("stops on someone else's phase, and trigger reminders", async () => {
   const reminders = host.page.getByRole('dialog', { name: 'Reminders' });
   await reminders.getByLabel('Phase').selectOption('upkeep');
   await reminders.getByLabel('Reminder text').fill('Rhystic Study: pay 1?');
+  await reminders.getByLabel("My opponents'").check();
+  await expect(reminders.getByLabel("Friend's")).toBeChecked();
+  await expect(reminders.getByLabel("Everyone's")).not.toBeChecked();
+  await expect(reminders.getByLabel('Until removed')).toBeChecked();
+  await host.page.screenshot({ path: test.info().outputPath('reminder-form.png') });
   await reminders.getByRole('button', { name: 'Add the reminder' }).click();
   await expect(friend.page.getByRole('button', { name: 'Reminders (1)' })).toBeVisible();
   await host.page.keyboard.press('Space');
@@ -1016,7 +1046,7 @@ test("stops on someone else's phase, and trigger reminders", async () => {
   await friend.page.getByRole('button', { name: 'Reminders (1)' }).click();
   await friend.page
     .getByRole('dialog', { name: 'Reminders' })
-    .getByRole('button', { name: 'Take away the reminder for every upkeep' })
+    .getByRole('button', { name: "Take away the reminder for Friend's upkeep" })
     .click();
   await expect(host.page.getByRole('button', { name: 'Reminders', exact: true })).toBeVisible();
 });
@@ -1370,6 +1400,41 @@ test('straightening a camera that looks at the table at an angle', async () => {
   await host.page.getByRole('menuitem', { name: 'Camera' }).click();
   await host.page.getByRole('button', { name: "Don't straighten" }).click();
   await expect.poll(() => shapeOf(hostVideo), { timeout: 15_000 }).not.toBeCloseTo(24 / 14, 1);
+});
+
+test('how sharp the video sent to the others is, apart from how sharp the camera films; your own stats', async () => {
+  const { host, friend } = await hostAndFriend();
+  await expectVideoFrom(host.page, 'Friend');
+  for (const { page } of [host, friend]) {
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Show stats' }).click();
+    await page.keyboard.press('Escape');
+  }
+  // Your own seat: what your camera films, and what you send.
+  const own = host.page.getByTestId('own-stats');
+  await expect(own).toContainText('Camera 1920×1080');
+  await expect(own).toContainText(/↑ \d+×\d+ · \d+ fps · [\d.]+ Mbps to 1/, { timeout: 10_000 });
+
+  // 480p sent: the friend gets a smaller picture, while the camera still films at 1080p for close-ups.
+  await host.page.getByRole('button', { name: 'Menu' }).click();
+  await host.page.getByRole('menuitem', { name: 'Camera' }).click();
+  await expect(
+    host.page.getByText('What the camera films and what the others watch can, and should, differ'),
+  ).toBeVisible();
+  await host.page.getByLabel('Sent to the others').selectOption('480');
+  await host.page.getByRole('button', { name: 'Done' }).click();
+  const received = friend.page.locator('.seat', { hasText: 'Host' }).getByTestId('seat-stats');
+  await expect
+    .poll(
+      async () => {
+        const height = (await received.textContent())?.match(/↓ \d+×(\d+)/)?.[1];
+        return height === undefined ? Infinity : Number(height);
+      },
+      { timeout: 20_000 },
+    )
+    .toBeLessThanOrEqual(480);
+  await expect(own).toContainText('Camera 1920×1080');
+  await host.page.screenshot({ path: test.info().outputPath('own-stats.png') });
 });
 
 test('picking the camera resolution', async () => {

@@ -31,10 +31,10 @@ const MIN_CLARITY = 0.8;
 const MARGIN = 0.15;
 /**
  * Without an outline, and no card found before on that video: the part asked for, as shares of the picture's width
- * and height. About two cards wide at a webcam's usual distance, so the card is in it wherever on it the click was.
+ * and height. About a card and a bit at a webcam's usual distance, card-shaped on a 16:9 picture.
  */
-const GUESS_WIDTH = 0.2;
-const GUESS_HEIGHT = 0.5;
+const GUESS_WIDTH = 0.1;
+const GUESS_HEIGHT = 0.25;
 /** Without an outline, but with the size of cards found on that video: this many cards' size around the click. */
 const GUESS_CARDS = 1.6;
 

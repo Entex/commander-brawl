@@ -5,6 +5,7 @@ import { Icon } from '../icons/Icon';
 import { seatColorClass } from '../seatColors';
 import { useCardsByName } from '../useCards';
 import { LIKELY, lookupCard, type CardLookup, type LookupPicture } from '../useCardLookups';
+import { isToken } from './AddToBattlefield';
 
 interface CardRailProps {
   /** Newest first. */
@@ -163,7 +164,8 @@ export function CardRail({
           </header>
           <ul>
             {earlier.map((lookup) => {
-              const name = lookupCard(lookup)?.name ?? stepText(lookup);
+              const card = lookupCard(lookup);
+              const name = card?.name ?? stepText(lookup);
               return (
                 <li key={lookup.id} className={`lookup-item ${seatColorClass(lookup.seat)}`}>
                   <button className="lookup-row" onClick={() => setPicked(lookup.id)}>
@@ -176,14 +178,13 @@ export function CardRail({
                       </span>
                     </span>
                   </button>
-                  <button
-                    className="icon-button lookup-remove"
-                    aria-label={`Remove ${name}`}
-                    title="Remove from the list"
-                    onClick={() => onRemove([lookup.id])}
-                  >
-                    ✕
-                  </button>
+                  <LookupButtons
+                    name={name}
+                    onRemove={() => onRemove([lookup.id])}
+                    onToGraveyard={
+                      card && onToGraveyard && !isToken(card) ? () => onToGraveyard(lookup, card) : undefined
+                    }
+                  />
                 </li>
               );
             })}
@@ -297,14 +298,11 @@ function FeaturedLookup({
           <h3 className="lookup-name" data-testid="lookup-name">
             {card ? card.name : stepText(lookup)}
           </h3>
-          <button
-            className="icon-button lookup-remove"
-            aria-label={`Remove ${card ? card.name : 'this card'}`}
-            title="Remove from the list"
-            onClick={onRemove}
-          >
-            ✕
-          </button>
+          <LookupButtons
+            name={card ? card.name : 'this card'}
+            onRemove={onRemove}
+            onToGraveyard={card && onToGraveyard && !isToken(card) ? () => onToGraveyard(lookup, card) : undefined}
+          />
         </div>
         <p className="lookup-meta">
           {step.status === 'done' && lookup.source === 'camera' && <Confidence lookup={lookup} />}
@@ -331,16 +329,7 @@ function FeaturedLookup({
               title="Shown on their video, with its counters and whether it's tapped"
               aria-label={lookup.placed ? `${card.name} is on the battlefield` : `Put ${card.name} on the battlefield`}
             >
-              <Icon name="pin" /> {lookup.placed ? 'On the battlefield' : 'Put on the battlefield'}
-            </button>
-          )}
-          {onToGraveyard && (
-            <button
-              onClick={() => onToGraveyard(lookup, card)}
-              title="Into their graveyard (off the battlefield), and out of this list"
-              aria-label={`Put ${card.name} in the graveyard`}
-            >
-              <Icon name="graveyard" /> Graveyard
+              <Icon name="pin" /> {lookup.placed ? 'On battlefield' : 'Put on battlefield'}
             </button>
           )}
         </div>
@@ -412,6 +401,40 @@ function Confidence({ lookup }: { readonly lookup: CardLookup }) {
   const [level, label] =
     score >= LIKELY ? ['likely', 'Likely'] : score >= 0.3 ? ['possibly', 'Possibly'] : ['unsure', 'Unsure'];
   return <span className={`confidence confidence-${level}`}>{label}</span>;
+}
+
+/** Taking a card out of the list (✕), and below it, into its player's graveyard, for a card that can go there. */
+function LookupButtons({
+  name,
+  onRemove,
+  onToGraveyard,
+}: {
+  readonly name: string;
+  onRemove(): void;
+  onToGraveyard: (() => void) | undefined;
+}) {
+  return (
+    <span className="lookup-buttons">
+      <button
+        className="icon-button lookup-remove"
+        aria-label={`Remove ${name}`}
+        title="Remove from the list"
+        onClick={onRemove}
+      >
+        ✕
+      </button>
+      {onToGraveyard && (
+        <button
+          className="icon-button lookup-grave"
+          aria-label={`Put ${name} in the graveyard`}
+          title="Into their graveyard (off the battlefield), and out of this list"
+          onClick={onToGraveyard}
+        >
+          <Icon name="graveyard" />
+        </button>
+      )}
+    </span>
+  );
 }
 
 /**

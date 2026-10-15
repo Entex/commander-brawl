@@ -197,8 +197,8 @@ describe('finding the card that was clicked on a video', () => {
     expect(contains(guess, point)).toBe(true);
     expect(guess.x + guess.width).toBeLessThanOrEqual(1);
     expect(guess.height).toBeGreaterThan(guess.width);
-    // Not most of the picture: a card or two around the click.
-    expect(guess.width * guess.height).toBeLessThan(0.15);
+    // Not most of the picture: about a card around the click.
+    expect(guess.width * guess.height).toBeLessThan(0.03);
   });
 
   it('guesses about one card around the click, given how big the cards found on that video are', () => {

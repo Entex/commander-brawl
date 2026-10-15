@@ -218,7 +218,8 @@ function Marks({
             markerHeight="5"
             orient="auto-start-reverse"
           >
-            <path d="M0,0 L10,5 L0,10 z" fill={color} />
+            {/* Outlined in black, like the line, so it shows on a playmat of the same color. */}
+            <path d="M0,0 L10,5 L0,10 z" fill={color} stroke="#000" strokeWidth={1.2} strokeLinejoin="round" />
           </marker>
         ))}
       </defs>
@@ -229,20 +230,34 @@ function Marks({
           data-testid={mark.to ? 'arrow' : 'ping'}
         >
           {mark.to ? (
-            <line
-              x1={mark.from.x}
-              y1={mark.from.y}
-              x2={mark.to.x}
-              y2={mark.to.y}
-              stroke={mark.color}
-              strokeWidth={5}
-              strokeLinecap="round"
-              markerEnd={`url(#arrow-head-${SEAT_COLORS.indexOf(mark.color)})`}
-            />
+            <>
+              {/* A black line under the colored one: a thin black border, so it shows on any playmat. */}
+              <line
+                className="pointer-outline"
+                x1={mark.from.x}
+                y1={mark.from.y}
+                x2={mark.to.x}
+                y2={mark.to.y}
+                stroke="#000"
+                strokeWidth={8}
+                strokeLinecap="round"
+              />
+              <line
+                x1={mark.from.x}
+                y1={mark.from.y}
+                x2={mark.to.x}
+                y2={mark.to.y}
+                stroke={mark.color}
+                strokeWidth={5}
+                strokeLinecap="round"
+                markerEnd={`url(#arrow-head-${SEAT_COLORS.indexOf(mark.color)})`}
+              />
+            </>
           ) : (
             <>
+              <circle className="ping-ring ping-ring-outline" cx={mark.from.x} cy={mark.from.y} r={22} stroke="#000" />
               <circle className="ping-ring" cx={mark.from.x} cy={mark.from.y} r={22} stroke={mark.color} />
-              <circle cx={mark.from.x} cy={mark.from.y} r={6} fill={mark.color} />
+              <circle cx={mark.from.x} cy={mark.from.y} r={6} fill={mark.color} stroke="#000" strokeWidth={1.5} />
             </>
           )}
           {!mark.preview && (

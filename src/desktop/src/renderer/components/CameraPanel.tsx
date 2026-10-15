@@ -1,4 +1,5 @@
 import { isCameraHeight } from '@commander-brawl/infrastructure/protocol';
+import { SENT_HEIGHTS, type SentHeight } from '@commander-brawl/infrastructure/browser';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { Icon } from '../icons/Icon';
@@ -126,6 +127,27 @@ export function CameraPanel({ camera, onClose }: CameraPanelProps) {
             The others get at most 1080p either way: a higher resolution makes close-ups of your cards sharper. 4K warms
             a phone up and uses more of its battery.
             {filming && ` Your camera is filming at ${filming.width}×${filming.height}.`}
+          </p>
+          <label className="field">
+            <span>Sent to the others</span>
+            <select
+              aria-label="Sent to the others"
+              value={camera.sent}
+              onChange={(event) => {
+                const height = Number(event.target.value);
+                if ((SENT_HEIGHTS as readonly number[]).includes(height)) camera.setSent(height as SentHeight);
+              }}
+            >
+              <option value={1080}>1080p (recommended)</option>
+              <option value={720}>720p: for a slower connection</option>
+              <option value={480}>480p: for a slow connection</option>
+            </select>
+          </label>
+          <p className="hint">
+            What the camera films and what the others watch can, and should, differ. Close-ups of your cards are taken
+            from your camera itself, at its full resolution, so film sharp for them; the video the others watch only
+            needs to show the table, and smaller moves more smoothly when the connection is slow. When it struggles, the
+            video gets smaller by itself.
           </p>
         </section>
 

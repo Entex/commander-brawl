@@ -195,6 +195,11 @@ select {
   padding: 0.5rem 0.6rem;
 }
 
+input[type='checkbox'],
+input[type='radio'] {
+  width: auto;
+}
+
 textarea {
   resize: vertical;
   font-family: ui-monospace, monospace;
@@ -473,6 +478,34 @@ a {
   text-align: left;
   border-color: transparent;
   background: transparent;
+}
+
+/* A setting in a menu: a box, ticked while it's on. */
+.menu-items [role='menuitemcheckbox']::after {
+  content: '';
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.1em;
+  height: 1.1em;
+  margin-left: auto;
+  padding-left: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.menu-items [role='menuitemcheckbox'][aria-checked='true']::after {
+  content: '✓';
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+
+.menu-items [role='menuitemcheckbox'] {
+  gap: 0.6rem;
 }
 
 .menu-items button:hover {
@@ -1736,12 +1769,21 @@ button.corner-handle:focus-visible {
   opacity: 0.85;
 }
 
+.pointer-preview .pointer-outline {
+  display: none;
+}
+
 .ping-ring {
   fill: none;
   stroke-width: 4;
   transform-box: fill-box;
   transform-origin: center;
   animation: ping-pulse 1s ease-out 3;
+}
+
+/* The black border around a ping's ring: a wider black ring under the colored one. */
+.ping-ring-outline {
+  stroke-width: 7;
 }
 
 .pointer-name {
@@ -1973,14 +2015,29 @@ button.response-button:hover:not(:disabled) {
   gap: 0.5rem;
 }
 
-.reminder-form > label > input:not([type='checkbox']) {
+.reminder-form > label > input:not([type='checkbox']):not([type='radio']),
+.reminder-form > label > select {
   flex: 1;
 }
 
-.reminder-turns {
+.reminder-turns label {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem 0.9rem;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reminder-turns legend {
+  grid-column: 1 / -1;
+}
+
+.reminder-turns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.35rem 0.9rem;
   margin: 0;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border);
@@ -2189,7 +2246,7 @@ button.response-button:hover:not(:disabled) {
 
 .decks-panel {
   width: min(680px, 96vw);
-  max-height: 94vh;
+  max-height: 90vh;
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -2594,11 +2651,25 @@ button.response-button:hover:not(:disabled) {
 
 .lookup-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
 .lookup-actions button {
-  flex: 1;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+/* ✕, and under it the graveyard, beside a card in the list. */
+.lookup-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lookup-grave:hover {
+  color: var(--accent);
 }
 
 .lookup-others {
@@ -3457,6 +3528,7 @@ abbr.keyword {
 /* Asked for your deck when a game starts. */
 .deck-prompt {
   width: min(520px, 94vw);
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -3476,4 +3548,100 @@ abbr.keyword {
 .deck-prompt .row {
   justify-content: flex-end;
   margin-top: 0.4rem;
+}
+
+/* A long list of decks (or of commanders to pick from) scrolls on its own, so the rest stays in the window. */
+.deck-list {
+  max-height: min(45vh, 420px);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.deck-prompt .deck-list {
+  flex-shrink: 1;
+}
+
+.commander-candidates {
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+/* A virtual card (a token, or a card added by hand) on a player's video: the card itself, as big as theirs. */
+.board-virtual {
+  position: relative;
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.board-virtual-card {
+  aspect-ratio: 63 / 88;
+  overflow: hidden;
+  border-radius: 5% / 3.6%;
+  background: linear-gradient(160deg, #2a2d38, #12131a);
+  border: 1px solid color-mix(in srgb, var(--seat, var(--accent)) 70%, #000);
+  box-shadow: 0 3px 12px rgb(0 0 0 / 60%);
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s;
+}
+
+.board-virtual-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.board-virtual-name {
+  padding: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Tapped: turned sideways, like the card on the table. */
+.board-virtual-tapped .board-virtual-card {
+  transform: rotate(90deg);
+}
+
+.board-virtual-count {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  padding: 0 0.35rem;
+  border: 1px solid #000;
+  border-radius: 999px;
+  background: var(--seat, var(--accent));
+  color: var(--seat-ink, var(--accent-ink));
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.board-virtual-badges {
+  position: absolute;
+  bottom: -0.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.board-tapped-count {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+/* Tokens to pick from: the name, and what tells it from others of that name, under it. */
+.add-board-tokens button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  text-align: left;
+}
+
+.add-board-tokens .hint {
+  font-size: 0.7rem;
 }

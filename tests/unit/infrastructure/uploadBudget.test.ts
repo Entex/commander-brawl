@@ -18,10 +18,10 @@ describe('sharing out what a player sends across their links', () => {
     const { budget, players, watcher } = table();
     expect(budget.planFor(players[0]!)).toEqual({
       maxBitrateBps: 3_000_000,
-      scaleResolutionDownBy: 1,
+      maxLongSide: 1920,
       maxFramerate: undefined,
     });
-    expect(budget.planFor(watcher)).toEqual({ maxBitrateBps: 1_200_000, scaleResolutionDownBy: 1.5, maxFramerate: 20 });
+    expect(budget.planFor(watcher)).toEqual({ maxBitrateBps: 1_200_000, maxLongSide: 1280, maxFramerate: 20 });
   });
 
   it("shares out what gets through when there isn't room for it all, a player's share bigger than a watcher's", () => {
@@ -56,11 +56,26 @@ describe('sharing out what a player sends across their links', () => {
     const { budget, players } = table();
     const link = players[0]!;
     for (let i = 0; i < 3; i++) budget.report(link, squeezed(800_000, 3));
-    expect(budget.planFor(link).scaleResolutionDownBy).toBe(1.5);
+    expect(budget.planFor(link).maxLongSide).toBe(1280);
     for (let i = 0; i < 3; i++) budget.report(link, { sentBps: 800_000, fps: 4, limitation: 'cpu' });
-    expect(budget.planFor(link).scaleResolutionDownBy).toBe(2);
+    expect(budget.planFor(link).maxLongSide).toBe(960);
     for (let i = 0; i < 10; i++) budget.report(link, fine(800_000));
-    expect(budget.planFor(link).scaleResolutionDownBy).toBe(1.5);
+    expect(budget.planFor(link).maxLongSide).toBe(1280);
+  });
+
+  it('sends as sharp as the player chose: a smaller picture, and less', () => {
+    const { budget, players, watcher } = table();
+    budget.setSentHeight(720);
+    expect(budget.planFor(players[0]!)).toEqual({
+      maxBitrateBps: 1_800_000,
+      maxLongSide: 1280,
+      maxFramerate: undefined,
+    });
+    expect(budget.planFor(watcher)).toMatchObject({ maxLongSide: 1280 });
+    budget.setSentHeight(480);
+    expect(budget.planFor(players[0]!)).toMatchObject({ maxLongSide: 854, maxBitrateBps: 1_050_000 });
+    // A watcher never more than a player.
+    expect(budget.planFor(watcher)).toMatchObject({ maxLongSide: 854, maxBitrateBps: 1_050_000 });
   });
 
   it('forgets a link that stops, and an old report', () => {

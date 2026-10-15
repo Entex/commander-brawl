@@ -1,5 +1,5 @@
-export { UploadBudget } from './uploadBudget';
-export type { SendPlan, SendSample } from './uploadBudget';
+export { SENT_HEIGHTS, UploadBudget } from './uploadBudget';
+export type { SendPlan, SendSample, SentHeight } from './uploadBudget';
 export { ScryfallArtLibrary } from './artLibrary';
 export { captureFrame, capturePhoto, likeness, photoTurns, videoToPhoto, warmUpPhotos, widen } from './capture';
 export { ClipRecorder } from './clipRecorder';

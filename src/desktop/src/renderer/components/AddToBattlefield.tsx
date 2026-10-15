@@ -107,6 +107,8 @@ export function AddToBattlefield({ seat, whose, game, players, selfSeat, spot, a
                 token: view === 'token' || (card !== null && isToken(card)),
                 count: view === 'token' ? count : 1,
                 spot: where,
+                // Not on the table for the camera: shown on the video as the card itself.
+                virtual: true,
               },
             });
             onClose();
@@ -156,7 +158,62 @@ const VIEW_TITLES: Record<Exclude<View, 'menu'>, string> = {
   reminder: 'Add a reminder',
 };
 
-/** Finds a card or token by name, or (for tokens) takes any name. */
+/**
+ * Tokens that come up most, offered before anything is typed: the name, and what tells it from other tokens of
+ * that name (there are many Goblins).
+ */
+const COMMON_TOKENS: readonly {
+  readonly name: string;
+  readonly stats?: string;
+  readonly colors?: readonly string[];
+  readonly ability?: string;
+}[] = [
+  { name: 'Treasure' },
+  { name: 'Clue' },
+  { name: 'Food' },
+  { name: 'Soldier', stats: '1/1', colors: ['W'] },
+  { name: 'Zombie', stats: '2/2', colors: ['B'] },
+  { name: 'Goblin', stats: '1/1', colors: ['R'] },
+  { name: 'Spirit', stats: '1/1', colors: ['W'], ability: 'flying' },
+  { name: 'Saproling', stats: '1/1', colors: ['G'] },
+  { name: 'Thopter', stats: '1/1', colors: [], ability: 'flying' },
+  { name: 'Beast', stats: '3/3', colors: ['G'] },
+];
+
+const COLOR_WORDS: Record<string, string> = { W: 'white', U: 'blue', B: 'black', R: 'red', G: 'green' };
+
+/** What tells a token from others of its name: "1/1 red, haste". */
+function describeToken(card: Card): string {
+  const colors = card.colorIdentity.map((c) => COLOR_WORDS[c] ?? c).join('-') || 'colorless';
+  const text = card.oracleText.split('\n')[0]?.replace(/\s*\(.*?\)/g, '') ?? '';
+  const ability = text.length > 32 ? `${text.slice(0, 30)}…` : text;
+  return [card.stats, colors, ability].filter(Boolean).join(' · ');
+}
+
+/** The same token printed again (same name, size, colors and text) is the same choice. */
+function distinctTokens(cards: readonly Card[]): Card[] {
+  const seen = new Set<string>();
+  return cards.filter((card) => {
+    const key = [card.name.toLowerCase(), card.stats, card.colorIdentity.join(''), card.oracleText].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** The token a common one means: the one of that name, size and colors (and ability) there is. */
+async function commonToken(common: (typeof COMMON_TOKENS)[number]): Promise<Card | null> {
+  const found = (await api.cards.search(common.name).catch(() => [])).filter(
+    (card) => isToken(card) && card.name.toLowerCase() === common.name.toLowerCase(),
+  );
+  const fits = (card: Card) =>
+    (common.stats === undefined || card.stats === common.stats) &&
+    (common.colors === undefined || card.colorIdentity.join('') === common.colors.join('')) &&
+    (common.ability === undefined || card.oracleText.toLowerCase().includes(common.ability));
+  return found.find(fits) ?? found[0] ?? null;
+}
+
+/** Finds a card or token by name, or (for tokens) takes any name. Common tokens are offered at first. */
 function CardPicker({
   tokens,
   onPick,
@@ -168,9 +225,9 @@ function CardPicker({
   const [count, setCount] = useState(1);
   const typed = query.trim();
   const found = useCardSearch(typed);
-  // Tokens first, when it's tokens being added.
+  // Tokens first, when it's tokens being added, each kind once.
   const results = tokens
-    ? [...found.filter(isToken), ...found.filter((c) => !isToken(c))].slice(0, 6)
+    ? distinctTokens([...found.filter(isToken), ...found.filter((c) => !isToken(c))]).slice(0, 8)
     : found.slice(0, 6);
   return (
     <div className="add-board-picker">
@@ -194,11 +251,30 @@ function CardPicker({
           />
         )}
       </div>
+      {tokens && typed.length < 2 && (
+        <div className="add-board-choices" aria-label="Common tokens">
+          {COMMON_TOKENS.map((common) => (
+            <button
+              key={`${common.name}${common.stats ?? ''}`}
+              onClick={() => void commonToken(common).then((card) => onPick(card?.name ?? common.name, card, count))}
+            >
+              {[common.stats, common.name].filter(Boolean).join(' ')}
+              {common.ability ? `, ${common.ability}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
       {typed.length >= 2 && (
-        <div className="add-board-choices">
+        <div className={`add-board-choices${tokens ? ' add-board-tokens' : ''}`}>
           {results.map((card) => (
-            <button key={card.id} onClick={() => onPick(card.name, card, count)}>
+            <button
+              key={card.id}
+              aria-label={tokens && isToken(card) ? `${card.name}, ${describeToken(card)}` : card.name}
+              title={`${card.typeLine}${card.oracleText ? `\n${card.oracleText}` : ''}`}
+              onClick={() => onPick(card.name, card, count)}
+            >
               {card.name}
+              {tokens && isToken(card) && <span className="hint">{describeToken(card)}</span>}
             </button>
           ))}
           {tokens && <button onClick={() => onPick(typed, null, count)}>“{typed}”</button>}

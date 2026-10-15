@@ -292,7 +292,10 @@ function PhaseStrip({
   const inCombat = COMBAT_STEPS.includes(phase);
   const shown = STRIP.flatMap((p) => (p === 'combat' && inCombat ? COMBAT_STEPS : [p]));
   const active = game.activeSeat!;
-  const stops = game.reminders.filter((r) => r.stop && reminderApplies(r, active, game.turn));
+  // Stops that the active player isn't to see coming are only marked for whoever asked for them.
+  const stops = game.reminders.filter(
+    (r) => r.stop && reminderApplies(r, active, game.turn) && (!r.hidden || r.seat === self),
+  );
   return (
     <div
       className="phases"
@@ -351,6 +354,7 @@ function PhaseStrip({
                         text: '',
                         once: true,
                         stop: true,
+                        hidden: true,
                       },
                     })
               }

@@ -11,6 +11,8 @@ import {
   widen,
   type CameraDevice,
   type PhoneCameraState,
+  SENT_HEIGHTS,
+  type SentHeight,
 } from '@commander-brawl/infrastructure/browser';
 import { isCameraHeight, type CameraHeight } from '@commander-brawl/infrastructure/protocol';
 import {
@@ -74,6 +76,12 @@ export interface CameraState {
    */
   readonly resolution: CameraHeight;
   setResolution(resolution: CameraHeight): void;
+  /**
+   * How sharp the video sent to the others is (remembered): at most the camera's, and smaller if the connection
+   * struggles. Close-ups come from the camera itself, so they stay as sharp as it films.
+   */
+  readonly sent: SentHeight;
+  setSent(sent: SentHeight): void;
   selectPhone(): void;
   selectWebcam(deviceId: string): Promise<void>;
   refreshDevices(): Promise<void>;
@@ -93,6 +101,7 @@ export function useCamera(): CameraState {
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const webcamTrackRef = useRef<MediaStreamTrack | null>(null);
   const [resolution, setResolutionState] = useState(loadResolution);
+  const [sent, setSentState] = useState(loadSent);
 
   const receiverRef = useRef<PhoneReceiver | null>(null);
 
@@ -122,6 +131,11 @@ export function useCamera(): CameraState {
   const setResolution = useCallback((next: CameraHeight) => {
     localStorage.setItem(RESOLUTION_KEY, String(next));
     setResolutionState(next);
+  }, []);
+
+  const setSent = useCallback((next: SentHeight) => {
+    localStorage.setItem(SENT_KEY, String(next));
+    setSentState(next);
   }, []);
 
   // The phone films at it; a webcam that's on changes to it.
@@ -238,6 +252,8 @@ export function useCamera(): CameraState {
     webcam: { devices, deviceId, error: webcamError },
     resolution,
     setResolution,
+    sent,
+    setSent,
     selectPhone,
     selectWebcam,
     refreshDevices,
@@ -314,6 +330,13 @@ function useStraightener(
 }
 
 const RESOLUTION_KEY = 'cb.resolution';
+const SENT_KEY = 'cb.sentHeight';
+
+/** The sent quality picked before: 1080p at first. */
+function loadSent(): SentHeight {
+  const saved = Number(localStorage.getItem(SENT_KEY));
+  return (SENT_HEIGHTS as readonly number[]).includes(saved) ? (saved as SentHeight) : 1080;
+}
 
 /** The resolution picked before; 4K only where it can be shrunk for the others (see useStraightener). */
 function loadResolution(): CameraHeight {

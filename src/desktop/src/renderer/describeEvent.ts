@@ -104,6 +104,8 @@ export function describeEvent(
       return `${by.name}: “Wait, I have a response!”`;
     case 'reminder-set': {
       const { reminder } = event;
+      // Kept to its setter until it comes up: not even when it's for.
+      if (reminder.hidden) return `${by.name} set a reminder only they see`;
       const when = describeReminderTime(reminder, players);
       if (reminder.stop && !reminder.text) return `${by.name} asked to stop at ${when}`;
       return `${by.name} set a reminder for ${when}${reminder.text ? `: ${reminder.text}` : ''}`;
@@ -200,8 +202,10 @@ export function describeEvent(
       return `${who(event.seat)} took a counter or note off the table`;
     case 'marker-attached':
       return `${who(event.seat)} put counters on ${permanentName(event.seat, event.to)}`;
-    case 'card-to-graveyard':
-      return `${who(event.seat)}: ${event.card.name} to the graveyard`;
+    case 'card-to-graveyard': {
+      const owner = seatName(players, event.seat);
+      return `${by.name} put ${event.card.name} in ${owner === by.name ? 'their' : `${owner}'s`} graveyard`;
+    }
     case 'graveyard-card-removed':
       return event.returned
         ? `${who(event.seat)}: ${event.name} back from the graveyard to the battlefield`

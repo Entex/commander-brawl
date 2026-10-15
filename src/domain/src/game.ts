@@ -680,7 +680,7 @@ function holdClock(state: GameState, at: number): GameState {
 
 /**
  * The active player goes through these phases of their turn, in order: reminders on them come up as calls (once a
- * turn each), and the first stop among them ends the way there (stoppedAt).
+ * turn each), and the first phase with any ends the way there (stoppedAt): the game stops for them.
  */
 function enterPhases(
   state: GameState,
@@ -710,7 +710,8 @@ function enterPhases(
       !fired.has(r.id) ? [r] : r.once ? [] : [{ ...r, lastTurn: turn }],
     );
     current = { ...current, reminders };
-    if (due.some((r) => r.stop)) return { state: current, stoppedAt: phase };
+    // Every reminder stops the game at its phase, until it's resolved.
+    return { state: current, stoppedAt: phase };
   }
   return { state: current, stoppedAt: null };
 }

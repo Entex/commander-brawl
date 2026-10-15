@@ -34,3 +34,8 @@ export function cardTargetAt(video: HTMLVideoElement, clientX: number, clientY: 
 
 /** How big the last card found on each seat's video was: cards on one table are about the same size. */
 const cardSizes = new Map<string, { readonly width: number; readonly height: number }>();
+
+/** How big cards are on a seat's video (shares of its picture's width and height), if one was found there. */
+export function cardSizeOnSeat(seat: number): { readonly width: number; readonly height: number } | undefined {
+  return cardSizes.get(String(seat));
+}

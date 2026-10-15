@@ -22,12 +22,22 @@ import { CUSTOM_KIND_PREFIX, counterKindName } from '../names';
 import { seatColorClass } from '../seatColors';
 import { useCardsById } from '../useCards';
 import { submitGameEvent } from '../useGame';
+import { cardSizeOnSeat } from '../cardTarget';
 import { pictureNear, screenAt } from '../videoPoints';
 
 /** Moving this far (in pixels) with the button down makes it a drag, not a click. */
 const DRAG_DISTANCE = 6;
 /** Room kept between what's shown and the edges, in pixels. */
 const EDGE = 4;
+/** A virtual card's width, as a share of its player's picture, before a real card was found there to go by. */
+const CARD_SHARE = 0.08;
+
+/** Where an item is on screen (its middle), and how wide a card is there. */
+interface Placed {
+  readonly x: number;
+  readonly y: number;
+  readonly cardWidth: number;
+}
 
 /** A card (or group of tokens) or a counter or note, where it is on its player's video. */
 type Item =
@@ -66,7 +76,7 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
   const cards = useCardsById(
     items.flatMap((item) => (item.kind === 'permanent' && item.permanent.cardId ? [item.permanent.cardId] : [])),
   );
-  const [placed, setPlaced] = useState<ReadonlyMap<string, { x: number; y: number }>>(new Map());
+  const [placed, setPlaced] = useState<ReadonlyMap<string, Placed>>(new Map());
   const [dragging, setDragging] = useState<{ key: string; x: number; y: number } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const hovered = useRef<Item | null>(null);
@@ -116,7 +126,12 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
         remove(item);
-      } else if (event.key.toLowerCase() === 'g' && item.kind === 'permanent' && onToGraveyard) {
+      } else if (
+        event.key.toLowerCase() === 'g' &&
+        item.kind === 'permanent' &&
+        !item.permanent.token &&
+        onToGraveyard
+      ) {
         event.preventDefault();
         onToGraveyard(item.seat, item.permanent);
       }
@@ -184,7 +199,15 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
               }
             }}
           >
-            {item.kind === 'permanent' ? (
+            {item.kind === 'permanent' && isVirtual(item.permanent) ? (
+              <VirtualCard
+                item={item}
+                image={item.permanent.cardId ? (cards.get(item.permanent.cardId)?.image ?? null) : null}
+                width={placed.get(item.key)?.cardWidth ?? 60}
+                game={game}
+                open={isOpen}
+              />
+            ) : item.kind === 'permanent' ? (
               <PermanentLabel
                 item={item}
                 image={item.permanent.cardId ? (cards.get(item.permanent.cardId)?.image ?? null) : null}
@@ -215,6 +238,70 @@ export function Battlefield({ game, readOnly, onOpenCard, onToGraveyard }: Battl
             <MarkerControls item={openItem} game={game} onClose={() => setOpen(null)} />
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Tokens, and cards added by hand: not on the table for the camera to see, so shown as the card itself. */
+function isVirtual(permanent: Permanent): boolean {
+  return permanent.token || permanent.virtual === true;
+}
+
+/**
+ * A virtual card on a player's battlefield: the card's picture, as big as the cards on their table, turned when
+ * tapped, with how many (tokens) and its counters on it.
+ */
+function VirtualCard({
+  item,
+  image,
+  width,
+  game,
+  open,
+}: {
+  readonly item: Extract<Item, { kind: 'permanent' }>;
+  readonly image: string | null;
+  readonly width: number;
+  readonly game: GameState;
+  readonly open: boolean;
+}) {
+  const { name, count, tapped, counters } = item.permanent;
+  const [broken, setBroken] = useState(false);
+  const allTapped = tapped > 0 && tapped === count;
+  const classes = `board-virtual ${seatColorClass(item.seat)}${allTapped ? ' board-virtual-tapped' : ''}${
+    open ? ' board-open' : ''
+  }`;
+  return (
+    <div
+      className={classes}
+      style={{ width }}
+      role="button"
+      tabIndex={0}
+      aria-label={name}
+      aria-expanded={open}
+      title={`${name}: drag it to where it is, click for more. Del takes it away.`}
+      data-testid="board-card"
+      data-virtual="true"
+      data-permanent-id={item.permanent.id}
+      data-seat={item.seat}
+    >
+      <div className="board-virtual-card">
+        {image && !broken ? (
+          <img src={cardImageUrl(image, 'normal')} alt="" draggable={false} onError={() => setBroken(true)} />
+        ) : (
+          <span className="board-virtual-name">{name}</span>
+        )}
+      </div>
+      {count > 1 && <span className="board-virtual-count">×{count}</span>}
+      {(Object.keys(counters).length > 0 || (tapped > 0 && count > 1)) && (
+        <span className="board-virtual-badges">
+          {Object.entries(counters).map(([kind, value]) => (
+            <span key={kind} className="board-counter" title={`${counterKindName(game, kind)} counters`}>
+              {value} {shortKind(game, kind)}
+            </span>
+          ))}
+          {tapped > 0 && count > 1 && <span className="board-counter board-tapped-count">{tapped} tapped</span>}
+        </span>
       )}
     </div>
   );
@@ -364,7 +451,7 @@ function PermanentControls({
               </option>
             ))}
         </select>
-        {onToGraveyard && (
+        {onToGraveyard && !token && (
           <button
             onClick={() => {
               onClose();
@@ -565,14 +652,17 @@ function placeItems(
   layer: HTMLElement,
   items: readonly Item[],
   elements: ReadonlyMap<string, HTMLElement>,
-): Map<string, { x: number; y: number }> {
+): Map<string, Placed> {
   const origin = layer.getBoundingClientRect();
-  const videos = new Map<SeatIndex, { video: HTMLVideoElement; box: DOMRect } | null>();
-  const placed = new Map<string, { x: number; y: number }>();
+  const videos = new Map<SeatIndex, { video: HTMLVideoElement; box: DOMRect; cardWidth: number } | null>();
+  const placed = new Map<string, Placed>();
   for (const item of items) {
     if (!videos.has(item.seat)) {
       const video = layer.parentElement?.querySelector<HTMLVideoElement>(`video.seat-video[data-seat="${item.seat}"]`);
-      videos.set(item.seat, video ? { video, box: video.getBoundingClientRect() } : null);
+      videos.set(
+        item.seat,
+        video ? { video, box: video.getBoundingClientRect(), cardWidth: cardWidthOn(video, item.seat, origin) } : null,
+      );
     }
     const seat = videos.get(item.seat);
     const at = seat ? screenAt(seat.video, item.spot, origin) : null;
@@ -585,9 +675,27 @@ function placeItems(
     placed.set(item.key, {
       x: clampTo(at.x, left + halfWidth + EDGE, left + seat.box.width - halfWidth - EDGE),
       y: clampTo(at.y, top + halfHeight + EDGE, top + seat.box.height - halfHeight - EDGE),
+      cardWidth: seat.cardWidth,
     });
   }
   return placed;
+}
+
+/**
+ * How wide a card is on a seat's video, on screen: as wide as the cards found there (the short side of the last
+ * one), or a share of the picture before any was.
+ */
+function cardWidthOn(video: HTMLVideoElement, seat: SeatIndex, origin: DOMRect): number {
+  const left = screenAt(video, { x: 0, y: 0.5 }, origin);
+  const right = screenAt(video, { x: 1, y: 0.5 }, origin);
+  const top = screenAt(video, { x: 0.5, y: 0 }, origin);
+  const bottom = screenAt(video, { x: 0.5, y: 1 }, origin);
+  if (!left || !right || !top || !bottom) return 60;
+  const pictureWidth = Math.abs(right.x - left.x);
+  const pictureHeight = Math.abs(bottom.y - top.y);
+  const known = cardSizeOnSeat(seat);
+  const width = known ? Math.min(known.width * pictureWidth, known.height * pictureHeight) : pictureWidth * CARD_SHARE;
+  return Math.round(Math.min(220, Math.max(28, width)));
 }
 
 /** What can be done with an item, under it (or over it, near the bottom), all of it inside the layer. */
@@ -612,14 +720,18 @@ function clampTo(value: number, min: number, max: number): number {
   return min > max ? (min + max) / 2 : Math.min(max, Math.max(min, value));
 }
 
-function sameLayout(
-  a: ReadonlyMap<string, { x: number; y: number }>,
-  b: ReadonlyMap<string, { x: number; y: number }>,
-): boolean {
+function sameLayout(a: ReadonlyMap<string, Placed>, b: ReadonlyMap<string, Placed>): boolean {
   if (a.size !== b.size) return false;
   for (const [key, at] of a) {
     const other = b.get(key);
-    if (!other || Math.abs(other.x - at.x) >= 0.5 || Math.abs(other.y - at.y) >= 0.5) return false;
+    if (
+      !other ||
+      Math.abs(other.x - at.x) >= 0.5 ||
+      Math.abs(other.y - at.y) >= 0.5 ||
+      Math.abs(other.cardWidth - at.cardWidth) >= 1
+    ) {
+      return false;
+    }
   }
   return true;
 }

@@ -22,7 +22,8 @@ export interface Call {
 
 /**
  * A reminder on a phase: "Ben's upkeep: Rhystic Study tax?". When the game gets to that phase on a turn it's for, it
- * comes up as a call. A stop is a reminder too: one that halts the active player at its phase, for one turn.
+ * comes up as a call, and the active player stops there until it's resolved: moving past the phase, or passing the
+ * turn, ends at it instead. A stop (asked for on someone's phase) is a reminder too, for one turn.
  */
 export interface Reminder {
   /** Made up by the player who set it. */
@@ -37,8 +38,10 @@ export interface Reminder {
   readonly text: string;
   /** Gone once it has come up; otherwise it comes up every time, until it's taken away. */
   readonly once: boolean;
-  /** The active player stops at the phase: moving past it, or passing the turn, ends there instead. */
+  /** Asked for as a stop on someone's phase (it comes up as a stop, not a reminder). Every reminder stops the game. */
   readonly stop: boolean;
+  /** Only the player who set it sees it before it comes up: a wait for a phase of someone else's turn, say. */
+  readonly hidden?: boolean;
 }
 
 /** A reminder in the game: what was set, and the last turn it came up on. */
@@ -73,7 +76,7 @@ export function reminderCallId(reminder: Reminder, turn: number): string {
 /** Reads untrusted data as a reminder. Null if it isn't a valid one. */
 export function toReminder(raw: unknown): Reminder | null {
   if (typeof raw !== 'object' || raw === null) return null;
-  const { id, seat, phase, turns, turn, text, once, stop } = raw as Record<string, unknown>;
+  const { id, seat, phase, turns, turn, text, once, stop, hidden } = raw as Record<string, unknown>;
   const valid =
     isCallId(id) &&
     isSeat(seat) &&
@@ -86,7 +89,8 @@ export function toReminder(raw: unknown): Reminder | null {
     typeof text === 'string' &&
     text.length <= MAX_REMINDER_TEXT_LENGTH &&
     typeof once === 'boolean' &&
-    typeof stop === 'boolean';
+    typeof stop === 'boolean' &&
+    (hidden === undefined || typeof hidden === 'boolean');
   if (!valid) return null;
   return {
     id,
@@ -97,6 +101,7 @@ export function toReminder(raw: unknown): Reminder | null {
     text: text.trim(),
     once,
     stop,
+    ...(hidden === true ? { hidden: true } : {}),
   };
 }
 

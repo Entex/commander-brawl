@@ -52,6 +52,10 @@ interface SeatTileProps {
   readonly readOnly?: boolean;
   readonly showStats: boolean;
   getStats(memberId: string): Promise<LinkStats | null>;
+  /** For your own seat: every link's stats, for what you send. */
+  getSentStats?: () => Promise<readonly LinkStats[]>;
+  /** For your own seat: your camera, as it films. */
+  readonly cameraTrack?: MediaStreamTrack | null;
   /** Shows a card in the Cards panel. */
   onOpenCard(cardId: string): void;
   /** A card clicked on this player's video (yours too): which card it is, from a sharp picture of it. */
@@ -86,6 +90,8 @@ export function SeatTile({
   boardShown = false,
   selfSeat = null,
   onOpenGraveyard,
+  getSentStats,
+  cameraTrack,
 }: SeatTileProps) {
   const [rotation, setRotation] = useRotation(seat.player.name);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -108,6 +114,7 @@ export function SeatTile({
     if (near !== nearChips) setNearChips(near);
   };
   const stats = useLinkStats(seat, showStats, getStats);
+  const sent = useSentStats(showStats && seat.isSelf, getSentStats);
   const status = LINK_TEXT[seat.link];
   const index = seat.player.seat;
   const state = game?.seats[index];
@@ -246,6 +253,7 @@ export function SeatTile({
         />
       )}
       {showStats && stats && <StatsLine stats={stats} />}
+      {showStats && seat.isSelf && <OwnStatsLine camera={cameraTrack ?? null} sent={sent} />}
     </div>
   );
 }
@@ -513,6 +521,71 @@ function StatsLine({ stats }: { readonly stats: LinkStats }) {
       )}
     </div>
   );
+}
+
+/**
+ * Your own video: what your camera films, and what you send to everyone together (the biggest picture, the fewest
+ * frames, all the bits), and why it's held back, if it is.
+ */
+function OwnStatsLine({
+  camera,
+  sent,
+}: {
+  readonly camera: MediaStreamTrack | null;
+  readonly sent: readonly LinkStats[];
+}) {
+  const settings = camera?.getSettings();
+  const outbound = sent.flatMap((s) => (s.outbound ? [s.outbound] : []));
+  const biggest = outbound.reduce<(typeof outbound)[number] | null>(
+    (best, o) => (!best || o.width * o.height > best.width * best.height ? o : best),
+    null,
+  );
+  const fewestFrames = outbound.length > 0 ? Math.min(...outbound.map((o) => o.fps)) : 0;
+  const total = outbound.reduce((sum, o) => sum + o.kbps, 0);
+  const held = outbound.some((o) => o.limitation === 'bandwidth')
+    ? ' · held back: not enough upload'
+    : outbound.some((o) => o.limitation === 'cpu')
+      ? ' · held back: this computer is busy'
+      : '';
+  return (
+    <div className="seat-stats" data-testid="own-stats">
+      <div>
+        Camera{' '}
+        {settings?.width && settings.height
+          ? `${settings.width}×${settings.height}${settings.frameRate ? ` · ${Math.round(settings.frameRate)} fps` : ''}`
+          : 'off'}
+      </div>
+      <div>
+        ↑{' '}
+        {biggest
+          ? `${biggest.width}×${biggest.height} · ${fewestFrames} fps · ${(total / 1000).toFixed(1)} Mbps to ${outbound.length}${held}`
+          : 'nothing sent yet'}
+      </div>
+    </div>
+  );
+}
+
+/** Every link's stats, now and then, while they're shown on your own seat. */
+function useSentStats(
+  enabled: boolean,
+  getSentStats: (() => Promise<readonly LinkStats[]>) | undefined,
+): readonly LinkStats[] {
+  const [stats, setStats] = useState<readonly LinkStats[]>([]);
+  useEffect(() => {
+    if (!enabled || !getSentStats) return;
+    let cancelled = false;
+    const poll = async () => {
+      const next = await getSentStats();
+      if (!cancelled) setStats(next);
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 2_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [enabled, getSentStats]);
+  return enabled ? stats : [];
 }
 
 function useLinkStats(

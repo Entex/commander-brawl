@@ -65,39 +65,41 @@ export function DecksPanel({ seat, playing, onClose }: DecksPanelProps) {
           <button onClick={onClose}>Done</button>
         </header>
 
-        <section>
+        <section className="deck-list-section">
           <h3>Your decks</h3>
           {decks.length === 0 && <p className="hint">None yet. Import one below.</p>}
-          {decks.map((deck) => {
-            const isPlaying = playing !== null && sameDeck(playing, deck);
-            return (
-              <div key={deck.id} className="deck-row" data-testid={`deck-${deck.name}`}>
-                <div className="deck-summary">
-                  <strong>{deck.name}</strong>
-                  <span className="hint">
-                    {deck.commanders.map((c) => c.name).join(' & ') || 'No commander'} · {deckSize(deck)} cards
-                  </span>
+          <div className="deck-list" data-testid="deck-list">
+            {decks.map((deck) => {
+              const isPlaying = playing !== null && sameDeck(playing, deck);
+              return (
+                <div key={deck.id} className="deck-row" data-testid={`deck-${deck.name}`}>
+                  <div className="deck-summary">
+                    <strong>{deck.name}</strong>
+                    <span className="hint">
+                      {deck.commanders.map((c) => c.name).join(' & ') || 'No commander'} · {deckSize(deck)} cards
+                    </span>
+                  </div>
+                  {seat !== null &&
+                    (isPlaying ? (
+                      <span className="badge badge-ok">Playing</span>
+                    ) : (
+                      <button className="primary" onClick={() => play(deck)}>
+                        Play this deck
+                      </button>
+                    ))}
+                  <button
+                    className="danger"
+                    onClick={() => {
+                      void api.decks.remove(deck.id);
+                      setDecks(decks.filter((d) => d.id !== deck.id));
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
-                {seat !== null &&
-                  (isPlaying ? (
-                    <span className="badge badge-ok">Playing</span>
-                  ) : (
-                    <button className="primary" onClick={() => play(deck)}>
-                      Play this deck
-                    </button>
-                  ))}
-                <button
-                  className="danger"
-                  onClick={() => {
-                    void api.decks.remove(deck.id);
-                    setDecks(decks.filter((d) => d.id !== deck.id));
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </section>
 
         {preview ? (
@@ -154,7 +156,7 @@ function DeckPreview({ imported, onSave, onCancel }: DeckPreviewProps) {
         <input value={name} maxLength={MAX_DECK_NAME_LENGTH} onChange={(event) => setName(event.target.value)} />
       </label>
       {needsCommander ? (
-        <div className="field">
+        <div className="field commander-candidates">
           <span>The list didn't say which card is the commander. Pick it (two for partners):</span>
           {imported.commanderCandidates.length === 0 && <p className="hint">No legendary creatures in the list.</p>}
           {imported.commanderCandidates.map((candidate) => (
@@ -243,19 +245,21 @@ export function DeckPrompt({ seat, onImport, onSkip }: DeckPromptProps) {
           the deck too.
         </p>
         {decks !== null && decks.length === 0 && <p className="hint">You haven't imported a deck yet.</p>}
-        {decks?.map((deck) => (
-          <div key={deck.id} className="deck-row" data-testid={`prompt-deck-${deck.name}`}>
-            <div className="deck-summary">
-              <strong>{deck.name}</strong>
-              <span className="hint">
-                {deck.commanders.map((c) => c.name).join(' & ') || 'No commander'} · {deckSize(deck)} cards
-              </span>
+        <div className="deck-list">
+          {decks?.map((deck) => (
+            <div key={deck.id} className="deck-row" data-testid={`prompt-deck-${deck.name}`}>
+              <div className="deck-summary">
+                <strong>{deck.name}</strong>
+                <span className="hint">
+                  {deck.commanders.map((c) => c.name).join(' & ') || 'No commander'} · {deckSize(deck)} cards
+                </span>
+              </div>
+              <button className="primary" onClick={() => playDeck(seat, deck)}>
+                Play this deck
+              </button>
             </div>
-            <button className="primary" onClick={() => playDeck(seat, deck)}>
-              Play this deck
-            </button>
-          </div>
-        ))}
+          ))}
+        </div>
         <div className="row">
           <button onClick={onImport}>
             <Icon name="card-draw" /> Import a deck…

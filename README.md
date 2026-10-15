@@ -22,7 +22,7 @@ When a new version is out, the app offers it on the start screen and updates its
 
 ## Play
 
-1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, on the same Wi-Fi. The phone warns that the connection isn't private, because the page comes from your own computer: tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Any webcam works too. _Straighten the view_ turns an angled view of your playmat into a top-down one, and _Resolution_ sets how sharp the camera films: 4K makes close-ups sharper, while the others always get at most 1080p.
+1. **Camera.** Click _Set up camera_ and scan the QR code with your phone, on the same Wi-Fi. The phone warns that the connection isn't private, because the page comes from your own computer: tap _Advanced → Proceed_ (Android) or _Show Details → visit this website_ (iPhone). Any webcam works too. _Straighten the view_ turns an angled view of your playmat into a top-down one, and _Resolution_ sets how sharp the camera films: 4K makes close-ups sharper, while the others always get at most 1080p. _Sent to the others_ sets how sharp the video they watch is: less (720p) for a slower connection, while close-ups still come from the camera at its full resolution.
 2. **Host.** One player clicks _Host_ and shares the invite link, for example in Discord. The app asks the router to open TCP port 47801 (UPnP or NAT-PMP). If it can't, it says why, and you can forward the port by hand. On a Mac, the app needs Local Network access (System Settings → Privacy & Security → Local Network).
 3. **Join.** Everyone else clicks the link, which opens the app with the invite filled in (or pastes it into the app), and clicks _Join_, or _Watch_ to spectate (up to 8).
 

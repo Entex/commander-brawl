@@ -41,13 +41,12 @@ export function RemindersButton({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [latest]);
-  // Stops show on the phases; this is for the trigger reminders.
-  const count = game.reminders.filter((r) => !r.stop || r.text).length;
+  const count = visibleReminders(game, selfSeat).length;
   return (
     <>
       <button
         onClick={() => setOpen({ phase: 'upkeep', forSeats: [] })}
-        title="Trigger reminders on a phase, for everyone to see when it comes (T: for this phase)"
+        title="Reminders and waits on a phase: the game stops there until they're resolved (T: for this phase)"
       >
         <Icon name="ringing-bell" /> Reminders{count > 0 ? ` (${count})` : ''}
       </button>
@@ -93,12 +92,13 @@ export function RemindersPanel({
           <button onClick={onClose}>Close</button>
         </header>
         <p className="hint">
-          A reminder comes up for everyone at its phase, and stays until someone marks it resolved. For triggers that
-          are easy to forget, like “at the beginning of each upkeep”.
+          When the game gets to a reminder's phase, it comes up for everyone and the game stops there until someone
+          marks it resolved. For triggers that are easy to forget, like “at the beginning of each upkeep”, or to wait
+          for a phase of someone's turn and respond then (kept to yourself until it comes up, if you like).
         </p>
-        {game.reminders.length > 0 && (
+        {visibleReminders(game, selfSeat).length > 0 && (
           <ul className="reminder-list" data-testid="reminder-list">
-            {game.reminders.map((reminder) => (
+            {visibleReminders(game, selfSeat).map((reminder) => (
               <ReminderRow key={reminder.id} reminder={reminder} players={players} />
             ))}
           </ul>
@@ -126,8 +126,8 @@ function ReminderRow({ reminder, players }: { readonly reminder: ReminderState; 
         {reminder.text ? `: ${reminder.text}` : ''}
         <span className="hint">
           {' '}
-          · {reminder.once ? 'once' : 'every time'}
-          {reminder.stop ? ', stops there' : ''} · {seatName(players, reminder.seat)}
+          · {reminder.once ? 'once' : 'until removed'}
+          {reminder.hidden ? ', only you see it' : ''} · {seatName(players, reminder.seat)}
         </span>
       </span>
       <button
@@ -158,10 +158,17 @@ function ReminderForm({
   const [turns, setTurns] = useState<readonly SeatIndex[]>(forSeats);
   const [text, setText] = useState('');
   const [once, setOnce] = useState(false);
-  const [stop, setStop] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const seats = players.map((p) => p.player.seat).sort((a, b) => a - b);
+  const opponents = seats.filter((seat) => seat !== selfSeat);
   const toggle = (seat: SeatIndex) =>
     setTurns((current) => (current.includes(seat) ? current.filter((s) => s !== seat) : [...current, seat]));
+  const allOpponents = opponents.length > 0 && opponents.every((seat) => turns.includes(seat));
+  // Every opponent's turns, or none of them (keeping your own).
+  const toggleOpponents = () =>
+    setTurns((current) =>
+      allOpponents ? current.filter((seat) => !opponents.includes(seat)) : [...new Set([...current, ...opponents])],
+    );
 
   return (
     <form
@@ -178,7 +185,8 @@ function ReminderForm({
             turn: null,
             text: text.trim(),
             once,
-            stop,
+            stop: false,
+            ...(hidden ? { hidden } : {}),
           },
         });
         onAdded();
@@ -200,10 +208,18 @@ function ReminderForm({
         <label>
           <input type="checkbox" checked={turns.length === 0} onChange={() => setTurns([])} /> Everyone's
         </label>
-        {seats.map((seat) => (
+        <label className={seatColorClass(selfSeat)}>
+          <input type="checkbox" checked={turns.includes(selfSeat)} onChange={() => toggle(selfSeat)} /> Mine
+        </label>
+        {opponents.length > 0 && (
+          <label>
+            <input type="checkbox" checked={allOpponents} onChange={toggleOpponents} /> My opponents'
+          </label>
+        )}
+        {opponents.map((seat) => (
           <label key={seat} className={seatColorClass(seat)}>
             <input type="checkbox" checked={turns.includes(seat)} onChange={() => toggle(seat)} />{' '}
-            {seat === selfSeat ? 'Mine' : `${seatName(players, seat)}'s`}
+            {seatName(players, seat)}'s
           </label>
         ))}
       </fieldset>
@@ -217,18 +233,29 @@ function ReminderForm({
           onChange={(event) => setText(event.target.value)}
         />
       </label>
-      <label>
-        <input type="checkbox" checked={once} onChange={(event) => setOnce(event.target.checked)} /> Just once
-      </label>
-      <label>
-        <input type="checkbox" checked={stop} onChange={(event) => setStop(event.target.checked)} /> Stop there until
-        it's resolved
+      <fieldset className="reminder-turns">
+        <legend>How long</legend>
+        <label>
+          <input type="radio" name="reminder-how-long" checked={once} onChange={() => setOnce(true)} /> Just once
+        </label>
+        <label>
+          <input type="radio" name="reminder-how-long" checked={!once} onChange={() => setOnce(false)} /> Until removed
+        </label>
+      </fieldset>
+      <label className="checkbox">
+        <input type="checkbox" checked={hidden} onChange={(event) => setHidden(event.target.checked)} /> Only I see it
+        until it comes up
       </label>
       <button className="primary" type="submit">
         <Icon name="ringing-bell" /> Add the reminder
       </button>
     </form>
   );
+}
+
+/** The reminders this player can see: everyone's but the others' they keep to themselves until they come up. */
+function visibleReminders(game: GameState, self: SeatIndex | null): readonly ReminderState[] {
+  return game.reminders.filter((r) => !r.hidden || r.seat === self);
 }
 
 /** A ref that always holds the latest value, for listeners set up once. */
