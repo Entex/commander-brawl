@@ -269,7 +269,7 @@ export function isToken(card: Card): boolean {
 }
 
 /** A spot for something added without one clicked: low on the picture, beside what's there. */
-function nextSpot(game: GameState, seat: SeatIndex): Spot {
+export function nextSpot(game: GameState, seat: SeatIndex): Spot {
   const state = game.seats[seat];
   const n = (state?.permanents.filter((p) => p.spot).length ?? 0) + (state?.markers.length ?? 0);
   return { x: 0.2 + (n % 4) * 0.2, y: 0.72 - (Math.floor(n / 4) % 4) * 0.14 };

@@ -1,7 +1,9 @@
 import {
   applyEvent,
   comboThreats,
+  combosWith,
   newGame,
+  sameCardName,
   toDeckAnalysis,
   type DeckAnalysis,
   type GameEvent,
@@ -59,5 +61,22 @@ describe('combo warnings', () => {
     const { combos: _, ...old } = analysis;
     expect(toDeckAnalysis(old)).toEqual(old);
     expect(toDeckAnalysis({ ...analysis, combos: [{ cards: [''], produces: [] }] })).toBeNull();
+  });
+});
+
+describe('the combos a card is part of', () => {
+  it("are the ones in its player's deck with that card, fewest cards first", () => {
+    const game = withBoard();
+    expect(combosWith(game, 1, 'Demonic Consultation')).toEqual([thoracle]);
+    expect(combosWith(game, 1, 'archaeomancer')).toEqual([flicker]);
+    expect(combosWith(game, 1, 'Sol Ring')).toEqual([]);
+    // Another player's deck has none.
+    expect(combosWith(game, 0, 'Demonic Consultation')).toEqual([]);
+  });
+
+  it('match names however they are written', () => {
+    expect(sameCardName("Thassa's Oracle", 'thassas oracle')).toBe(true);
+    expect(sameCardName('Fire // Ice', 'Fire')).toBe(true);
+    expect(sameCardName('Sol Ring', 'Sol Talisman')).toBe(false);
   });
 });

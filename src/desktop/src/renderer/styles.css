@@ -3287,3 +3287,90 @@ button.response-button:hover:not(:disabled) {
 .card-rail-graveyard {
   align-self: flex-start;
 }
+
+/* Cards seen: finds by the others to take into the list, and the combos a card is part of. */
+.card-rail-suggestions h3 {
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card-rail-suggestions ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lookup-row-static {
+  cursor: default;
+}
+
+.lookup-combos {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--alert) 50%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--alert) 8%, transparent);
+  font-size: 0.85rem;
+}
+
+.lookup-combos h4 {
+  margin: 0 0 0.3rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--alert);
+  font-size: 0.85rem;
+}
+
+.lookup-combos ul {
+  margin: 0;
+  padding-left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.combo-piece {
+  margin-right: 0.3rem;
+}
+
+.combo-piece .link {
+  font-weight: 600;
+}
+
+.combo-piece-state {
+  margin-left: 0.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.combo-piece-in {
+  background: var(--alert);
+  color: #fff;
+}
+
+.combo-piece-seen {
+  background: var(--panel-raised);
+  color: var(--muted);
+}
+
+.combo-produces {
+  color: var(--muted);
+}
+
+.count-badge {
+  margin-left: 0.3rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+}

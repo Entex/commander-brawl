@@ -1,13 +1,16 @@
-import type { Card, SeatIndex } from '@commander-brawl/domain';
+import { combosWith, sameCardName, type Card, type GameState, type SeatIndex } from '@commander-brawl/domain';
 import { cardImageUrl } from '@commander-brawl/infrastructure/browser';
 import { useEffect, useState } from 'react';
 import { Icon } from '../icons/Icon';
 import { seatColorClass } from '../seatColors';
+import { useCardsByName } from '../useCards';
 import { LIKELY, lookupCard, type CardLookup, type LookupPicture } from '../useCardLookups';
 
 interface CardRailProps {
   /** Newest first. */
   readonly lookups: readonly CardLookup[];
+  /** For the combos a card is part of, and what's on the battlefield. */
+  readonly game: GameState | null;
   /** Shows a card in the Cards panel: its text and rulings. */
   onOpenCard(cardId: string): void;
   /** Puts the card on its player's battlefield, where it was clicked. Not when watching. */
@@ -19,6 +22,8 @@ interface CardRailProps {
   onOpenGraveyard(seat: SeatIndex): void;
   /** The player says which card a lookup is. */
   onChoose(lookupId: number, card: Card): void;
+  /** Takes a suggestion (another player's find) into the list. */
+  onAccept(lookupId: number): void;
   /** Search for the card a lookup is, when none of the guesses is it. */
   onSearch(lookupId: number): void;
   /** Takes these out of the list. */
@@ -30,12 +35,14 @@ interface CardRailProps {
 const MAX_OTHERS = 4;
 
 /**
- * The cards clicked on the players' videos, beside the table: the latest one big, with which card it
- * probably is and the other guesses to pick instead, and the earlier ones below. With cards from more than one
- * player, it can show just one player's.
+ * The cards seen at the table, beside it: clicked on the players' videos, shown to everyone, and (suggested) found by
+ * the others. The latest one big, with which card it probably is and the other guesses to pick instead, and the
+ * combos it's part of; the earlier ones below. With cards from more than one player, it can show just one player's.
  */
 export function CardRail({
   lookups,
+  game,
+  onAccept,
   onOpenCard,
   onTrack,
   onToGraveyard,
@@ -59,9 +66,11 @@ export function CardRail({
   const players = playersIn(lookups);
   // Back to everyone's once none of that player's are left.
   const filter = only !== null && players.some((p) => p.seat === only) ? only : null;
-  const shown = filter === null ? lookups : lookups.filter((lookup) => lookup.seat === filter);
+  const ofFilter = filter === null ? lookups : lookups.filter((lookup) => lookup.seat === filter);
+  const shown = ofFilter.filter((lookup) => !lookup.suggested);
+  const suggestions = ofFilter.filter((lookup) => lookup.suggested);
   const featured = shown.find((lookup) => lookup.id === picked) ?? shown[0];
-  if (!featured) return null;
+  if (!featured && suggestions.length === 0) return null;
   const earlier = shown.filter((lookup) => lookup !== featured);
 
   return (
@@ -97,17 +106,53 @@ export function CardRail({
           {`${players.find((p) => p.seat === filter)?.name === 'You' ? 'Your' : 'Their'} graveyard (${graveyardSize(filter)})`}
         </button>
       )}
-      <FeaturedLookup
-        key={featured.id}
-        lookup={featured}
-        now={now}
-        onOpenCard={onOpenCard}
-        onTrack={onTrack}
-        onToGraveyard={onToGraveyard}
-        onChoose={onChoose}
-        onSearch={onSearch}
-        onRemove={() => onRemove([featured.id])}
-      />
+      {suggestions.length > 0 && (
+        <section className="card-rail-suggestions" aria-label="Suggested">
+          <h3>Found by the others</h3>
+          <ul>
+            {suggestions.map((lookup) => {
+              const name = lookupCard(lookup)?.name ?? '';
+              return (
+                <li key={lookup.id} className={`lookup-item ${seatColorClass(lookup.seat)}`}>
+                  <span className="lookup-row lookup-row-static">
+                    <LookupThumb lookup={lookup} />
+                    <span className="lookup-row-text">
+                      <span className="lookup-row-name">{name}</span>
+                      <span className="hint">{whereFrom(lookup)}</span>
+                    </span>
+                  </span>
+                  <button className="chip-button" aria-label={`Add ${name}`} onClick={() => onAccept(lookup.id)}>
+                    Add
+                  </button>
+                  <button
+                    className="icon-button lookup-remove"
+                    aria-label={`Let ${name} go`}
+                    title="Not in my list"
+                    onClick={() => onRemove([lookup.id])}
+                  >
+                    ✕
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+      {featured && (
+        <FeaturedLookup
+          key={featured.id}
+          lookup={featured}
+          lookups={shown}
+          game={game}
+          now={now}
+          onOpenCard={onOpenCard}
+          onTrack={onTrack}
+          onToGraveyard={onToGraveyard}
+          onChoose={onChoose}
+          onSearch={onSearch}
+          onRemove={() => onRemove([featured.id])}
+        />
+      )}
       {earlier.length > 0 && (
         <section className="card-rail-history" aria-label="Earlier">
           <header className="card-rail-history-header">
@@ -126,7 +171,8 @@ export function CardRail({
                     <span className="lookup-row-text">
                       <span className="lookup-row-name">{name}</span>
                       <span className="hint">
-                        {lookup.own ? 'You' : lookup.from} · {ago(lookup.at, now)}
+                        {lookup.source === 'camera' ? (lookup.own ? 'You' : lookup.from) : whereFrom(lookup)} ·{' '}
+                        {ago(lookup.at, now)}
                       </span>
                     </span>
                   </button>
@@ -157,6 +203,8 @@ function playersIn(lookups: readonly CardLookup[]): { readonly seat: SeatIndex; 
 
 function FeaturedLookup({
   lookup,
+  lookups,
+  game,
   now,
   onOpenCard,
   onTrack,
@@ -166,6 +214,9 @@ function FeaturedLookup({
   onRemove,
 }: {
   readonly lookup: CardLookup;
+  /** The others in the list, to say which of a combo's cards were seen. */
+  readonly lookups: readonly CardLookup[];
+  readonly game: GameState | null;
   readonly now: number;
   onOpenCard(cardId: string): void;
   onTrack: ((lookup: CardLookup, card: Card) => void) | undefined;
@@ -256,12 +307,17 @@ function FeaturedLookup({
           </button>
         </div>
         <p className="lookup-meta">
-          {step.status === 'done' && <Confidence lookup={lookup} />}
+          {step.status === 'done' && lookup.source === 'camera' && <Confidence lookup={lookup} />}
           <span>
-            {lookup.own ? 'Your camera' : `${lookup.from}'s camera`} · {ago(lookup.at, now)}
+            {lookup.source === 'camera' ? (lookup.own ? 'Your camera' : `${lookup.from}'s camera`) : whereFrom(lookup)}{' '}
+            · {ago(lookup.at, now)}
           </span>
         </p>
       </header>
+
+      {card && game && (
+        <ComboPieces game={game} seat={lookup.seat} card={card} seen={lookups} onOpenCard={onOpenCard} />
+      )}
 
       {card && (
         <div className="lookup-actions">
@@ -290,7 +346,7 @@ function FeaturedLookup({
         </div>
       )}
 
-      {step.status === 'done' && (
+      {step.status === 'done' && lookup.source === 'camera' && (
         <div className="lookup-others" data-testid="lookup-others">
           <span className="hint">{card ? 'Not it?' : 'Which card is it?'}</span>
           {others.map((other) => (
@@ -356,6 +412,88 @@ function Confidence({ lookup }: { readonly lookup: CardLookup }) {
   const [level, label] =
     score >= LIKELY ? ['likely', 'Likely'] : score >= 0.3 ? ['possibly', 'Possibly'] : ['unsure', 'Unsure'];
   return <span className={`confidence confidence-${level}`}>{label}</span>;
+}
+
+/**
+ * The combos in its player's deck this card is part of (from the deck check, as in Rule 0): the other cards it takes,
+ * marked when they're on the battlefield or were seen, and what the combo does.
+ */
+function ComboPieces({
+  game,
+  seat,
+  card,
+  seen,
+  onOpenCard,
+}: {
+  readonly game: GameState;
+  readonly seat: SeatIndex;
+  readonly card: Card;
+  readonly seen: readonly CardLookup[];
+  onOpenCard(cardId: string): void;
+}) {
+  const combos = combosWith(game, seat, card.name).slice(0, MAX_COMBOS);
+  const pieces = [...new Set(combos.flatMap((combo) => combo.cards.filter((name) => !sameCardName(name, card.name))))];
+  const known = useCardsByName(pieces);
+  if (combos.length === 0) return null;
+  const permanents = game.seats[seat]?.permanents ?? [];
+  const onBattlefield = (name: string) => permanents.some((p) => sameCardName(p.name, name));
+  const wasSeen = (name: string) => seen.some((l) => l.seat === seat && sameCardName(lookupCard(l)?.name ?? '', name));
+  return (
+    <section className="lookup-combos" aria-label="Combo piece" data-testid="combo-pieces">
+      <h4>
+        <Icon name="skull-bolt" /> Combo piece
+      </h4>
+      <ul>
+        {combos.map((combo) => (
+          <li key={combo.cards.join('+')}>
+            {combo.cards
+              .filter((name) => !sameCardName(name, card.name))
+              .map((name) => {
+                const other = known[pieces.indexOf(name)] ?? null;
+                const state = onBattlefield(name) ? 'in' : wasSeen(name) ? 'seen' : null;
+                return (
+                  <span key={name} className="combo-piece">
+                    +{' '}
+                    {other ? (
+                      <button className="link" onClick={() => onOpenCard(other.id)}>
+                        {name}
+                      </button>
+                    ) : (
+                      name
+                    )}
+                    {state && (
+                      <span className={`combo-piece-state combo-piece-${state}`}>
+                        {state === 'in' ? 'on the battlefield' : 'seen'}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            {combo.produces.length > 0 && <span className="combo-produces"> → {combo.produces.join(', ')}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Combos shown for one card, at most. */
+const MAX_COMBOS = 4;
+
+/** Who a card that wasn't clicked came from: "Alex showed it", "You cast it", "Alex found it on Ben's battlefield". */
+function whereFrom(lookup: CardLookup): string {
+  const by = lookup.by ?? 'Someone';
+  switch (lookup.source) {
+    case 'camera':
+      return cameraOf(lookup);
+    case 'shown':
+      return `${by} showed it`;
+    case 'cast':
+      return `${by} cast it`;
+    case 'found':
+      if (!lookup.own && lookup.by === lookup.from) return `${by} put it on their battlefield`;
+      return `${by} found it on ${lookup.own ? 'your' : `${lookup.from}'s`} battlefield`;
+  }
 }
 
 /** Whose camera, in a sentence: "your camera" or "Alex's camera". */

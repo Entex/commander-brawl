@@ -39,6 +39,22 @@ export function comboThreats(game: GameState): ComboThreat[] {
   );
 }
 
+/** The combos in a player's deck that this card is part of, fewest cards first. */
+export function combosWith(game: GameState, seat: SeatIndex, cardName: string): Combo[] {
+  const analysis = game.seats[seat]?.deckAnalysis;
+  const combos = analysis?.combos ?? analysis?.twoCardCombos ?? [];
+  const card = new Set(names(cardName));
+  return combos
+    .filter((combo) => combo.cards.some((c) => names(c).some((n) => card.has(n))))
+    .sort((a, b) => a.cards.length - b.cards.length);
+}
+
+/** Whether two ways of writing a card's name are the same card (a double-faced card by its front face too). */
+export function sameCardName(a: string, b: string): boolean {
+  const ofA = new Set(names(a));
+  return names(b).some((n) => ofA.has(n));
+}
+
 /** The ways a card may be written: its whole name, and its front face's for a double-faced card. */
 function names(name: string): string[] {
   const whole = normalizeCardName(name);

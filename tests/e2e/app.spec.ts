@@ -515,6 +515,12 @@ test('casting a card puts it in the spotlight for everyone', async () => {
 
   await spotlight.getByRole('button', { name: 'Close' }).click();
   await expect(spotlight).toHaveCount(0);
+
+  // It's in Cards seen too, for everyone.
+  await friend.page.getByTestId('seen-toggle').click();
+  const lookup = friend.page.getByTestId('card-rail').getByTestId('lookup');
+  await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study');
+  await expect(lookup).toContainText('Host cast it');
 });
 
 test("clicking a card on a player's video, yours too: outlined there, and which card it is beside the table", async () => {
@@ -550,6 +556,15 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
   const label = host.page.getByTestId('board-card');
   await expect(label).toHaveAccessibleName('Rhystic Study');
+  // The friend found it: the host gets it suggested for their Cards seen.
+  await expect(host.page.getByTestId('seen-suggestions')).toHaveText('1');
+  await host.page.getByTestId('seen-toggle').click();
+  const suggested = host.page.getByTestId('card-rail').getByRole('region', { name: 'Suggested' });
+  await expect(suggested).toContainText('Rhystic Study');
+  await expect(suggested).toContainText('Friend found it on your battlefield');
+  await suggested.getByRole('button', { name: 'Let Rhystic Study go' }).click();
+  await expect(host.page.getByTestId('card-rail')).toHaveCount(0);
+  await expect(host.page.getByTestId('seen-toggle')).toHaveCount(0);
   const ownVideo = host.page.locator('.seat', { hasText: 'Host (you)' }).getByTestId('seat-video');
   const middle = await onPicture(ownVideo, 0.5, 0.5);
   const labelAt = await centerOf(label);
@@ -1301,6 +1316,20 @@ test('a warning for everyone when a player has most of a combo from their deck o
     "Host has 2 of 3 pieces of Sol Ring + Rhystic Study + Atraxa, Praetors' Voice (Infinite test mana): missing Atraxa, Praetors' Voice",
   );
   await expect(friend.page.getByTestId('chips-0')).toContainText('Combo 2/3');
+
+  // A combo piece in Cards seen says so, with the other cards it takes and which of them are on the battlefield.
+  await host.page.getByTestId('seat-details-0').getByRole('button', { name: 'Close' }).click();
+  await host.page.getByRole('button', { name: 'Cards' }).click();
+  const cards = host.page.getByTestId('cards-panel');
+  await cards.getByLabel('Search for a card').fill('atraxa');
+  await cards.getByRole('button', { name: "Atraxa, Praetors' Voice" }).click();
+  await cards.getByRole('button', { name: 'Show everyone' }).click();
+  await friend.page.getByTestId('seen-toggle').click();
+  const pieces = friend.page.getByTestId('card-rail').getByTestId('combo-pieces');
+  await expect(pieces).toContainText('+ Sol Ring');
+  await expect(pieces).toContainText('+ Rhystic Study');
+  await expect(pieces).toContainText('on the battlefield');
+  await expect(pieces).toContainText('Infinite test mana');
 });
 
 test('a recap when a game is decided, and finished games kept: stats, the games, sharing them as a file', async () => {

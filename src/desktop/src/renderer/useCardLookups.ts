@@ -19,21 +19,31 @@ export type LookupStep =
   | { readonly status: 'asking' }
   | { readonly status: 'failed'; readonly message: string }
   | { readonly status: 'reading'; readonly picture: LookupPicture }
-  | { readonly status: 'done'; readonly picture: LookupPicture; readonly guesses: readonly CardGuess[] };
+  | { readonly status: 'done'; readonly picture: LookupPicture | null; readonly guesses: readonly CardGuess[] };
 
-/** A card clicked on a player's video (yours too), and which card it is. */
+/**
+ * A card in Cards seen: one clicked on a player's video (yours too), and which card it is; or one a player showed
+ * everyone, or found on someone's battlefield.
+ */
 export interface CardLookup {
   readonly id: number;
-  /** Whose camera. */
+  /** Whose camera (or, for a card shown or found, whose seat). */
   readonly from: string;
-  /** Your own camera. */
+  /** Your own camera, or seat. */
   readonly own: boolean;
   readonly seat: SeatIndex;
   /** How their video is turned on our screen; a picture that isn't straightened is shown the same way. */
   readonly rotation: 0 | 180;
-  /** When it was clicked (Date.now()). */
+  /** When it was clicked, or came (Date.now()). */
   readonly at: number;
-  readonly target: CardTarget;
+  /** What was clicked on their video. Null for a card shown or found. */
+  readonly target: CardTarget | null;
+  /** A close-up, a card a player showed (or cast), or a card another player found on a battlefield. */
+  readonly source: 'camera' | 'shown' | 'cast' | 'found';
+  /** Who showed or found it. Null for a close-up. */
+  readonly by: string | null;
+  /** Found by another player and not taken into the list yet: a suggestion. */
+  readonly suggested: boolean;
   readonly step: LookupStep;
   /** The card the player said it is, overruling the guesses. */
   readonly chosen: Card | null;
@@ -79,6 +89,13 @@ export interface CardLookups {
   choose(id: number, card: Card): void;
   /** The card is now on its player's battlefield, as this permanent. */
   markPlaced(id: number, permanentId: string): void;
+  /**
+   * A card shown everyone, or found by another player (a suggestion). A card shown that's in the list already comes to
+   * the top; a find of a card in the list already isn't suggested.
+   */
+  addKnown(known: KnownCard): void;
+  /** A suggestion taken into the list, as the newest. */
+  accept(id: number): void;
   /** Takes these out of the list. */
   remove(ids: readonly number[]): void;
 }
@@ -111,6 +128,9 @@ export function useCardLookups(camera: CameraState): CardLookups {
         rotation,
         at: Date.now(),
         target,
+        source: 'camera',
+        by: null,
+        suggested: false,
         step: { status: 'asking' },
         chosen: null,
         placed: null,
@@ -149,6 +169,43 @@ export function useCardLookups(camera: CameraState): CardLookups {
   );
 
   const choose = useCallback((id: number, card: Card) => change(id, (l) => ({ ...l, chosen: card })), [change]);
+  const addKnown = useCallback((known: KnownCard) => {
+    setLookups((current) => {
+      const existing = current.find((l) => lookupCard(l)?.id === known.card.id && l.seat === known.seat);
+      if (known.source === 'found') {
+        if (current.some((l) => lookupCard(l)?.id === known.card.id)) return current;
+      } else if (existing) {
+        // Shown again: to the top, as the newest.
+        const moved = { ...existing, at: Date.now(), suggested: false, source: known.source, by: known.by };
+        return [moved, ...current.filter((l) => l !== existing)];
+      }
+      const lookup: CardLookup = {
+        id: ++lastId.current,
+        from: known.from,
+        own: known.own,
+        seat: known.seat,
+        rotation: 0,
+        at: Date.now(),
+        target: null,
+        source: known.source,
+        by: known.by,
+        suggested: known.source === 'found',
+        step: { status: 'done', picture: null, guesses: [] },
+        chosen: known.card,
+        placed: null,
+      };
+      return [lookup, ...current].slice(0, MAX_LOOKUPS);
+    });
+  }, []);
+  const accept = useCallback(
+    (id: number) =>
+      setLookups((current) => {
+        const lookup = current.find((l) => l.id === id);
+        if (!lookup) return current;
+        return [{ ...lookup, suggested: false, at: Date.now() }, ...current.filter((l) => l !== lookup)];
+      }),
+    [],
+  );
   const markPlaced = useCallback(
     (id: number, permanentId: string) => change(id, (l) => ({ ...l, placed: permanentId })),
     [change],
@@ -157,7 +214,18 @@ export function useCardLookups(camera: CameraState): CardLookups {
     (ids: readonly number[]) => setLookups((current) => current.filter((lookup) => !ids.includes(lookup.id))),
     [],
   );
-  return { lookups, look, choose, markPlaced, remove };
+  return { lookups, look, choose, markPlaced, addKnown, accept, remove };
+}
+
+/** A card that came into Cards seen without a close-up. */
+export interface KnownCard {
+  readonly card: Card;
+  /** Whose: the seat of the player who showed it, or of the battlefield it was found on. */
+  readonly seat: SeatIndex;
+  readonly from: string;
+  readonly own: boolean;
+  readonly source: 'shown' | 'cast' | 'found';
+  readonly by: string;
 }
 
 /** Where the outline found in the video is in the picture of the crop, as fractions of that picture. */

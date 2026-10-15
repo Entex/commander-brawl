@@ -26,11 +26,12 @@ import type { CardTarget } from '../cardTarget';
 import { describeEvent } from '../describeEvent';
 import { Icon } from '../icons/Icon';
 import { cameraStatus, type CameraState } from '../useCamera';
-import { isToken } from './AddToBattlefield';
+import { api } from '../api';
+import { isToken, nextSpot } from './AddToBattlefield';
 import { Battlefield } from './Battlefield';
 import { GraveyardPanel } from './Graveyard';
 import { CLIP_SECONDS, useClips } from '../clips';
-import { lookupCard, sureCard, useCardLookups, type CardLookup } from '../useCardLookups';
+import { lookupCard, sureCard, useCardLookups, type CardLookup, type KnownCard } from '../useCardLookups';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardOutline } from './CardOutline';
@@ -115,7 +116,18 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   }, [session, camera.track, spectating]);
 
   // Cards clicked on the players' videos (yours too): outlined there, and shown in a column beside the table.
-  const { lookups, look, choose: chooseCard, markPlaced, remove: removeLookups } = useCardLookups(camera);
+  const {
+    lookups,
+    look,
+    choose: chooseCard,
+    markPlaced,
+    addKnown,
+    accept,
+    remove: removeLookups,
+  } = useCardLookups(camera);
+  // Cards shown to everyone, and other players' finds, come into Cards seen too.
+  useCardsFromTheTable(game, state.seats, selfSeat, addKnown);
+  const suggestions = lookups.filter((lookup) => lookup.suggested).length;
   const [seenOpen, setSeenOpen] = useState(false);
   /** The lookup the Cards panel is searching for (none of the guesses was it). */
   const [correcting, setCorrecting] = useState<number | null>(null);
@@ -244,10 +256,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             <button
               onClick={() => setSeenOpen(!seenOpen)}
               aria-pressed={seenOpen}
-              title="The cards you clicked on the videos"
+              title="The cards clicked on the videos, shown to everyone, and found by the others"
               data-testid="seen-toggle"
             >
               <Icon name="spyglass" /> Seen
+              {suggestions > 0 && (
+                <span className="count-badge" title="Found by the others" data-testid="seen-suggestions">
+                  {suggestions}
+                </span>
+              )}
             </button>
           )}
           <button
@@ -546,6 +563,8 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
             graveyardSize={(seat) => game?.state.seats[seat]?.graveyard.length ?? 0}
             onOpenGraveyard={setGraveyardOf}
             onChoose={choose}
+            onAccept={accept}
+            game={game?.state ?? null}
             onSearch={(id) => {
               setCorrecting(id);
               setCardFocus(null);
@@ -631,7 +650,7 @@ function arrangeSeats<T extends SeatView<MediaStreamTrack>>(
  */
 function placeOnBattlefield(game: GameState | null, lookup: CardLookup, card: Card): string | null {
   if (!game) return null;
-  const spot = centerOf(lookup);
+  const spot = centerOf(lookup) ?? nextSpot(game, lookup.seat);
   const same = onBattlefield(game, lookup, card);
   if (same) {
     submitGameEvent({ type: 'permanent-moved', seat: lookup.seat, id: same.id, spot });
@@ -662,8 +681,9 @@ function isRepeatable(card: Card): boolean {
   return isToken(card) || card.typeLine.includes('Basic') || /any number of cards named/i.test(card.oracleText);
 }
 
-/** The middle of the card clicked, on its player's picture. */
-function centerOf(lookup: CardLookup): Spot {
+/** The middle of the card clicked, on its player's picture. Null for a card that wasn't clicked. */
+function centerOf(lookup: CardLookup): Spot | null {
+  if (!lookup.target) return null;
   const { outline, crop } = lookup.target;
   if (outline) {
     return {
@@ -672,6 +692,65 @@ function centerOf(lookup: CardLookup): Spot {
     };
   }
   return { x: crop.x + crop.width / 2, y: crop.y + crop.height / 2 };
+}
+
+/**
+ * Cards from what happens at the table, into Cards seen: a card a player shows everyone (or casts), and one another
+ * player finds on a battlefield (as a suggestion). Only as they happen, not from before this screen opened.
+ */
+function useCardsFromTheTable(
+  game: GameView | null,
+  players: readonly SeatView<MediaStreamTrack>[],
+  self: SeatIndex | null,
+  add: (known: KnownCard) => void,
+): void {
+  const handledUpTo = useRef<number | null>(null);
+  const live = game?.live;
+  const latest = useRef({ players, self, add });
+  useEffect(() => {
+    latest.current = { players, self, add };
+  });
+  useEffect(() => {
+    if (!live) return;
+    const newest = live.at(-1)?.seq ?? -1;
+    if (handledUpTo.current === null) {
+      handledUpTo.current = newest;
+      return;
+    }
+    const fresh = live.filter((entry) => entry.seq > handledUpTo.current!);
+    handledUpTo.current = Math.max(handledUpTo.current, newest);
+    for (const entry of fresh) {
+      const { event, by } = entry;
+      const { players, self, add } = latest.current;
+      const nameOf = (seat: SeatIndex) => players.find((p) => p.player.seat === seat)?.player.name ?? 'Someone';
+      const who = by.seat === self ? 'You' : by.name;
+      if (event.type === 'card-shown') {
+        void cardById(event.card.id).then((card) => {
+          if (!card) return;
+          const source = event.reason === 'cast' ? 'cast' : 'shown';
+          add({ card, seat: by.seat, from: nameOf(by.seat), own: by.seat === self, source, by: who });
+        });
+      } else if (
+        event.type === 'permanent-added' &&
+        by.seat !== self &&
+        event.permanent.cardId &&
+        !event.permanent.token
+      ) {
+        void cardById(event.permanent.cardId).then((card) => {
+          if (!card) return;
+          add({ card, seat: event.seat, from: nameOf(event.seat), own: event.seat === self, source: 'found', by: who });
+        });
+      }
+    }
+  }, [live]);
+}
+
+async function cardById(id: string): Promise<Card | null> {
+  try {
+    return (await api.cards.byIds([id]))[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Once a looked-up card is known for sure, it's put on the battlefield; once for each look. Not when watching. */
@@ -684,7 +763,8 @@ function usePlaceSureCards(
   useEffect(() => {
     if (watching) return;
     for (const lookup of lookups) {
-      if (lookup.placed !== null || done.current.has(lookup.id)) continue;
+      // Only close-ups: a card shown may not be on the battlefield, and one found is there already.
+      if (lookup.source !== 'camera' || lookup.placed !== null || done.current.has(lookup.id)) continue;
       const card = sureCard(lookup);
       if (!card) continue;
       done.current.add(lookup.id);

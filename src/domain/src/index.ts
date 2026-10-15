@@ -98,7 +98,7 @@ export {
   toSpot,
 } from './permanents';
 export type { NewPermanent, Permanent, PlacedMarker, Spot } from './permanents';
-export { comboThreats } from './combos';
+export { comboThreats, combosWith, sameCardName } from './combos';
 export { MAX_GRAVEYARD } from './graveyards';
 export type { GraveCard } from './graveyards';
 export {

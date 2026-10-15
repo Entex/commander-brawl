@@ -31,7 +31,7 @@ export function CardOutline({ lookup }: { readonly lookup: CardLookup | null }) 
     return () => clearTimeout(timer);
   }, [id, finished]);
 
-  const shown = lookup && faded !== lookup.id ? lookup : null;
+  const shown = lookup?.target && faded !== lookup.id ? lookup : null;
   const seat = shown?.seat;
   const target = shown?.target;
 
@@ -62,7 +62,7 @@ export function CardOutline({ lookup }: { readonly lookup: CardLookup | null }) 
         <svg className="card-outline">
           <polygon className="card-outline-glow" points={placed.points} />
           <polygon
-            className={`card-outline-line${shown.target.outline ? '' : ' card-outline-guess'}`}
+            className={`card-outline-line${shown.target?.outline ? '' : ' card-outline-guess'}`}
             points={placed.points}
           />
         </svg>
