@@ -805,6 +805,17 @@ test('dice, coin flips and random picks, rolled by the host and shown to everyon
   await expect(host.page.getByTestId('roll-banner')).toContainText(/Friend flipped a coin: (heads|tails)/);
   // In the log too, and nothing to undo.
   await expect(friend.page.getByRole('button', { name: 'Undo' })).toBeDisabled();
+
+  // In the smallest window, the menu stays inside it, though Roll is near the window's left edge.
+  await friend.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 600));
+  await expect.poll(() => friend.page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(900);
+  await friend.page.getByRole('button', { name: 'Roll', exact: true }).click();
+  const menu = (await friend.page.getByRole('menu').boundingBox())!;
+  const view = await friend.page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  expect(menu.x).toBeGreaterThanOrEqual(0);
+  expect(menu.x + menu.width).toBeLessThanOrEqual(view.width);
+  expect(menu.y + menu.height).toBeLessThanOrEqual(view.height);
+  await expect(friend.page.getByRole('menuitem', { name: 'Random player' })).toBeVisible();
 });
 
 test('Planechase and Archenemy: a shared planar deck and the planar die, a scheme deck for the archenemy', async () => {

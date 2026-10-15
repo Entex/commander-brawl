@@ -1,5 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, type GameIconName } from '../icons/Icon';
+
+/** Room kept between an open menu and the window's edges, in pixels. */
+const EDGE = 8;
+
+/** Where an open list sits: lined up with an edge of its button, and how tall it can be. */
+interface Placement {
+  readonly align: 'left' | 'right';
+  readonly maxHeight: number | undefined;
+}
 
 /** A button that opens a short list of less-used actions. Closes on Escape or a click elsewhere. */
 export function Menu({
@@ -13,6 +22,8 @@ export function Menu({
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<Placement>({ align: 'right', maxHeight: undefined });
 
   useEffect(() => {
     if (!open) return;
@@ -30,6 +41,23 @@ export function Menu({
     };
   }, [open]);
 
+  // Lined up with the button's right edge (a menu at the top right), unless that runs it past the window's left
+  // edge (a menu on the left, like Roll): then with its left edge. Never taller than the window has room for.
+  useLayoutEffect(() => {
+    const button = root.current;
+    const items = list.current;
+    if (!open || !button || !items) return;
+    const box = button.getBoundingClientRect();
+    const width = items.offsetWidth;
+    const align = box.right - width >= EDGE || box.left + width > window.innerWidth - EDGE ? 'right' : 'left';
+    const top = items.getBoundingClientRect().top;
+    const room = window.innerHeight - top - EDGE;
+    const maxHeight = items.scrollHeight > room ? Math.max(120, room) : undefined;
+    setPlacement((current) =>
+      current.align === align && current.maxHeight === maxHeight ? current : { align, maxHeight },
+    );
+  }, [open]);
+
   return (
     <div className="menu" ref={root}>
       <button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -37,7 +65,12 @@ export function Menu({
         {label}
       </button>
       {open && (
-        <div className="menu-items" role="menu">
+        <div
+          ref={list}
+          className={`menu-items menu-items-${placement.align}`}
+          role="menu"
+          style={placement.maxHeight === undefined ? undefined : { maxHeight: placement.maxHeight }}
+        >
           {children(() => setOpen(false))}
         </div>
       )}
