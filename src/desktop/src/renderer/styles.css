@@ -2932,6 +2932,9 @@ button.response-button:hover:not(:disabled) {
   display: grid;
   place-items: center;
   z-index: 10;
+  /* A panel opened from the status bar (Turn order, Not resolved yet) doesn't take on its unwrapped small text. */
+  white-space: normal;
+  font-size: 1rem;
 }
 
 .camera-panel {
@@ -3015,7 +3018,7 @@ button.response-button:hover:not(:disabled) {
 
 /* Setting the turn order by hand. */
 .turn-order-panel {
-  width: min(380px, 94vw);
+  width: min(460px, 94vw);
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
@@ -3051,6 +3054,11 @@ button.response-button:hover:not(:disabled) {
 .turn-order-list button {
   padding: 0.1rem 0.55rem;
   margin-left: 0.25rem;
+}
+
+.turn-order-panel .row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 /*

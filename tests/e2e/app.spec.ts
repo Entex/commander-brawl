@@ -361,6 +361,13 @@ test('a turn order set by hand, or a random first player in that order', async (
 
   await friend.page.getByRole('button', { name: 'Set the order…' }).click();
   const panel = friend.page.getByRole('dialog', { name: 'Turn order' });
+  // All of it inside the panel: its text wraps, though it's opened from the status bar, which doesn't.
+  const overflowing = await panel.evaluate((dialog) =>
+    [...dialog.querySelectorAll<HTMLElement>('.panel, .panel *')]
+      .filter((element) => element.scrollWidth > element.clientWidth + 1 && element.clientWidth > 0)
+      .map((element) => element.className || element.tagName),
+  );
+  expect(overflowing).toEqual([]);
   await panel.getByRole('button', { name: 'Move Friend up' }).click();
   await expect(panel.locator('li')).toHaveText([/Friend/, /Host/]);
   await panel.getByRole('button', { name: 'Friend goes first' }).click();
