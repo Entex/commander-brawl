@@ -1,4 +1,11 @@
-import { Snapshots, clampCrop, type CardGuess, type CropRect, type Quad } from '@commander-brawl/application';
+import {
+  Snapshots,
+  artOfCard,
+  clampCrop,
+  type CardGuess,
+  type CropRect,
+  type Quad,
+} from '@commander-brawl/application';
 import type { Card, DeckList, SeatIndex } from '@commander-brawl/domain';
 import { dataUrlToRgba, rgbaToDataUrl } from '@commander-brawl/infrastructure/browser';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -236,15 +243,35 @@ function inCrop(outline: Quad, crop: CropRect): Quad {
   })) as unknown as Quad;
 }
 
-/** The deck's cards, with their artwork starting to load. */
+/** The deck's cards (with the artwork of the printings the deck list names), their artwork starting to load. */
 async function deckCards(deck: DeckList): Promise<Card[]> {
   try {
-    const found = await api.cards.byIds([...deck.commanders, ...deck.cards].map((card) => card.id));
-    const cards = found.filter((card): card is Card => card !== null);
+    const entries = [...deck.commanders, ...deck.cards];
+    const found = await api.cards.byIds(entries.map((card) => card.id));
+    const printed = entries.filter((entry) => entry.printing);
+    const images = printed.length > 0 ? await api.cards.printings(printed.map((e) => e.printing!)).catch(() => []) : [];
+    const imageOf = new Map(printed.map((entry, i) => [entry.id, images[i] ?? null]));
+    const cards = found
+      .filter((card): card is Card => card !== null)
+      .map((card) => ({ ...card, image: imageOf.get(card.id) ?? card.image }));
     for (const card of cards) void artLibrary.print(card);
     return cards;
   } catch {
     return [];
+  }
+}
+
+/**
+ * A player said which card a close-up is: its artwork, as the camera saw it, is that card's from now on (an
+ * alternative art the deck list didn't say, a foil's glare). Only from a card that was cut out and straightened.
+ */
+export async function rememberArtwork(lookup: CardLookup, card: Card): Promise<void> {
+  const picture = lookup.step.status === 'done' ? lookup.step.picture : null;
+  if (!picture?.straight) return;
+  try {
+    artLibrary.remember(card.id, artOfCard(await dataUrlToRgba(picture.url)));
+  } catch (error) {
+    console.warn('[cards] could not keep the artwork', error);
   }
 }
 

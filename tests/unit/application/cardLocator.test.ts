@@ -1,5 +1,6 @@
 import {
   cardInArea,
+  cardSizeOf,
   guessCardCrop,
   locateCardAt,
   type CropRect,
@@ -131,6 +132,36 @@ describe('finding the card that was clicked on a video', () => {
     }
   });
 
+  it('finds the one card clicked in a group of four, which together make the shape of a card', () => {
+    // Two by two, the four make a card-shaped rectangle; each card stands out more on its own.
+    const cards = [
+      { cx: 210, cy: 92, width: 56, angle: 1 },
+      { cx: 270, cy: 92, width: 56, angle: 1 },
+      { cx: 210, cy: 175, width: 56, angle: 1 },
+      { cx: 270, cy: 175, width: 56, angle: 1 },
+    ];
+    const picture = video(cards);
+    cards.forEach((card, i) => {
+      const found = locateCardAt(picture, at(card, picture, 5, 8));
+      expect(found, `card ${i}`).not.toBeNull();
+      expect(outlineError(found!.outline, card, picture), `card ${i}`).toBeLessThan(tolerance(card));
+    });
+  });
+
+  it('finds the one card clicked in a row of three', () => {
+    const cards = [
+      { cx: 180, cy: 135, width: 56, angle: 0 },
+      { cx: 240, cy: 135, width: 56, angle: 0 },
+      { cx: 300, cy: 135, width: 56, angle: 0 },
+    ];
+    const picture = video(cards);
+    cards.forEach((card, i) => {
+      const found = locateCardAt(picture, at(card, picture, -5, 6));
+      expect(found, `card ${i}`).not.toBeNull();
+      expect(outlineError(found!.outline, card, picture), `card ${i}`).toBeLessThan(tolerance(card));
+    });
+  });
+
   it('finds a tilted card in front of a busy background', () => {
     const card = { cx: 240, cy: 150, width: 90, angle: -12 };
     const picture = video([card], (p) => {
@@ -158,7 +189,7 @@ describe('finding the card that was clicked on a video', () => {
     expect(found.crop.width).toBeLessThan(0.3);
   });
 
-  it('finds nothing on an empty playmat, and then guesses a generous part around the click', () => {
+  it('finds nothing on an empty playmat, and then guesses a part around the click', () => {
     const picture = video([]);
     const point = { x: 0.9, y: 0.5 };
     expect(locateCardAt(picture, point)).toBeNull();
@@ -166,5 +197,21 @@ describe('finding the card that was clicked on a video', () => {
     expect(contains(guess, point)).toBe(true);
     expect(guess.x + guess.width).toBeLessThanOrEqual(1);
     expect(guess.height).toBeGreaterThan(guess.width);
+    // Not most of the picture: a card or two around the click.
+    expect(guess.width * guess.height).toBeLessThan(0.15);
+  });
+
+  it('guesses about one card around the click, given how big the cards found on that video are', () => {
+    const card = { cx: 240, cy: 135, width: 46, angle: 0 };
+    const picture = video([card]);
+    const found = locateCardAt(picture, at(card, picture))!;
+    const size = cardSizeOf(found);
+    expect(size.width * picture.width).toBeCloseTo(46, -1);
+    const guess = guessCardCrop({ x: 0.3, y: 0.4 }, size, picture.width / picture.height);
+    expect(contains(guess, { x: 0.3, y: 0.4 })).toBe(true);
+    // Room for the card, wherever on it the click was, and lying either way; not for its neighbors.
+    expect(guess.height).toBeGreaterThan(size.height * 1.4);
+    expect(guess.height).toBeLessThan(size.height * 2);
+    expect(guess.width * picture.width).toBeLessThan(size.width * picture.width * 3);
   });
 });

@@ -6,7 +6,7 @@ import type {
   NameMatch,
   SignalingEvent,
 } from '@commander-brawl/application';
-import type { Card, DeckAnalysis, DeckList, GameAction, Ruling } from '@commander-brawl/domain';
+import type { Card, DeckAnalysis, DeckList, GameAction, Printing, Ruling } from '@commander-brawl/domain';
 import type { DesktopToPhone, PhoneToDesktop } from '@commander-brawl/infrastructure/protocol';
 
 /** How friends outside your home can reach the table you host. */
@@ -143,6 +143,10 @@ export interface DesktopApi {
     byNames(names: readonly string[]): Promise<readonly (Card | null)[]>;
     /** The cards with these ids (as in deck lists), null where there's no such card. */
     byIds(ids: readonly string[]): Promise<readonly (Card | null)[]>;
+    /** The pictures of these printings (as Card.image is), null where it can't be had. Asks Scryfall. */
+    printings(printings: readonly Printing[]): Promise<readonly (string | null)[]>;
+    /** Every artwork of these cards (as Card.image is), by card: their other printings. Asks Scryfall. */
+    artworks(ids: readonly string[]): Promise<Readonly<Record<string, readonly string[]>>>;
     /** Every plane and phenomenon (Planechase), or every scheme (Archenemy). */
     variantCards(variant: 'planechase' | 'archenemy'): Promise<readonly Card[]>;
     /** The cards whose names best match text read off a card in a camera picture, best first. */
@@ -213,6 +217,8 @@ export const Channels = {
   cardsSearch: 'cards:search',
   cardsByNames: 'cards:by-names',
   cardsByIds: 'cards:by-ids',
+  cardsPrintings: 'cards:printings',
+  cardsArtworks: 'cards:artworks',
   cardsClosest: 'cards:closest',
   cardsVariant: 'cards:variant',
   clipsSave: 'clips:save',

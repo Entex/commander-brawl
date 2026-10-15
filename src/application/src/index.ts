@@ -2,9 +2,9 @@ export { artOfArtCrop, artOfCard, artSimilarity } from './artPrint';
 export type { ArtPrint } from './artPrint';
 export { CARD_RATIO, cardCorners, dominantTilt, findCard, locationOfCorners } from './cardFinder';
 export type { CardLocation, FindCardOptions } from './cardFinder';
-export { cardInArea, guessCardCrop, locateCardAt } from './cardLocator';
+export { cardInArea, cardSizeOf, guessCardCrop, locateCardAt } from './cardLocator';
 export type { LocatedCard } from './cardLocator';
-export { CardIdentifier, cardNames, nameSimilarity } from './cardIdentification';
+export { CardIdentifier, cardNames, nameSimilarity, uprightness } from './cardIdentification';
 export type {
   ArtLibrary,
   CardCatalog,

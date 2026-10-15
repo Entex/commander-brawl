@@ -1,4 +1,4 @@
-import type { Card, CardFace, CommanderLegality, Ruling } from '@commander-brawl/domain';
+import type { Card, CardFace, CommanderLegality, Printing, Ruling } from '@commander-brawl/domain';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -37,6 +37,12 @@ interface BulkEntry {
 const SKIPPED_LAYOUTS = new Set(['art_series', 'front_card', 'vanguard']);
 const IMAGE_PREFIX = /^https:\/\/cards\.scryfall\.io\/[a-z_]+\/(.+)$/;
 const FORMAT_VERSION = 3;
+/** Printings asked for at once (Scryfall takes up to 75). */
+const COLLECTION_BATCH = 75;
+/** Cards searched for at once: the query stays short. */
+const SEARCH_BATCH = 20;
+/** Scryfall asks for 50 to 100 ms between requests to its API. */
+const API_SPACING_MS = 100;
 /** Saved before artists (1) or keywords (2) were kept: still used, but replaced as soon as possible. */
 const OLD_FORMAT_VERSIONS = [1, 2];
 
@@ -101,6 +107,56 @@ export class ScryfallCards {
     return saved;
   }
 
+  /**
+   * The pictures of these printings (as image paths, like Card.image), from Scryfall's API: the artwork on the cards
+   * a deck list says it has. Null for a printing Scryfall doesn't know.
+   */
+  async printingImages(printings: readonly Printing[]): Promise<(string | null)[]> {
+    const images = new Map<string, string>();
+    for (let i = 0; i < printings.length; i += COLLECTION_BATCH) {
+      const batch = printings.slice(i, i + COLLECTION_BATCH);
+      const found = await this.postJson<{ data?: ScryfallCard[] }>(`${this.apiUrl}/cards/collection`, {
+        identifiers: batch.map((p) => ({ set: p.set, collector_number: p.number })),
+      });
+      for (const card of found.data ?? []) {
+        const image = imagePath(card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal);
+        if (card.set && card.collector_number && image) images.set(printingKey(card.set, card.collector_number), image);
+      }
+      await pause(API_SPACING_MS);
+    }
+    return printings.map((p) => images.get(printingKey(p.set, p.number)) ?? null);
+  }
+
+  /**
+   * Every artwork of these cards (as image paths), by card: one picture of each, from Scryfall's API. For telling a
+   * card in a close-up by its artwork whichever printing it is.
+   */
+  async artworks(ids: readonly string[]): Promise<Map<string, string[]>> {
+    const artworks = new Map<string, string[]>(ids.map((id) => [id, []]));
+    for (let i = 0; i < ids.length; i += SEARCH_BATCH) {
+      const query = ids
+        .slice(i, i + SEARCH_BATCH)
+        .map((id) => `oracleid:${id}`)
+        .join(' or ');
+      const search = new URLSearchParams({ q: `(${query})`, unique: 'art', include_extras: 'true' });
+      let url: string | null = `${this.apiUrl}/cards/search?${search}`;
+      while (url) {
+        const page: SearchPage = await this.getJson<SearchPage>(url).catch((error: unknown) => {
+          // No cards matched: Scryfall answers 404.
+          if (String(error).includes(' 404 ')) return { data: [] };
+          throw error;
+        });
+        for (const card of page.data ?? []) {
+          const image = imagePath(card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal);
+          if (card.oracle_id && image) artworks.get(card.oracle_id)?.push(image);
+        }
+        url = page.has_more && page.next_page ? page.next_page : null;
+        await pause(API_SPACING_MS);
+      }
+    }
+    return artworks;
+  }
+
   /** Official rulings for a card, oldest first. Loaded the first time they're asked for. */
   async rulings(cardId: string): Promise<Ruling[]> {
     this.rulingsByCard ??= readFile(join(this.options.dir, 'rulings.json'), 'utf8')
@@ -123,6 +179,16 @@ export class ScryfallCards {
 
   private async getJson<T>(url: string): Promise<T> {
     const response = await fetch(url, { headers: this.headers });
+    if (!response.ok) throw new Error(`Scryfall answered ${response.status} for ${url}`);
+    return (await response.json()) as T;
+  }
+
+  private async postJson<T>(url: string, body: unknown): Promise<T> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { ...this.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
     if (!response.ok) throw new Error(`Scryfall answered ${response.status} for ${url}`);
     return (await response.json()) as T;
   }
@@ -208,6 +274,8 @@ interface ScryfallFace {
 
 interface ScryfallCard extends ScryfallFace {
   readonly oracle_id?: string;
+  readonly set?: string;
+  readonly collector_number?: string;
   readonly layout?: string;
   readonly digital?: boolean;
   readonly card_faces?: readonly ScryfallFace[];
@@ -232,6 +300,20 @@ function imagePath(url: string | undefined): string | null {
 
 function toLegality(value: string | undefined): CommanderLegality {
   return value === 'legal' || value === 'banned' ? value : 'not_legal';
+}
+
+interface SearchPage {
+  readonly data?: readonly ScryfallCard[];
+  readonly has_more?: boolean;
+  readonly next_page?: string;
+}
+
+function printingKey(set: string, number: string): string {
+  return `${set.toLowerCase()}/${number}`;
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function findEntry(entries: readonly BulkEntry[], type: string): BulkEntry {

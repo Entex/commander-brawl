@@ -8,8 +8,8 @@ export {
 } from './brackets';
 export type { Bracket, Combo, DeckAnalysis } from './brackets';
 export { normalizeCardName } from './cards';
-export { MAX_COMMANDERS, MAX_DECK_ENTRIES, MAX_DECK_NAME_LENGTH, deckSize, toDeckList } from './decks';
-export type { DeckCard, DeckList } from './decks';
+export { MAX_COMMANDERS, MAX_DECK_ENTRIES, MAX_DECK_NAME_LENGTH, deckSize, toDeckList, toPrinting } from './decks';
+export type { DeckCard, DeckList, Printing } from './decks';
 export type { Card, CardFace, CommanderLegality, Ruling } from './cards';
 export { MAX_DIE_SIDES, MAX_ROLLS, isChanceResult, isIntent, isUndoable, resolveAction, toGameAction } from './actions';
 export type { GameAction, GameIntent } from './actions';

@@ -1,5 +1,5 @@
 import { CardIndex, type NameMatch } from '@commander-brawl/application';
-import type { Card, Ruling } from '@commander-brawl/domain';
+import type { Card, Printing, Ruling } from '@commander-brawl/domain';
 import { ScryfallCards } from '@commander-brawl/infrastructure/node';
 import type { CardDataStatus, CardDetails } from '../shared/api';
 
@@ -19,6 +19,9 @@ const CLOSEST = 10;
 /** Every card, kept on this computer and refreshed weekly, so searching is instant and works offline. */
 export class CardService {
   private readonly scryfall: ScryfallCards;
+  /** Asked of Scryfall's API already this session: printings' pictures, and cards' artworks. */
+  private readonly printingImages = new Map<string, Promise<string | null>>();
+  private readonly cardArtworks = new Map<string, Promise<string[]>>();
   private index: CardIndex | null = null;
   private current: CardDataStatus = { state: 'missing' };
   private downloading: Promise<void> | null = null;
@@ -76,6 +79,37 @@ export class CardService {
   lookup(): ((name: string) => Card | undefined) | null {
     const index = this.index;
     return index ? (name) => index.byName(name) : null;
+  }
+
+  /** The pictures of these printings (image paths), null where Scryfall doesn't know one. Online only. */
+  async printings(printings: readonly Printing[]): Promise<(string | null)[]> {
+    const key = (p: Printing) => `${p.set}/${p.number}`;
+    const missing = printings.filter((p) => !this.printingImages.has(key(p)));
+    if (missing.length > 0) {
+      const asked = this.scryfall.printingImages(missing);
+      missing.forEach((p, i) => {
+        const one = asked.then((images) => images[i] ?? null);
+        // Not kept when it failed: next time it may work (back online).
+        one.catch(() => this.printingImages.delete(key(p)));
+        this.printingImages.set(key(p), one);
+      });
+    }
+    return Promise.all(printings.map((p) => this.printingImages.get(key(p))!.catch(() => null)));
+  }
+
+  /** Every artwork of these cards (image paths), by card. Online only; empty where it can't be had. */
+  async artworks(ids: readonly string[]): Promise<Record<string, string[]>> {
+    const missing = [...new Set(ids)].filter((id) => !this.cardArtworks.has(id));
+    if (missing.length > 0) {
+      const asked = this.scryfall.artworks(missing);
+      for (const id of missing) {
+        const one = asked.then((artworks) => artworks.get(id) ?? []);
+        one.catch(() => this.cardArtworks.delete(id));
+        this.cardArtworks.set(id, one);
+      }
+    }
+    const found = await Promise.all(ids.map((id) => this.cardArtworks.get(id)!.catch(() => [] as string[])));
+    return Object.fromEntries(ids.map((id, i) => [id, found[i]!]));
   }
 
   async details(id: string): Promise<CardDetails | null> {

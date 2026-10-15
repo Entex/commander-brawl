@@ -131,6 +131,24 @@ describe('card data from Scryfall', () => {
     expect(saved?.savedAt).toBe(0);
   });
 
+  it('finds the pictures of printings a deck list names, and every artwork of cards', async () => {
+    const { cards } = await scryfall();
+    expect(
+      await cards.printingImages([
+        { set: 'cmm', number: '400' },
+        { set: 'xyz', number: '1' },
+      ]),
+    ).toEqual(['front/s/1/sol-ring-cmm.jpg?2', null]);
+    const artworks = await cards.artworks(['sol-ring', 'rhystic', 'nothing']);
+    expect(artworks.get('sol-ring')).toEqual([
+      'front/s/r/sol-ring.jpg?1',
+      'front/s/1/sol-ring-cmm.jpg?2',
+      'front/s/2/sol-ring-sld.jpg?3',
+    ]);
+    expect(artworks.get('rhystic')).toEqual(['front/a/b/rhystic.jpg?1']);
+    expect(artworks.get('nothing')).toEqual([]);
+  });
+
   it('has nothing saved before the first download', async () => {
     const { cards } = await scryfall();
     expect(await cards.loadSaved()).toBeNull();

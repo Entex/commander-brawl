@@ -29,9 +29,14 @@ const MIN_CLARITY = 0.8;
  * blurrier picture, and may be just inside the card's black border.
  */
 const MARGIN = 0.15;
-/** Without an outline: the part asked for, as shares of the picture's width and height. */
-const GUESS_WIDTH = 0.32;
-const GUESS_HEIGHT = 0.8;
+/**
+ * Without an outline, and no card found before on that video: the part asked for, as shares of the picture's width
+ * and height. About two cards wide at a webcam's usual distance, so the card is in it wherever on it the click was.
+ */
+const GUESS_WIDTH = 0.2;
+const GUESS_HEIGHT = 0.5;
+/** Without an outline, but with the size of cards found on that video: this many cards' size around the click. */
+const GUESS_CARDS = 1.6;
 
 /**
  * Finds the card at a point of a video picture (as fractions), so the whole card is asked for wherever on it
@@ -89,14 +94,28 @@ export function cardInArea(from: Point, to: Point): LocatedCard {
   return { outline, crop: around(outline, MARGIN) };
 }
 
-/** Where to look without an outline: a generous card-sized part of the picture around the point. */
-export function guessCardCrop(point: Point): CropRect {
-  return clampCrop({
-    x: point.x - GUESS_WIDTH / 2,
-    y: point.y - GUESS_HEIGHT / 2,
-    width: GUESS_WIDTH,
-    height: GUESS_HEIGHT,
-  });
+/**
+ * Where to look without an outline: a part of the picture around the point. Given how big the cards found on the
+ * same video were (cards on a table are about the same size), a bit more than one of those, so it's the card clicked
+ * and not its neighbors too; otherwise a generous part.
+ */
+export function guessCardCrop(
+  point: Point,
+  cardSize?: { readonly width: number; readonly height: number },
+  /** The picture's width over its height. */
+  aspect = 16 / 9,
+): CropRect {
+  // A card the other way (tapped) still fits: its longer side, both ways (in pixels, so the picture's shape counts).
+  const width = cardSize ? Math.max(cardSize.width, cardSize.height / aspect) * GUESS_CARDS : GUESS_WIDTH;
+  const height = cardSize ? Math.max(cardSize.width * aspect, cardSize.height) * GUESS_CARDS : GUESS_HEIGHT;
+  return clampCrop({ x: point.x - width / 2, y: point.y - height / 2, width, height });
+}
+
+/** How big a found card is on its picture, as shares of the picture's width and height. */
+export function cardSizeOf(card: LocatedCard): { readonly width: number; readonly height: number } {
+  const xs = card.outline.map((corner) => corner.x);
+  const ys = card.outline.map((corner) => corner.y);
+  return { width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
 }
 
 /** The rectangle around four corners, grown by a share of its size on every side, inside the picture. */

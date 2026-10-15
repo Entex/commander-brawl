@@ -1,5 +1,5 @@
 import { chooseCommanders, parseDeckText, resolveDeck } from '@commander-brawl/application';
-import { normalizeCardName, type Card } from '@commander-brawl/domain';
+import { normalizeCardName, toDeckList, type Card } from '@commander-brawl/domain';
 import { describe, expect, it } from 'vitest';
 
 function card(name: string, typeLine = 'Artifact', oracleText = ''): Card {
@@ -54,6 +54,13 @@ Deck
 1 Smothering Tithe (RNA) 22a`);
     expect(names(raw.commanders)).toEqual(["1 Atraxa, Praetors' Voice"]);
     expect(names(raw.cards)).toEqual(['1 Sol Ring', '1 Arcane Signet', '1 Smothering Tithe']);
+    // The printings, for the artwork on the table. "[ELD]" says the set but not which card in it.
+    expect(raw.commanders[0]!.printing).toEqual({ set: '2xm', number: '190' });
+    expect(raw.cards.map((c) => c.printing)).toEqual([
+      { set: 'cmm', number: '400' },
+      undefined,
+      { set: 'rna', number: '22a' },
+    ]);
   });
 
   it("reads Archidekt's text export with categories", () => {
@@ -95,6 +102,22 @@ SIDEBOARD:
 });
 
 describe('matching a deck list to cards', () => {
+  it('keeps the printing a deck list names, which a shared deck still has', () => {
+    const imported = resolveDeck(
+      parseDeckText(`1x Sol Ring (CMM) 400
+1 Mountain`),
+      lookup,
+      'Untitled',
+    );
+    const [ring, mountain] = imported.deck.cards;
+    expect(ring!.printing).toEqual({ set: 'cmm', number: '400' });
+    expect(mountain!.printing).toBeUndefined();
+    expect(toDeckList(imported.deck)!.cards[0]!.printing).toEqual({ set: 'cmm', number: '400' });
+    // A made-up printing doesn't get through.
+    const odd = { ...imported.deck, cards: [{ ...ring!, printing: { set: 'c m m', number: '400' } }] };
+    expect(toDeckList(odd)!.cards[0]!.printing).toBeUndefined();
+  });
+
   it('finds the cards, merges duplicates, lists names it does not know, and names the deck for its commander', () => {
     const imported = resolveDeck(
       parseDeckText(`Commander

@@ -1,4 +1,4 @@
-import { guessCardCrop, locateCardAt, type CropRect, type Quad } from '@commander-brawl/application';
+import { cardSizeOf, guessCardCrop, locateCardAt, type CropRect, type Quad } from '@commander-brawl/application';
 import { videoFrameToRgba } from '@commander-brawl/infrastructure/browser';
 import { pictureAt } from './videoPoints';
 
@@ -21,5 +21,16 @@ export function cardTargetAt(video: HTMLVideoElement, clientX: number, clientY: 
   const point = pictureAt(video, clientX, clientY);
   if (!point) return null;
   const frame = videoFrameToRgba(video, FRAME_SIZE);
-  return (frame && locateCardAt(frame, point)) ?? { crop: guessCardCrop(point), outline: null };
+  const found = frame && locateCardAt(frame, point);
+  const seat = video.dataset.seat ?? '';
+  if (found) {
+    cardSizes.set(seat, cardSizeOf(found));
+    return found;
+  }
+  // No outline: about as big as the last card found on this video.
+  const aspect = video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : undefined;
+  return { crop: guessCardCrop(point, cardSizes.get(seat), aspect), outline: null };
 }
+
+/** How big the last card found on each seat's video was: cards on one table are about the same size. */
+const cardSizes = new Map<string, { readonly width: number; readonly height: number }>();

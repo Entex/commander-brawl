@@ -5,6 +5,7 @@ import {
   type Card,
   type DeckCard,
   type DeckList,
+  type Printing,
 } from '@commander-brawl/domain';
 
 /** A deck as written down: names and counts, before we know which cards they are. */
@@ -19,6 +20,8 @@ export interface RawDeck {
 export interface RawDeckEntry {
   readonly name: string;
   readonly count: number;
+  /** The printing, when the list names it: "1x Sol Ring (CMM) 400". */
+  readonly printing?: Printing;
 }
 
 export interface ImportedDeck {
@@ -95,7 +98,13 @@ export function resolveDeck(
         continue;
       }
       const existing = byId.get(card.id);
-      byId.set(card.id, { id: card.id, name: card.name, count: (existing?.count ?? 0) + entry.count });
+      const printing = existing?.printing ?? entry.printing;
+      byId.set(card.id, {
+        id: card.id,
+        name: card.name,
+        count: (existing?.count ?? 0) + entry.count,
+        ...(printing ? { printing } : {}),
+      });
     }
     return [...byId.values()];
   };
@@ -186,12 +195,16 @@ function parseLine(line: string): ParsedLine | null {
   }
   if (/\*CMDR\*/i.test(rest)) commander = true;
 
-  const name = rest
+  const bare = rest
     .replace(/\s*\*[A-Z]+\*/gi, '') // *F*, *E*, *CMDR*
-    .replace(/\s*\^[^^]*\^/g, '') // Archidekt tags
+    .replace(/\s*\^[^^]*\^/g, ''); // Archidekt tags
+  // The printing: "(CMM) 400".
+  const printed = bare.match(/\s*\(([A-Z0-9]{2,6})\)(?:\s+([\w★-]{1,10}))?\s*$/i);
+  const printing = printed?.[2] ? { set: printed[1]!.toLowerCase(), number: printed[2] } : undefined;
+  const name = bare
     .replace(/\s*\([A-Z0-9]{2,6}\)(\s+[\w★-]+)?\s*$/i, '') // (CMM) 400
     .replace(/\s*\[[A-Z0-9]{2,6}\]\s*$/i, '') // [CMM]
     .trim();
   if (!name || count < 1 || count > 99) return null;
-  return { name, count, commander, skip };
+  return printing ? { name, count, commander, skip, printing } : { name, count, commander, skip };
 }

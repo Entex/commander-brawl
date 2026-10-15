@@ -33,7 +33,14 @@ import { GraveyardPanel } from './Graveyard';
 import { ShortcutsPanel } from './Shortcuts';
 import { isTyping, panelOpen } from '../keys';
 import { CLIP_SECONDS, useClips } from '../clips';
-import { lookupCard, sureCard, useCardLookups, type CardLookup, type KnownCard } from '../useCardLookups';
+import {
+  lookupCard,
+  rememberArtwork,
+  sureCard,
+  useCardLookups,
+  type CardLookup,
+  type KnownCard,
+} from '../useCardLookups';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardOutline } from './CardOutline';
@@ -182,6 +189,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const choose = (lookupId: number, card: Card) => {
     const lookup = lookups.find((l) => l.id === lookupId);
     chooseCard(lookupId, card);
+    if (lookup && lookupCard(lookup)?.id !== card.id) void rememberArtwork(lookup, card);
     if (lookup?.placed && !spectating && lookupCard(lookup)?.id !== card.id) {
       submitGameEvent({
         type: 'permanent-identified',

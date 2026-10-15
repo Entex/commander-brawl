@@ -28,6 +28,11 @@ export interface NameMatch {
 export interface ArtLibrary {
   /** Null when the picture can't be had (offline, or the card has none). */
   print(card: Card): Promise<ArtPrint | null>;
+  /**
+   * The card's other artwork: other printings (borderless, showcase, Secret Lair…), and what a player said was this
+   * card in an earlier close-up. Asked for only when the usual artwork doesn't settle it.
+   */
+  alternatives?(card: Card): Promise<readonly ArtPrint[]>;
 }
 
 export interface CardGuess {
@@ -103,6 +108,12 @@ const CATALOG_NAME_FLOOR = 0.7;
 const ART_CHECKS = 4;
 /** A name read this well needn't be read the other way up too. */
 const GOOD_NAME = 0.8;
+/** Artwork this alike is the card's own: it says which way up the card is, and that the other ways needn't be tried. */
+const ART_DECIDES = 0.75;
+/** A name read this well, one way up and not the other, says which way up the card is. */
+const NAME_DECIDES = 0.65;
+/** How much more upright one way has to look than the other for the card's frame to say which way up it is. */
+const FRAME_DECIDES = 0.15;
 
 /**
  * Works out which card is in a close-up: finds the card's outline, compares its artwork with the cards
@@ -139,41 +150,78 @@ export class CardIdentifier {
     };
 
     // Artwork first: it's quick, works on blurry pictures, and tells which way up the card is.
-    let bestView = 0;
+    let artView = 0;
     let bestArt = -Infinity;
-    const likelyPrints = await Promise.all(likely.map((card) => this.art.print(card)));
-    likely.forEach((card, i) => {
-      const print = likelyPrints[i];
-      if (!print) return;
-      compare(card, print).forEach((similarity, v) => {
-        if (similarity > bestArt) [bestArt, bestView] = [similarity, v];
+    const compareAll = async (cards: readonly Card[], prints: (card: Card) => Promise<readonly ArtPrint[]>) => {
+      const found = await Promise.all(cards.map(prints));
+      cards.forEach((card, i) => {
+        for (const print of found[i]!) {
+          const similarities = compare(card, print);
+          // Kept at its most alike: the card's other artwork doesn't take back a match.
+          art.set(card.id, Math.max(art.get(card.id) ?? -Infinity, ...similarities));
+          similarities.forEach((similarity, v) => {
+            if (similarity > bestArt) [bestArt, artView] = [similarity, v];
+          });
+        }
       });
-    });
+    };
+    const usual = async (card: Card) => {
+      const print = await this.art.print(card);
+      return print ? [print] : [];
+    };
+    await compareAll(likely, usual);
+    // Not the usual artwork of any card in the deck: maybe another printing of one (alternative art).
+    const alternatives = this.art.alternatives?.bind(this.art);
+    if (bestArt < ART_DECIDES && alternatives && likely.length > 0) await compareAll(likely, alternatives);
+
+    // Which way up the card is: the artwork tells, when it's clearly a likely card's. Otherwise the card's frame (the
+    // text box is at the bottom) says which way to read the name first, and the name tells, if it reads one way up.
+    const artDecides = bestArt >= ART_DECIDES;
+    const frame = uprightness(views[0]!) - uprightness(views[1]!);
+    const frameView = Math.abs(frame) >= FRAME_DECIDES ? (frame > 0 ? 0 : 1) : null;
+    const first = artDecides ? artView : (frameView ?? artView);
 
     // Then the name, the likelier way up first, and the other only if that didn't read as a card. The
     // generous strip first, then just inside the card's frame: the frame's edge in the strip can throw the
     // reader off ("pr Study" for "Rhystic Study"), or the border may have been taken for the card's edge.
     const texts: string[] = [];
     let names: readonly NameMatch[] = [];
-    reading: for (const v of [bestView, 1 - bestView]) {
+    let nameView: number | null = null;
+    let nameScore = 0;
+    reading: for (const v of [first, 1 - first]) {
       for (const strip of NAME_STRIPS) {
         texts.push(
           ...readable(await this.reader.readLine(cardPart(picture, found, turns[v]!, strip, NAME_STRIP_WIDTH))),
         );
         names = await this.catalog.closest(texts);
-        if (bestName(names, likely, texts) >= GOOD_NAME) break reading;
+        const score = bestName(names, likely, texts);
+        // Read better this way up than anything before: the name is this way up.
+        if (score > nameScore + 0.05) [nameScore, nameView] = [score, v];
+        if (score >= GOOD_NAME) break reading;
       }
     }
 
-    // The artwork of the best name matches too, when they aren't among the likely cards.
+    // The artwork of the best name matches too, when they aren't among the likely cards; their other printings too,
+    // if their usual artwork isn't this.
     const unchecked = names.slice(0, ART_CHECKS).filter((match) => !art.has(match.card.id));
-    const prints = await Promise.all(unchecked.map((match) => this.art.print(match.card)));
-    unchecked.forEach((match, i) => {
-      const print = prints[i];
-      if (print) compare(match.card, print);
-    });
+    await compareAll(
+      unchecked.map((match) => match.card),
+      usual,
+    );
+    const named = names
+      .slice(0, ART_CHECKS)
+      .map((match) => match.card)
+      .filter((card) => (art.get(card.id) ?? 0) < ART_DECIDES);
+    if (alternatives && named.length > 0 && nameScore >= NAME_DECIDES) await compareAll(named, alternatives);
 
-    return { picture: views[bestView]!, guesses: rank(likely, names, texts, art) };
+    const view = artDecides
+      ? artView
+      : nameView !== null && nameScore >= NAME_DECIDES
+        ? nameView
+        : bestArt >= ART_DECIDES
+          ? artView
+          : (frameView ?? artView);
+    return { picture: views[view]!, guesses: rank(likely, names, texts, art) };
   }
 }
 
@@ -263,6 +311,50 @@ function cardPart(
   };
   const height = Math.round((width * (area.height * CARD_HEIGHT)) / (area.width * CARD_WIDTH));
   return extract(picture, location.angle, part, width, height, turns);
+}
+
+/**
+ * How much a straightened card looks the right way up, from its frame: the text box near the bottom is lighter and
+ * greyer than the artwork near the top, and has lines of text in it. Positive: upright; negative: upside down.
+ */
+export function uprightness(view: RgbaImage): number {
+  const bottom = bandLooks(view, 0.64, 0.9);
+  const top = bandLooks(view, 0.1, 0.36);
+  return (bottom.light - top.light) * 0.5 + (top.color - bottom.color) * 0.5 + (bottom.lines - top.lines) * 2;
+}
+
+/** A band across the card (between shares of its height), inside its frame: how light, how colorful, how lined. */
+function bandLooks(view: RgbaImage, from: number, to: number): { light: number; color: number; lines: number } {
+  const x0 = Math.floor(view.width * 0.1);
+  const x1 = Math.ceil(view.width * 0.9);
+  const y0 = Math.floor(view.height * from);
+  const y1 = Math.ceil(view.height * to);
+  let light = 0;
+  let color = 0;
+  const rows: number[] = [];
+  for (let y = y0; y < y1; y++) {
+    let row = 0;
+    for (let x = x0; x < x1; x++) {
+      const i = (y * view.width + x) * 4;
+      const r = view.data[i]!;
+      const g = view.data[i + 1]!;
+      const b = view.data[i + 2]!;
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      row += brightness;
+      color += Math.max(r, g, b) - Math.min(r, g, b);
+    }
+    rows.push(row / (x1 - x0));
+    light += row;
+  }
+  const pixels = (x1 - x0) * (y1 - y0);
+  // Lines of text: row after row going light, dark, light. Their wiggle, not the slow change of a picture.
+  let wiggle = 0;
+  for (let k = 1; k < rows.length - 1; k++) wiggle += Math.abs(rows[k - 1]! - 2 * rows[k]! + rows[k + 1]!);
+  return {
+    light: light / pixels / 255,
+    color: color / pixels / 255,
+    lines: rows.length > 2 ? wiggle / (rows.length - 2) / 255 : 0,
+  };
 }
 
 /** Lines with a few letters at least; the rest is the reader making out letters in lines and specks. */

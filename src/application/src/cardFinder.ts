@@ -253,7 +253,76 @@ function bestRectangle(
       breaksBeside(candidate.rect, whole.rect, columns, rows, width, height),
   );
   if (halves.length > 0) best = halves.reduce((a, b) => (a.clarity >= b.clarity ? a : b));
+  // Four cards two by two make the shape of one card, twice as big each way. Each card is a corner of it, and
+  // the sides of the four together break where the cards meet: the corner with the point in it is the card.
+  if (halves.length === 0) {
+    const quarters = contenders.filter(
+      (candidate) =>
+        candidate.clarity >= whole.clarity * QUARTER_STANDOUT &&
+        isQuarterOf(candidate.rect, whole.rect) &&
+        breaksAtCorner(candidate.rect, whole.rect, columns, rows, width, height),
+    );
+    if (quarters.length > 0) best = quarters.reduce((a, b) => (a.clarity >= b.clarity ? a : b));
+  }
   return { rect: tighten(best.rect, columns, rows, width, height), clarity: best.clarity / (average * 2) };
+}
+
+/** Whether a rectangle is a corner of another, about a quarter of it, lying the same way: one of four cards. */
+function isQuarterOf(part: PixelRect, whole: PixelRect): boolean {
+  if (part.width > part.height !== whole.width > whole.height) return false;
+  const share = (part.width * part.height) / (whole.width * whole.height);
+  if (share < QUARTER_SHARE[0] || share > QUARTER_SHARE[1]) return false;
+  if (whole.width < part.width * 2 * HALF_LENGTH || whole.height < part.height * 2 * HALF_LENGTH) return false;
+  const tolerance = Math.max(2, Math.min(whole.width, whole.height) * HALF_SIDE_TOLERANCE);
+  const near = (a: number, b: number) => Math.abs(a - b) <= tolerance;
+  const leftOrRight = near(part.x, whole.x) || near(part.x + part.width, whole.x + whole.width);
+  const topOrBottom = near(part.y, whole.y) || near(part.y + part.height, whole.y + whole.height);
+  return leftOrRight && topOrBottom;
+}
+
+/**
+ * Whether the two sides of the whole that the corner shares break (their edge weakens) where the corner ends:
+ * where the cards meet. As in breaksBeside, each side is the strongest of the lines a pixel either side.
+ */
+function breaksAtCorner(
+  part: PixelRect,
+  whole: PixelRect,
+  columns: Float64Array,
+  rows: Float64Array,
+  width: number,
+  height: number,
+): boolean {
+  const reach = Math.max(1, Math.round(Math.min(part.width, part.height) * BREAK_REACH));
+  const atLeft = Math.abs(part.x - whole.x) <= Math.abs(part.x + part.width - (whole.x + whole.width));
+  const atTop = Math.abs(part.y - whole.y) <= Math.abs(part.y + part.height - (whole.y + whole.height));
+  // The shared top or bottom side, along it, breaking where the corner's other side is; and the same down the side.
+  const across = atTop ? whole.y : whole.y + whole.height;
+  const down = atLeft ? whole.x : whole.x + whole.width;
+  const splitX = atLeft ? part.x + part.width : part.x;
+  const splitY = atTop ? part.y + part.height : part.y;
+  const horizontal = (line: number, p: number, q: number) =>
+    line < 0 || line >= height ? 0 : (rows[line * (width + 1) + q]! - rows[line * (width + 1) + p]!) / (q - p);
+  const vertical = (line: number, p: number, q: number) =>
+    line < 0 || line >= width ? 0 : (columns[line * (height + 1) + q]! - columns[line * (height + 1) + p]!) / (q - p);
+  const breaks = (
+    strength: (line: number, p: number, q: number) => number,
+    line: number,
+    from: number,
+    to: number,
+    split: number,
+  ) => {
+    const a = Math.max(from, Math.round(split - reach));
+    const b = Math.min(to, Math.round(split + reach));
+    if (b - a < 2 || to - from < 4) return false;
+    const lines = [line - 1, line, line + 1];
+    const along = Math.max(...lines.map((l) => strength(l, from, to)));
+    const there = Math.max(...lines.map((l) => strength(l, a, b)));
+    return along > 0 && there < along * BREAK;
+  };
+  return (
+    breaks(horizontal, across, whole.x, whole.x + whole.width, splitX) &&
+    breaks(vertical, down, whole.y, whole.y + whole.height, splitY)
+  );
 }
 
 /**
@@ -359,6 +428,10 @@ const HALF_LENGTH = 0.96;
  * a card's own half, less than the card.
  */
 const HALF_STANDOUT = 1.15;
+/** One of four cards two by two is this share of the rectangle around them all (less with gaps between them). */
+const QUARTER_SHARE = [0.18, 0.3] as const;
+/** One of four cards stands out at least this much more than the four together. */
+const QUARTER_STANDOUT = 1.05;
 /** Around where two cards would meet, as a share of a card's width: how much of the long sides is looked at. */
 const BREAK_REACH = 0.08;
 /** Long sides weaker than this share of their average there break: two cards meet. */

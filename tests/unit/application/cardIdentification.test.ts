@@ -41,15 +41,41 @@ const others = [card('Rhystic Tutor', 5), card('Counterspell', 6), card('Smother
 const catalog = new CardIndex([...deck, ...others]);
 const RED: Color = [200, 40, 40];
 
-/** Official artwork pictures, drawn the same as on the cards in the test pictures. */
+/** Official artwork pictures, drawn the same as on the cards in the test pictures. Other printings' too, if told. */
 class Artwork implements ArtLibrary {
   readonly asked: string[] = [];
+  readonly alternativesAsked: string[] = [];
+  constructor(private readonly others: Record<string, number[]> = {}) {}
   async print(c: Card): Promise<ArtPrint | null> {
     this.asked.push(c.name);
-    const crop = blank(160, 117, [0, 0, 0]);
-    fillRect(crop, { cx: 80, cy: 58.5, width: 160, height: 117, angle: 0 }, artwork((c as Card & { art: number }).art));
-    return artOfArtCrop(crop);
+    return printOfArt((c as Card & { art: number }).art);
   }
+  async alternatives(c: Card): Promise<ArtPrint[]> {
+    this.alternativesAsked.push(c.name);
+    return (this.others[c.name] ?? []).map(printOfArt);
+  }
+}
+
+function printOfArt(art: number): ArtPrint {
+  const crop = blank(160, 117, [0, 0, 0]);
+  fillRect(crop, { cx: 80, cy: 58.5, width: 160, height: 117, angle: 0 }, artwork(art));
+  return artOfArtCrop(crop);
+}
+
+/** How red the name bar of a straightened card is: about 1 the right way up, 0 upside down. */
+function nameBarRedness(view: RgbaImage): number {
+  const x0 = Math.floor(view.width * 0.12);
+  const x1 = Math.floor(view.width * 0.6);
+  const y0 = Math.floor(view.height * 0.05);
+  const y1 = Math.floor(view.height * 0.085);
+  let red = 0;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * view.width + x) * 4;
+      if (view.data[i]! > 150 && view.data[i + 1]! < 90) red++;
+    }
+  }
+  return red / ((x1 - x0) * (y1 - y0));
 }
 
 /**
@@ -153,6 +179,41 @@ describe('working out which card is in a close-up', () => {
       expect(reader.lines, `${angle}°`).toHaveLength(1);
       expect(reader.lines[0]!.width).toBeGreaterThan(reader.lines[0]!.height * 3);
     }
+  });
+
+  it("turns a card the right way up when its artwork isn't the deck's (another printing): by its name", async () => {
+    const reader = new Reader('Rhystic Study');
+    const result = await new CardIdentifier(reader, catalogPort, new Artwork()).identify(tablePicture(42, 182), {
+      likely: deck,
+    });
+    expect(result.guesses[0]!.card.name).toBe('Rhystic Study');
+    expect(nameBarRedness(result.picture!)).toBeGreaterThan(0.5);
+  });
+
+  it('or, with no name read either, by its frame: the text box is at the bottom', async () => {
+    for (const angle of [3, 183]) {
+      const result = await new CardIdentifier(new Reader('—'), catalogPort, new Artwork()).identify(
+        tablePicture(42, angle),
+        { likely: deck },
+      );
+      expect(nameBarRedness(result.picture!), `${angle}°`).toBeGreaterThan(0.5);
+    }
+  });
+
+  it("tries the deck's cards' other artwork when none of their usual artwork is it", async () => {
+    const art = new Artwork({ 'Sol Ring': [42] });
+    const result = await new CardIdentifier(new Reader('—'), catalogPort, art).identify(tablePicture(42), {
+      likely: deck,
+    });
+    expect(result.guesses[0]!.card.name).toBe('Sol Ring');
+    expect(result.guesses[0]!.score).toBeGreaterThan(0.6);
+    expect(art.alternativesAsked).toEqual(expect.arrayContaining(deck.map((c) => c.name)));
+  });
+
+  it("doesn't ask for other artwork when the usual is clearly it", async () => {
+    const art = new Artwork({ 'Sol Ring': [42] });
+    await new CardIdentifier(new Reader('Rhystic Study'), catalogPort, art).identify(tablePicture(1), { likely: deck });
+    expect(art.alternativesAsked).toEqual([]);
   });
 
   it("goes by where the video found the card, when its outline doesn't stand out from a busy background", async () => {

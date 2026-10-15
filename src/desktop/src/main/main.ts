@@ -11,7 +11,7 @@ import {
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from 'electron';
-import { MAX_COMMANDERS, MAX_DECK_ENTRIES } from '@commander-brawl/domain';
+import { MAX_COMMANDERS, MAX_DECK_ENTRIES, toPrinting } from '@commander-brawl/domain';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Channels, type RendererConfig } from '../shared/api';
@@ -264,6 +264,14 @@ function registerIpc(
     cards.byNames(Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string').slice(0, 20) : []),
   );
   handle(Channels.cardsByIds, (ids) => cards.byIds(stringList(ids, MAX_DECK_ENTRIES + MAX_COMMANDERS, 64)));
+  handle(Channels.cardsPrintings, (printings) =>
+    cards.printings(
+      (Array.isArray(printings) ? printings : [])
+        .slice(0, MAX_DECK_ENTRIES + MAX_COMMANDERS)
+        .flatMap((p) => toPrinting(p) ?? []),
+    ),
+  );
+  handle(Channels.cardsArtworks, (ids) => cards.artworks(stringList(ids, MAX_DECK_ENTRIES + MAX_COMMANDERS, 64)));
   handle(Channels.cardsClosest, (texts) => cards.closest(stringList(texts, 20, 200)));
   handle(Channels.cardsVariant, (variant) => cards.variantCards(variant === 'archenemy' ? 'archenemy' : 'planechase'));
   handle(Channels.cardsDetails, (id) => cards.details(requireString(id)));

@@ -9,7 +9,10 @@ import { imageToRgba } from './pixels';
  * doesn't crowd out the video.
  */
 export class ScryfallArtLibrary implements ArtLibrary {
+  /** By the picture's path: a card's usual one, or the printing a deck has. */
   private readonly prints = new Map<string, Promise<ArtPrint | null>>();
+  /** What players said was this card in earlier close-ups, by card. */
+  private readonly remembered = new Map<string, ArtPrint[]>();
   private active = 0;
   private readonly waiting: (() => void)[] = [];
 
@@ -18,20 +21,38 @@ export class ScryfallArtLibrary implements ArtLibrary {
       readonly concurrency?: number;
       /** Where a card's artwork picture is. Scryfall's by default. */
       readonly artUrl?: (card: Card) => string | null;
+      /** The pictures (as Card.image is) of all of a card's artworks: its other printings. */
+      readonly artworks?: (card: Card) => Promise<readonly string[]>;
     } = {},
   ) {}
 
   print(card: Card): Promise<ArtPrint | null> {
-    const known = this.prints.get(card.id);
-    if (known) return known;
     const url = this.options.artUrl ? this.options.artUrl(card) : card.image && cardImageUrl(card.image, 'art_crop');
-    if (!url) return Promise.resolve(null);
+    return url ? this.printAt(url) : Promise.resolve(null);
+  }
+
+  /** The card's other artwork: what players said was it before, then its other printings. */
+  async alternatives(card: Card): Promise<readonly ArtPrint[]> {
+    const images = this.options.artworks ? await this.options.artworks(card).catch(() => []) : [];
+    const others = images.filter((image) => image !== card.image).map((image) => cardImageUrl(image, 'art_crop'));
+    const prints = await Promise.all(others.map((url) => this.printAt(url)));
+    return [...(this.remembered.get(card.id) ?? []), ...prints.filter((p): p is ArtPrint => p !== null)];
+  }
+
+  /** A player said a close-up of this artwork was this card: from now on it counts as one of the card's artworks. */
+  remember(cardId: string, print: ArtPrint): void {
+    this.remembered.set(cardId, [...(this.remembered.get(cardId) ?? []).slice(-4), print]);
+  }
+
+  private printAt(url: string): Promise<ArtPrint | null> {
+    const known = this.prints.get(url);
+    if (known) return known;
     const loading = this.load(url).catch(() => {
       // Not kept: next time it may work (back online).
-      this.prints.delete(card.id);
+      this.prints.delete(url);
       return null;
     });
-    this.prints.set(card.id, loading);
+    this.prints.set(url, loading);
     return loading;
   }
 

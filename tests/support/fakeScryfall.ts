@@ -179,6 +179,14 @@ export const SCRYFALL_RULINGS = [
   { object: 'ruling', oracle_id: 'rhystic', published_at: '2024-01-01', comment: 'It triggers on every spell.' },
 ];
 
+/** Printings of the fixture cards, with their own artwork: what Scryfall's API answers about them. */
+export const SCRYFALL_PRINTINGS = [
+  { oracle_id: 'sol-ring', set: 'c21', collector_number: '263', art: 'front/s/r/sol-ring.jpg?1' },
+  { oracle_id: 'sol-ring', set: 'cmm', collector_number: '400', art: 'front/s/1/sol-ring-cmm.jpg?2' },
+  { oracle_id: 'sol-ring', set: 'sld', collector_number: '1011', art: 'front/s/2/sol-ring-sld.jpg?3' },
+  { oracle_id: 'rhystic', set: 'jmp', collector_number: '9', art: 'front/a/b/rhystic.jpg?1' },
+];
+
 export interface FakeScryfall {
   readonly apiUrl: string;
   /** How many times each path was asked for. */
@@ -229,6 +237,31 @@ export async function startFakeScryfall({ gzip = true } = {}): Promise<FakeScryf
       );
       return;
     }
+    if (path === '/cards/collection' && request.method === 'POST') {
+      let body = '';
+      request.on('data', (chunk: Buffer) => (body += chunk.toString()));
+      request.on('end', () => {
+        const { identifiers } = JSON.parse(body) as { identifiers: { set: string; collector_number: string }[] };
+        const data = identifiers.flatMap((id) =>
+          SCRYFALL_PRINTINGS.filter((p) => p.set === id.set && p.collector_number === id.collector_number).map(asCard),
+        );
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ object: 'list', data }));
+      });
+      return;
+    }
+    if (path.startsWith('/cards/search?')) {
+      const query = new URL(path, base).searchParams.get('q') ?? '';
+      const ids = [...query.matchAll(/oracleid:([\w-]+)/g)].map((m) => m[1]);
+      const data = SCRYFALL_PRINTINGS.filter((p) => ids.includes(p.oracle_id)).map(asCard);
+      if (data.length === 0) {
+        response.writeHead(404).end();
+        return;
+      }
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ object: 'list', has_more: false, data }));
+      return;
+    }
     const file = files[path];
     if (!file) {
       response.writeHead(404).end();
@@ -240,4 +273,14 @@ export async function startFakeScryfall({ gzip = true } = {}): Promise<FakeScryf
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return fake;
+}
+
+function asCard(printing: (typeof SCRYFALL_PRINTINGS)[number]) {
+  return {
+    object: 'card',
+    oracle_id: printing.oracle_id,
+    set: printing.set,
+    collector_number: printing.collector_number,
+    image_uris: { normal: `https://cards.scryfall.io/normal/${printing.art}` },
+  };
 }
