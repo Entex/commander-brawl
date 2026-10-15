@@ -30,6 +30,8 @@ import { api } from '../api';
 import { isToken, nextSpot } from './AddToBattlefield';
 import { Battlefield } from './Battlefield';
 import { GraveyardPanel } from './Graveyard';
+import { ShortcutsPanel } from './Shortcuts';
+import { isTyping, panelOpen } from '../keys';
 import { CLIP_SECONDS, useClips } from '../clips';
 import { lookupCard, sureCard, useCardLookups, type CardLookup, type KnownCard } from '../useCardLookups';
 import { usePointers } from '../usePointers';
@@ -99,6 +101,9 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const [clean, setClean] = useState(false);
   const [enlargeActive, setEnlargeActive] = useEnlargeActive();
   const [boardShown, setBoardShown] = useBoardShown();
+  /** A seat enlarged with its number key, until it's pressed again (or Esc). */
+  const [pinnedSeat, setPinnedSeat] = useState<SeatIndex | null>(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   /** Whose graveyard is open. */
   const [graveyardOf, setGraveyardOf] = useState<SeatIndex | null>(null);
   const readOnly = spectating || clean;
@@ -204,9 +209,30 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
   const seats = arrangeSeats(state.seats, game?.state.turnOrder ?? null);
   const activeSeat = game?.state.activeSeat ?? null;
   // The seat that gets most of the screen, if any: the active player's, with that setting on (not on your own turn).
-  const focusedSeat = enlargeActive && activeSeat !== null && activeSeat !== selfSeat ? activeSeat : null;
+  const focusedSeat =
+    pinnedSeat ?? (enlargeActive && activeSeat !== null && activeSeat !== selfSeat ? activeSeat : null);
   const focused = focusedSeat !== null && seats.some((seat) => seat?.player.seat === focusedSeat);
   const othersShown = seats.filter((seat) => seat && seat.player.seat !== focusedSeat).length;
+
+  useTableKeys({
+    readOnly,
+    toggleSeen: () => lookups.length > 0 && setSeenOpen((open) => !open),
+    toggleLog: () => game && setLogOpen((open) => !open),
+    toggleBoard: () => setBoardShown(!boardShown),
+    showShortcuts: () => setShortcutsOpen(true),
+    pinSeat: (position) => {
+      const seat = seats[position]?.player.seat;
+      if (seat !== undefined) setPinnedSeat((current) => (current === seat ? null : seat));
+    },
+    unpin: () => setPinnedSeat(null),
+    changeLife: (amount) =>
+      selfSeat !== null && game && submitGameEvent({ type: 'life-changed', seat: selfSeat, amount }),
+    rollD20: () => submitGameEvent({ type: 'roll-dice', sides: 20, count: 1 }),
+    resolveNewest: () => {
+      const call = game?.state.calls.at(-1);
+      if (call) submitGameEvent({ type: 'call-resolved', id: call.id, kind: call.kind, seat: call.seat });
+    },
+  });
 
   return (
     <div className={`table-screen${clean ? ' clean-view' : ''}`} data-testid="table-screen">
@@ -386,6 +412,15 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 >
                   <Icon name="expand" /> Enlarge the active player
                 </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    close();
+                    setShortcutsOpen(true);
+                  }}
+                >
+                  <Icon name="keyboard" /> Keyboard shortcuts (?)
+                </button>
                 <button role="menuitemcheckbox" aria-checked={showStats} onClick={() => setShowStats((v) => !v)}>
                   <Icon name="network-bars" /> {showStats ? 'Hide stats' : 'Show stats'}
                 </button>
@@ -491,6 +526,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
           onClose={() => setGraveyardOf(null)}
         />
       )}
+      {shortcutsOpen && <ShortcutsPanel onClose={() => setShortcutsOpen(false)} />}
       {game && <Spotlight game={game} />}
       {game && clockOpen && <ClockPanel clock={game.state.clock} onClose={() => setClockOpen(false)} />}
       {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
@@ -783,6 +819,66 @@ function useBoardShown(): [boolean, (on: boolean) => void] {
     setOn(next);
   };
   return [on, set];
+}
+
+interface TableKeys {
+  /** Watching: only the keys that change nothing. */
+  readonly readOnly: boolean;
+  toggleSeen(): void;
+  toggleLog(): void;
+  toggleBoard(): void;
+  showShortcuts(): void;
+  /** A seat by where it is on screen (0 top left, then along). */
+  pinSeat(position: number): void;
+  unpin(): void;
+  changeLife(amount: number): void;
+  rollD20(): void;
+  resolveNewest(): void;
+}
+
+/**
+ * Single keys at the table (see Shortcuts): not while typing in a box, with Ctrl or Alt, or while a panel covers the
+ * table. Others are where they belong: W, Space and Ctrl+Space, T, R, Del and G, Ctrl+K and Ctrl+Z.
+ */
+function useTableKeys(keys: TableKeys): void {
+  const latest = useRef(keys);
+  useEffect(() => {
+    latest.current = keys;
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event)) return;
+      const k = latest.current;
+      if (event.key === '?' || event.key === 'F1') {
+        event.preventDefault();
+        if (!panelOpen()) k.showShortcuts();
+        return;
+      }
+      if (panelOpen()) return;
+      const key = event.key.toLowerCase();
+      const act = (action: () => void) => {
+        event.preventDefault();
+        action();
+      };
+      if (key === 'c') return act(k.toggleSeen);
+      if (key === 'l') return act(k.toggleLog);
+      if (key === 'b') return act(k.toggleBoard);
+      if (key === 'escape') return k.unpin();
+      if (/^[1-4]$/.test(key)) return act(() => k.pinSeat(Number(key) - 1));
+      if (k.readOnly) return;
+      if (key === 'd') return act(k.rollD20);
+      if (key === '+') return act(() => k.changeLife(1));
+      if (key === '-' || key === '−') return act(() => k.changeLife(-1));
+      if (key === 'pageup') return act(() => k.changeLife(5));
+      if (key === 'pagedown') return act(() => k.changeLife(-5));
+      // Enter on a button presses the button; only with nothing in focus is it the newest call.
+      if (key === 'enter' && (document.activeElement === document.body || document.activeElement === null)) {
+        return act(k.resolveNewest);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 }
 
 const ENLARGE_ACTIVE_KEY = 'cb.enlargeActive';

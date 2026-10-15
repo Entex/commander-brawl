@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, type GameIconName } from '../icons/Icon';
+import { isTyping } from '../keys';
 
 /** Room kept between an open menu and the window's edges, in pixels. */
 const EDGE = 8;
@@ -14,13 +15,33 @@ interface Placement {
 export function Menu({
   label,
   icon,
+  shortcut,
+  title,
   children,
 }: {
   readonly label: string;
   readonly icon?: GameIconName;
+  /** A key that opens (or closes) it, on its own: not while typing, nor with Ctrl or Alt. */
+  readonly shortcut?: string;
+  readonly title?: string;
   readonly children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!shortcut) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== shortcut || event.ctrlKey || event.metaKey || event.altKey || isTyping(event)) {
+        return;
+      }
+      // Another panel covers the table.
+      if (document.querySelector('.overlay')) return;
+      event.preventDefault();
+      setOpen((current) => !current);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [shortcut]);
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Placement>({ align: 'right', maxHeight: undefined });
@@ -60,7 +81,7 @@ export function Menu({
 
   return (
     <div className="menu" ref={root}>
-      <button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button aria-haspopup="menu" aria-expanded={open} title={title} onClick={() => setOpen(!open)}>
         {icon && <Icon name={icon} />}
         {label}
       </button>

@@ -3374,3 +3374,54 @@ button.response-button:hover:not(:disabled) {
   font-size: 0.75rem;
   font-weight: 800;
 }
+
+/* The keyboard shortcuts. */
+.shortcuts-panel {
+  width: min(760px, 96vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.shortcut-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 0.6rem 1.4rem;
+}
+
+.shortcut-groups h3 {
+  margin: 0.4rem 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shortcut-groups dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.shortcut {
+  display: grid;
+  grid-template-columns: 9.5rem 1fr;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.shortcut dt,
+.shortcut dd {
+  margin: 0;
+}
+
+kbd {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--panel-raised);
+  font-family: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

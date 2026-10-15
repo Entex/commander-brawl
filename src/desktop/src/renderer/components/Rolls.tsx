@@ -21,7 +21,7 @@ export function RollMenu({ game, players }: { readonly game: GameState | null; r
   const inGame = players.map((p) => p.player.seat).filter((seat) => !game || !isOut(game, seat));
   const opponents = inGame.filter((seat) => seat !== self);
   return (
-    <Menu label="Roll" icon="rolling-dices">
+    <Menu label="Roll" icon="rolling-dices" shortcut="r" title="Dice, coins and random picks (R; D rolls a d20)">
       {(close) => (
         <>
           {QUICK_DICE.map((sides) => (

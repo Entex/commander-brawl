@@ -370,6 +370,56 @@ test('a turn order set by hand, or a random first player in that order', async (
   );
 });
 
+test('keyboard shortcuts at the table', async () => {
+  const { host, friend } = await hostAndFriend();
+  const page = host.page;
+
+  // ? lists them.
+  await page.keyboard.press('?');
+  const list = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await expect(list).toContainText('Roll a d20');
+  await list.getByRole('button', { name: 'Close' }).click();
+
+  // Your life: + and − by one, Page Down by five.
+  await page.keyboard.press('+');
+  await page.keyboard.press('+');
+  await page.keyboard.press('-');
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('41');
+  await page.keyboard.press('PageDown');
+  await expect(friend.page.getByTestId('life-total-0')).toHaveText('36');
+
+  // D rolls a d20; R opens the Roll menu.
+  await page.keyboard.press('d');
+  await expect(friend.page.getByTestId('roll-banner')).toContainText('Host rolled a d20');
+  await page.keyboard.press('r');
+  await expect(page.getByRole('menuitem', { name: 'Flip a coin' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // 2 enlarges the second seat (the friend's), and again goes back.
+  await page.keyboard.press('2');
+  await expect(page.locator('.seat[data-focused="true"]')).toContainText('Friend');
+  await page.keyboard.press('2');
+  await expect(page.locator('.seat[data-focused="true"]')).toHaveCount(0);
+
+  // L shows the log and hides it again.
+  await page.keyboard.press('l');
+  await expect(page.getByTestId('log-panel')).toBeVisible();
+  await page.keyboard.press('l');
+  await expect(page.getByTestId('log-panel')).toHaveCount(0);
+
+  // Enter resolves the newest call.
+  await friend.page.keyboard.press('w');
+  await expect(page.getByTestId('call')).toHaveCount(1);
+  await page.keyboard.press('Enter');
+  await expect(friend.page.getByTestId('call')).toHaveCount(0);
+
+  // T: a reminder for the phase the turn is in.
+  await page.getByRole('button', { name: 'Random turn order' }).click();
+  await expect(page.getByTestId('turn')).toBeVisible();
+  await page.keyboard.press('t');
+  await expect(page.getByRole('dialog', { name: 'Reminders' }).getByLabel('Phase')).toHaveValue('upkeep');
+});
+
 test('undo, the game log, and saving it', async () => {
   const { host, friend } = await hostAndFriend();
   for (let i = 0; i < 3; i++) {

@@ -7,14 +7,18 @@ import {
   type ReminderState,
   type SeatIndex,
 } from '@commander-brawl/domain';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { isTyping, panelOpen } from '../keys';
 import { describeReminderTime } from '../describeEvent';
 import { Icon } from '../icons/Icon';
 import { PHASE_NAMES, seatName, type Players } from '../names';
 import { seatColorClass } from '../seatColors';
 import { submitGameEvent } from '../useGame';
 
-/** The reminders still to come, in the status bar: opens the list, and adding one. */
+/**
+ * The reminders still to come, in the status bar: opens the list, and adding one. T opens it for a reminder on the
+ * phase the turn is in, for the active player's turns.
+ */
 export function RemindersButton({
   game,
   players,
@@ -24,15 +28,39 @@ export function RemindersButton({
   readonly players: Players;
   readonly selfSeat: SeatIndex | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<{ readonly phase: Phase; readonly forSeats: readonly SeatIndex[] } | null>(null);
+  const now = { phase: game.phase ?? 'upkeep', forSeats: game.activeSeat === null ? [] : [game.activeSeat] };
+  const latest = useLatest(now);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 't' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTyping(event) || panelOpen()) return;
+      event.preventDefault();
+      setOpen(latest.current);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [latest]);
   // Stops show on the phases; this is for the trigger reminders.
   const count = game.reminders.filter((r) => !r.stop || r.text).length;
   return (
     <>
-      <button onClick={() => setOpen(true)} title="Trigger reminders on a phase, for everyone to see when it comes">
+      <button
+        onClick={() => setOpen({ phase: 'upkeep', forSeats: [] })}
+        title="Trigger reminders on a phase, for everyone to see when it comes (T: for this phase)"
+      >
         <Icon name="ringing-bell" /> Reminders{count > 0 ? ` (${count})` : ''}
       </button>
-      {open && <RemindersPanel game={game} players={players} selfSeat={selfSeat} onClose={() => setOpen(false)} />}
+      {open && (
+        <RemindersPanel
+          game={game}
+          players={players}
+          selfSeat={selfSeat}
+          forSeats={open.forSeats}
+          phase={open.phase}
+          onClose={() => setOpen(null)}
+        />
+      )}
     </>
   );
 }
@@ -43,6 +71,7 @@ export function RemindersPanel({
   players,
   selfSeat,
   forSeats,
+  phase,
   onClose,
 }: {
   readonly game: GameState;
@@ -50,6 +79,8 @@ export function RemindersPanel({
   readonly selfSeat: SeatIndex | null;
   /** Whose turns a new reminder is for, at first. None: every turn. */
   readonly forSeats?: readonly SeatIndex[];
+  /** The phase a new reminder is on, at first. */
+  readonly phase?: Phase;
   onClose(): void;
 }) {
   return (
@@ -73,7 +104,13 @@ export function RemindersPanel({
           </ul>
         )}
         {selfSeat !== null && game.reminders.length < MAX_REMINDERS && (
-          <ReminderForm players={players} selfSeat={selfSeat} forSeats={forSeats ?? []} onAdded={onClose} />
+          <ReminderForm
+            players={players}
+            selfSeat={selfSeat}
+            forSeats={forSeats ?? []}
+            phase={phase ?? 'upkeep'}
+            onAdded={onClose}
+          />
         )}
       </div>
     </div>
@@ -108,14 +145,16 @@ function ReminderForm({
   players,
   selfSeat,
   forSeats,
+  phase: initialPhase,
   onAdded,
 }: {
   readonly players: Players;
   readonly selfSeat: SeatIndex;
   readonly forSeats: readonly SeatIndex[];
+  readonly phase: Phase;
   onAdded(): void;
 }) {
-  const [phase, setPhase] = useState<Phase>('upkeep');
+  const [phase, setPhase] = useState<Phase>(initialPhase);
   const [turns, setTurns] = useState<readonly SeatIndex[]>(forSeats);
   const [text, setText] = useState('');
   const [once, setOnce] = useState(false);
@@ -190,4 +229,13 @@ function ReminderForm({
       </button>
     </form>
   );
+}
+
+/** A ref that always holds the latest value, for listeners set up once. */
+function useLatest<T>(value: T): { readonly current: T } {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref;
 }
