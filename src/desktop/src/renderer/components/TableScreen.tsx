@@ -33,14 +33,7 @@ import { GraveyardPanel } from './Graveyard';
 import { ShortcutsPanel } from './Shortcuts';
 import { isTyping, panelOpen } from '../keys';
 import { CLIP_SECONDS, useClips } from '../clips';
-import {
-  lookupCard,
-  rememberArtwork,
-  sureCard,
-  useCardLookups,
-  type CardLookup,
-  type KnownCard,
-} from '../useCardLookups';
+import { lookupCard, rememberArtwork, useCardLookups, type CardLookup, type KnownCard } from '../useCardLookups';
 import { usePointers } from '../usePointers';
 import { submitGameEvent, useGame } from '../useGame';
 import { CardOutline } from './CardOutline';
@@ -155,7 +148,10 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     look(seat.isSelf ? null : seat.player.id, seat.player.name, seatIndex, target, rotation, deck);
     setSeenOpen(true);
   };
-  /** Puts a looked-up card on its player's battlefield, at the spot clicked (moving it there if it's there already). */
+  /**
+   * Puts a looked-up card on its player's battlefield, at the spot clicked (moving it there if it's there already).
+   * Only when asked (Put on battlefield), not for every card that's known for sure.
+   */
   const track = useCallback(
     (lookup: CardLookup, card: Card) => {
       const placed = placeOnBattlefield(game?.state ?? null, lookup, card);
@@ -163,8 +159,6 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     },
     [game, markPlaced],
   );
-  // A card that's known for sure goes on the battlefield by itself: everyone sees it on the video.
-  usePlaceSureCards(lookups, spectating, track);
   /** From the battlefield into its player's graveyard. Only cards: a token isn't a card to put there. */
   const toGraveyard = useCallback((seat: SeatIndex, permanent: Permanent) => {
     if (permanent.token) return;
@@ -614,6 +608,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
                 onOpenCard={openCard}
                 onLook={(target, rotation) => lookAt(seat.player.seat, target, rotation)}
                 boardShown={boardShown}
+                onShowBoard={() => setBoardShown(true)}
                 selfSeat={selfSeat}
                 onOpenGraveyard={() => setGraveyardOf(seat.player.seat)}
               />
@@ -841,31 +836,11 @@ function useCardsFromTheTable(
   }, [live]);
 }
 
-/** Once a looked-up card is known for sure, it's put on the battlefield; once for each look. Not when watching. */
-function usePlaceSureCards(
-  lookups: readonly CardLookup[],
-  watching: boolean,
-  place: (lookup: CardLookup, card: Card) => void,
-): void {
-  const done = useRef(new Set<number>());
-  useEffect(() => {
-    if (watching) return;
-    for (const lookup of lookups) {
-      // Only close-ups: a card shown may not be on the battlefield, and one found is there already.
-      if (lookup.source !== 'camera' || lookup.placed !== null || done.current.has(lookup.id)) continue;
-      const card = sureCard(lookup);
-      if (!card) continue;
-      done.current.add(lookup.id);
-      place(lookup, card);
-    }
-  }, [lookups, watching, place]);
-}
-
 const BOARD_KEY = 'cb.board';
 
-/** Whether the cards and counters on the battlefields show on the videos. Remembered; on at first. */
+/** Whether the cards and counters on the battlefields show on the videos. Remembered; off at first. */
 function useBoardShown(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(() => localStorage.getItem(BOARD_KEY) !== '0');
+  const [on, setOn] = useState(() => localStorage.getItem(BOARD_KEY) === '1');
   const set = (next: boolean) => {
     localStorage.setItem(BOARD_KEY, next ? '1' : '0');
     setOn(next);

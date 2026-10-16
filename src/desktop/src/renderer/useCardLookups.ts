@@ -70,13 +70,6 @@ export function lookupCard(lookup: CardLookup): Card | null {
 /** A guess this good is very likely right. */
 export const LIKELY = 0.6;
 
-/** The card, if it's known for sure: the player's pick, or a guess that's very likely right. */
-export function sureCard(lookup: CardLookup): Card | null {
-  if (lookup.chosen) return lookup.chosen;
-  const best = lookup.step.status === 'done' ? lookup.step.guesses[0] : undefined;
-  return best && best.score >= LIKELY ? best.card : null;
-}
-
 /** Lookups kept, newest first: the cards seen this session. */
 const MAX_LOOKUPS = 30;
 

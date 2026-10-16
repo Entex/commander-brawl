@@ -34,6 +34,8 @@ interface AddToBattlefieldProps {
   readonly spot: Spot | null;
   /** Where the menu opens, in the seat (pixels from its top left). */
   readonly at: { readonly x: number; readonly y: number } | null;
+  /** Shows the cards and counters on the videos, if they're hidden: a counter or note added is only seen there. */
+  onShowBoard?: () => void;
   onClose(): void;
 }
 
@@ -41,7 +43,17 @@ interface AddToBattlefieldProps {
  * Adding to a player's battlefield, from their seat: a token (as a card on their video), a counter or a note on a
  * spot, a card, or a trigger reminder for their turns.
  */
-export function AddToBattlefield({ seat, whose, game, players, selfSeat, spot, at, onClose }: AddToBattlefieldProps) {
+export function AddToBattlefield({
+  seat,
+  whose,
+  game,
+  players,
+  selfSeat,
+  spot,
+  at,
+  onShowBoard,
+  onClose,
+}: AddToBattlefieldProps) {
   const [view, setView] = useState<View>('menu');
   const state = game.seats[seat];
   useEffect(() => {
@@ -127,6 +139,7 @@ export function AddToBattlefield({ seat, whose, game, players, selfSeat, spot, a
                   seat,
                   marker: { id: crypto.randomUUID(), spot: where, kind: k.kind, count: 1, text: '' },
                 });
+                onShowBoard?.();
                 onClose();
               }}
             >
@@ -143,6 +156,7 @@ export function AddToBattlefield({ seat, whose, game, players, selfSeat, spot, a
               seat,
               marker: { id: crypto.randomUUID(), spot: where, kind: NOTE, count: 0, text },
             });
+            onShowBoard?.();
             onClose();
           }}
         />

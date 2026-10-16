@@ -62,6 +62,8 @@ interface SeatTileProps {
   onLook(target: CardTarget, rotation: 0 | 180): void;
   /** The cards and counters with a spot show on the videos (not hidden): the seat doesn't list them again. */
   readonly boardShown?: boolean;
+  /** Shows the cards and counters on the videos: a counter or note added here is only seen there. */
+  onShowBoard?: () => void;
   readonly selfSeat?: SeatIndex | null;
   /** Opens this player's graveyard. */
   onOpenGraveyard?: () => void;
@@ -88,6 +90,7 @@ export function SeatTile({
   onOpenCard,
   onLook,
   boardShown = false,
+  onShowBoard,
   selfSeat = null,
   onOpenGraveyard,
   getSentStats,
@@ -232,6 +235,7 @@ export function SeatTile({
           selfSeat={selfSeat}
           spot={adding.spot}
           at={adding.at}
+          onShowBoard={onShowBoard}
           onClose={() => setAdding(null)}
         />
       )}

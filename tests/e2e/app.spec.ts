@@ -723,11 +723,6 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
   await expect(lookup).toContainText('Likely');
   await expect(friend.page.getByTestId('card-outline')).toContainText('Rhystic Study');
-  // On the video it's shown as the card, as big as the card the close-up found there.
-  const found = (await friend.page.locator('polygon.card-outline-line').boundingBox())!;
-  const shown = friend.page.getByTestId('board-card');
-  await expect.poll(async () => ((await shown.boundingBox())?.width ?? 0) / found.width).toBeGreaterThan(0.9);
-  expect((await shown.boundingBox())!.width / found.width).toBeLessThan(1.1);
   // What their camera saw: the whole card, cut out and straightened.
   const photo = lookup.locator('img[alt="Host\'s camera"]').first();
   await expect
@@ -735,8 +730,21 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
     .toBeCloseTo(88 / 63, 1);
   await friend.page.screenshot({ path: test.info().outputPath('close-up.png') });
 
-  // Known for sure, so it's on the host's battlefield: on the video, where it is, for everyone.
+  // Known for sure, but only on the battlefield once it's put there.
+  const put = lookup.getByRole('button', { name: 'Put Rhystic Study on the battlefield' });
+  await expect(put).toBeEnabled();
+  // The cards on the videos are hidden at first (B shows them). Put there, it's shown as the card, as big as the card
+  // the close-up found there.
+  await friend.page.keyboard.press('b');
+  await put.click();
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
+  const found = (await friend.page.locator('polygon.card-outline-line').boundingBox())!;
+  const shown = friend.page.getByTestId('board-card');
+  await expect.poll(async () => ((await shown.boundingBox())?.width ?? 0) / found.width).toBeGreaterThan(0.9);
+  expect((await shown.boundingBox())!.width / found.width).toBeLessThan(1.1);
+
+  // On the host's battlefield, for everyone: with the cards on the videos shown, on the video where it is.
+  await host.page.keyboard.press('b');
   const label = host.page.getByTestId('board-card');
   await expect(label).toHaveAccessibleName('Rhystic Study');
   // Shown as the card, like a token, not as a label.
@@ -794,10 +802,9 @@ test("clicking a card on a player's video, yours too: outlined there, and which 
   const rail = friend.page.getByTestId('card-rail');
   await expect(lookup.getByTestId('lookup-name')).toHaveText('Rhystic Study', { timeout: 30_000 });
   await expect(rail.getByRole('region', { name: 'Earlier' })).toHaveCount(0);
-  // Lower on the card, it's sometimes less sure (then it's put on the battlefield by hand). The same card: one of a
-  // kind, so it's still the one there, moved where it was clicked.
-  const put = lookup.getByRole('button', { name: 'Put Rhystic Study on the battlefield' });
-  if (await put.isVisible()) await put.click();
+  // Put on the battlefield again: the same card, one of a kind, so it's still the one there, moved where it was
+  // clicked.
+  await put.click();
   await expect(lookup.getByRole('button', { name: 'Rhystic Study is on the battlefield' })).toBeDisabled();
   await expect(host.page.getByTestId('board-card')).toHaveCount(1);
 
@@ -899,13 +906,18 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   // Common tokens are offered before anything is typed.
   await add.getByLabel('How many tokens').fill('3');
   await add.getByRole('button', { name: '1/1 Soldier' }).click();
-  // A token is shown as the card itself, not a label.
-  const tokens = host.page.getByTestId('board-card');
-  await expect(tokens).toHaveAccessibleName('Soldier');
-  await expect(tokens).toHaveAttribute('data-virtual', 'true');
-  await expect(tokens).toContainText('×3');
+  // The cards on the videos are hidden at first: the seat lists them. Shown (B), a token is the card itself.
+  await expect(friend.page.getByTestId('chips-0')).toContainText('Soldier ×3');
+  await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
+  await friend.page.keyboard.press('b');
+  await expect(friend.page.getByTestId('board-card')).toHaveAccessibleName('Soldier');
+  await expect(friend.page.getByTestId('board-card')).toHaveAttribute('data-virtual', 'true');
+  await expect(friend.page.getByTestId('board-card')).toContainText('×3');
 
-  // The host Alt+clicks a spot on their own video for a +1/+1 counter: there for the friend too.
+  // The host Alt+clicks a spot on their own video for a +1/+1 counter: there for the friend too. A counter is only
+  // seen on the videos, so they're shown for the host now too.
+  const tokens = host.page.getByTestId('board-card');
+  await expect(tokens).toHaveCount(0);
   await host.page.keyboard.down('Alt');
   const spot = await onPicture(seatVideo(host.page, 'Host (you)'), 0.3, 0.3);
   await host.page.mouse.click(spot.x, spot.y);
@@ -913,6 +925,8 @@ test('on the battlefield, on the videos: tokens, counters and notes, moved, put 
   const hostAdd = host.page.getByRole('dialog', { name: 'Add to your battlefield' });
   await hostAdd.getByRole('button', { name: 'Counter' }).click();
   await hostAdd.getByRole('button', { name: '+1/+1' }).click();
+  await expect(host.page.getByTestId('board-marker')).toHaveAccessibleName('1 +1/+1 counters');
+  await expect(tokens).toHaveAccessibleName('Soldier');
   const counter = friend.page.getByTestId('board-marker');
   await expect(counter).toHaveAccessibleName('1 +1/+1 counters');
   const counterAt = await centerOf(counter);
@@ -1040,12 +1054,13 @@ test("a player's graveyard: cards put there from the battlefield or by hand, sea
   await add.getByRole('button', { name: 'Card' }).click();
   await add.getByLabel('Card', { exact: true }).fill('sol ring');
   await add.getByRole('button', { name: 'Sol Ring' }).click();
+  await friend.page.keyboard.press('b');
   await friend.page.getByTestId('board-card').click({ modifiers: ['Alt'] });
   await friend.page
     .getByRole('group', { name: 'Sol Ring: what to do' })
     .getByRole('button', { name: 'Graveyard' })
     .click();
-  await expect(host.page.getByTestId('board-card')).toHaveCount(0);
+  await expect(friend.page.getByTestId('board-card')).toHaveCount(0);
 
   // Looked through by anyone: the host opens it from their details.
   await host.page.getByRole('button', { name: "Host's details" }).click();
