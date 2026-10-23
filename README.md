@@ -44,7 +44,7 @@ A dropped connection, a phone that locks, or a host app that crashes doesn't end
 
 ## Development
 
-You need Node.js 24 or newer.
+You need Node.js 24.22.1 or newer.
 
 ```sh
 npm install

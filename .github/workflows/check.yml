@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          # The newest 24.x, not an older one the runner has cached: security fixes come in patch releases.
+          check-latest: true
           cache: npm
 
       - run: npm ci
