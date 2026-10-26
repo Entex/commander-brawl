@@ -9,8 +9,9 @@ import type { ReadableStream } from 'node:stream/web';
 
 /**
  * Updates from the GitHub releases, done the way the install scripts do them: the app downloads the new version and
- * checks it against the release's checksums, then hands it to that release's install script, which waits for the
- * app to close, swaps the new version in (keeping the previous one) and starts it.
+ * authenticates the version and checksums with a bundled release key, checks both downloads, then hands them to
+ * that release's install script, which waits for the app to close, swaps the new version in (keeping the
+ * previous one) and starts it.
  */
 
 export const REPOSITORY = 'Entex/commander-brawl';

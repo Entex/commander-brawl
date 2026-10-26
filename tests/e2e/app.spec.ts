@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { DesktopApi } from '../../src/desktop/src/shared/api';
+import type { CropRect } from '@commander-brawl/application';
 import { RHYSTIC_STUDY, drawCardPicture } from '../support/cardPicture';
 import { startFakeGitHub } from '../support/fakeGitHub';
 import { startFakeScryfall, type FakeScryfall } from '../support/fakeScryfall';
@@ -144,6 +145,41 @@ async function expectVideoFrom(page: Page, name: string): Promise<void> {
       timeout: 20_000,
     })
     .toBeGreaterThan(10);
+}
+
+/** A modified client can bypass request-side crop clamping and ask any table member for a snapshot. */
+async function craftedSnapshot(page: Page, to: string, crop: CropRect): Promise<{ kind: string; message?: string }> {
+  return page.evaluate(
+    ({ to, crop }) => {
+      const { brawl } = window as unknown as { brawl: DesktopApi };
+      const id = crypto.randomUUID();
+      return new Promise<{ kind: string; message?: string }>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          off();
+          reject(new Error('No snapshot response'));
+        }, 5_000);
+        const off = brawl.table.onEvent((event) => {
+          if (event.type !== 'signal' || event.from !== to) return;
+          const data = event.data as { snapshot?: { id: string; kind: string; message?: string } };
+          if (data.snapshot?.id !== id) return;
+          clearTimeout(timeout);
+          off();
+          resolve({ kind: data.snapshot.kind, message: data.snapshot.message });
+        });
+        brawl.table.send(to, { snapshot: { kind: 'request', id, crop } });
+      });
+    },
+    { to, crop },
+  );
+}
+
+async function ownMemberId(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const { brawl } = window as unknown as { brawl: DesktopApi };
+    const welcome = (await brawl.table.snapshot()).find((event) => event.type === 'welcome');
+    if (!welcome || welcome.type !== 'welcome') throw new Error('No table welcome');
+    return welcome.selfId;
+  });
 }
 
 test('a host and a friend see each other', async () => {
@@ -1561,6 +1597,15 @@ test('straightening a camera that looks at the table at an angle', async () => {
   await expectVideoFrom(friend.page, 'Host');
   await friend.page.screenshot({ path: test.info().outputPath('straightened.png') });
 
+  const hostId = await ownMemberId(host.page);
+  for (const crop of [
+    { x: -0.5, y: 0, width: 1, height: 1 },
+    { x: 0.5, y: 0.5, width: 1, height: 1 },
+    { x: 0, y: 0, width: 0, height: 0.5 },
+  ]) {
+    await expect(craftedSnapshot(friend.page, hostId, crop)).resolves.toMatchObject({ kind: 'error' });
+  }
+
   // A close-up of the straight picture comes from the camera, straightened the same way.
   await hostVideo.click();
   await expect(friend.page.getByTestId('lookup').locator('img[alt="Host\'s camera"]').first()).toBeVisible({
@@ -1789,6 +1834,15 @@ test('a spectator watches without a seat, and the clean view for streaming', asy
     await expect(sam.page.getByRole('button', { name, exact: true })).toHaveCount(0);
   }
   await expect(host.page.getByTestId('spectators')).toHaveText('1 watching');
+
+  // launch() enabled Sam's webcam before joining. Watch mode must also deny the snapshot responder.
+  const samId = await ownMemberId(sam.page);
+  const wholeView = { x: 0, y: 0, width: 1, height: 1 };
+  await expect(craftedSnapshot(host.page, samId, wholeView)).resolves.toMatchObject({ kind: 'error' });
+  // Spectators can request close-ups of players, but cannot extend beyond their shared view either.
+  const hostId = await ownMemberId(host.page);
+  await expect(craftedSnapshot(sam.page, hostId, { ...wholeView, x: -0.5 })).resolves.toMatchObject({ kind: 'error' });
+  await expect(craftedSnapshot(sam.page, hostId, wholeView)).resolves.toMatchObject({ kind: 'result' });
 
   // The game, as it happens.
   await friend.page.getByTestId('life-0').getByRole('button', { name: 'Lose 5 life' }).click();

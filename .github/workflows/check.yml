@@ -1,11 +1,8 @@
-# Runs every test on every push: types, lint, formatting, unit and integration tests,
+# Runs every test on pull requests and when called by Release: types, lint, formatting, unit and integration tests,
 # real WebRTC video in Chromium, and the whole Electron app under a virtual display.
 name: Check
 
 on:
-  push:
-    # Branches only: a version tag runs these checks as part of the Release workflow, before publishing.
-    branches: ['**']
   pull_request:
   workflow_call:
 
@@ -13,7 +10,7 @@ jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # A newer push to the same branch cancels this one. (On the job, which works when Release runs this too.)
+    # A newer run for the same PR or release tag cancels this one. Job-level so Release uses it too.
     concurrency:
       group: check-${{ github.ref }}
       cancel-in-progress: true

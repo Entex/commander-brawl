@@ -50,7 +50,7 @@ export {
 export type { Homography, Point, Quad } from './perspective';
 export { Pointers, toPointer } from './pointers';
 export type { Pointer, TablePoint } from './pointers';
-export { SnapshotError, Snapshots, clampCrop } from './snapshots';
+export { SnapshotError, Snapshots, clampCrop, isCropWithinPicture } from './snapshots';
 export type { CropRect, SnapshotSource, SnapshotsOptions } from './snapshots';
 export { TableHost } from './tableHost';
 export type {

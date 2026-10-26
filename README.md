@@ -2,7 +2,7 @@
 
 Play Magic: The Gathering Commander over webcams, with up to four players. Use your phone as the camera without installing anything on it.
 
-There are no servers. Everyone installs the app, one player hosts the table, and video goes directly between the players. Voice stays on Discord.
+Players host their own tables. Everyone installs the app, one player hosts, and video goes directly between the players. Voice stays on Discord. The app also contacts external services for updates, card data, deck imports and analysis, and public address discovery. Deck analysis sends commander and deck card names and quantities to Commander Spellbook; hosting can ask your router to forward the multiplayer port.
 
 ## Install
 
@@ -18,7 +18,11 @@ irm https://github.com/Entex/commander-brawl/releases/latest/download/install.ps
 curl -fsSL https://github.com/Entex/commander-brawl/releases/latest/download/install.sh | sh
 ```
 
-When a new version is out, the app offers it on the start screen and updates itself in a click (or run the command again). The previous version is kept: `sh install.sh --rollback` goes back to it (on Windows, set `$env:CB_ROLLBACK = '1'` and run the installer again). The scripts download and unpack the app themselves, so there are no "unknown publisher" warnings.
+Installation and in-app update signing use no paid certificates or developer accounts. The installers keep the original download-preparation behavior: Windows removes downloaded-file blocking metadata from the extracted app, while macOS clears the app bundle's extended attributes (including quarantine) and applies a free ad hoc signature if needed. A valid existing app signature is kept. These steps prepare the app for local use; they do not establish an Apple- or Windows-verified publisher identity or change system-wide security policies.
+
+When a new version is out, the app offers it on the start screen. In-app installation requires a release signature verified with a public key already bundled in the app; otherwise it links to the release page. These update signatures are free and independent of Apple or Windows publisher certificates. The previous version is kept: `sh install.sh --rollback` goes back to it (on Windows, set `$env:CB_ROLLBACK = '1'` and run the installer again).
+
+The install commands above execute a script from GitHub and trust that download. SHA-256 checksums from the same release detect corruption, but do not independently verify its publisher. For a first installation, review the script or build from source using a checkout you trust. Release manifest signatures are separate from Apple notarization and Windows publisher signing.
 
 ## Play
 
@@ -63,6 +67,8 @@ npm run package      # release/: one archive per platform, the install scripts, 
 ```
 
 To release a version, set it in `package.json`, then push a tag for it: `git tag v0.2.0 && git push origin v0.2.0`. The Release workflow builds every platform and publishes the release, and installed apps offer it when they start.
+
+Before enabling in-app updates, provision an Ed25519 signing key outside the repository. Commit only its PEM public key in `src/infrastructure/src/node/releaseKeys.ts`, and configure the private PEM as the `CB_RELEASE_SIGNING_KEY` secret in the release environment. Never commit the private key. After packaging, `node scripts/sign-release.mjs` checks that the secret matches a bundled public key and signs the version plus the exact `SHA256SUMS` contents into `SHA256SUMS.sig`. The workflow publishes that signature alongside the archives. Apps verify it before downloading either the installer or the archive, then check both file hashes. A missing, modified, mismatched-version or untrusted signature prevents installation. With no bundled public key, in-app installation stays disabled. Key rotation requires shipping the next public key in an app signed by an already trusted key before switching release signing to it.
 
 The browser tests use Playwright's Chromium (`npx playwright install chromium`), or set `CB_CHROMIUM` to one you have. To add an icon, put its name in `scripts/game-icons.mjs` and run `npm run game-icons`.
 

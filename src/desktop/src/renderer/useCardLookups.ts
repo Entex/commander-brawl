@@ -5,14 +5,15 @@ import {
   type CardGuess,
   type CropRect,
   type Quad,
+  type TableSession,
 } from '@commander-brawl/application';
 import type { Card, DeckList, SeatIndex } from '@commander-brawl/domain';
 import { dataUrlToRgba, rgbaToDataUrl } from '@commander-brawl/infrastructure/browser';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { IpcTableSignaling, api } from './api';
 import { artLibrary, cardIdentifier, warmUpCardIdentifier } from './cardIdentifier';
 import type { CardTarget } from './cardTarget';
-import type { CameraState } from './useCamera';
+import { cameraStatus, type CameraState } from './useCamera';
 
 /** What their camera saw, as a picture to show. */
 export interface LookupPicture {
@@ -104,8 +105,8 @@ export interface CardLookups {
 }
 
 /** Cards clicked on players' videos, one lookup each, worked on side by side. */
-export function useCardLookups(camera: CameraState): CardLookups {
-  const takeSnapshot = useSnapshots(camera);
+export function useCardLookups(camera: CameraState, session: TableSession<MediaStreamTrack>): CardLookups {
+  const takeSnapshot = useSnapshots(camera, session);
   const [lookups, setLookups] = useState<readonly CardLookup[]>([]);
   const lastId = useRef(0);
 
@@ -324,16 +325,26 @@ export async function rememberArtwork(lookup: CardLookup, card: Card): Promise<v
  * Lives as long as the table screen. Returns how to get a picture: from a player (by id), or from your own
  * camera (null), the same way theirs answer.
  */
-function useSnapshots(camera: CameraState): (memberId: string | null, crop: CropRect) => Promise<string> {
+function useSnapshots(
+  camera: CameraState,
+  session: TableSession<MediaStreamTrack>,
+): (memberId: string | null, crop: CropRect) => Promise<string> {
   const cameraRef = useRef(camera);
   const snapshotsRef = useRef<Snapshots | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     cameraRef.current = camera;
   }, [camera]);
   useEffect(() => {
     const snapshots = new Snapshots(
       new IpcTableSignaling(),
-      { capture: (crop) => cameraRef.current.snapshot(crop) },
+      {
+        capture: async (crop) => {
+          const capture = cameraRef.current.snapshot;
+          const image = await capture(crop);
+          if (capture !== cameraRef.current.snapshot) throw new Error('The shared camera view changed.');
+          return image;
+        },
+      },
       {
         timers: {
           setTimeout: (callback, ms) => {
@@ -343,6 +354,17 @@ function useSnapshots(camera: CameraState): (memberId: string | null, crop: Crop
           now: () => Date.now(),
         },
         createId: () => crypto.randomUUID(),
+        canShareCamera: () => {
+          const state = session.getState();
+          const track = cameraRef.current.track;
+          return (
+            !state.spectating &&
+            state.seats.some((seat) => seat.isSelf) &&
+            cameraStatus(cameraRef.current) === 'live' &&
+            track?.readyState === 'live' &&
+            track.enabled
+          );
+        },
       },
     );
     snapshots.start();
@@ -351,7 +373,7 @@ function useSnapshots(camera: CameraState): (memberId: string | null, crop: Crop
       snapshots.dispose();
       snapshotsRef.current = null;
     };
-  }, []);
+  }, [session]);
   return useCallback((memberId: string | null, crop: CropRect) => {
     if (memberId === null) return cameraRef.current.snapshot(clampCrop(crop));
     return snapshotsRef.current?.request(memberId, crop) ?? Promise.reject(new Error('Not at a table.'));

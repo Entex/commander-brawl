@@ -10,7 +10,10 @@ import { afterAll } from 'vitest';
 export function temporaryDirs(): (prefix: string) => Promise<string> {
   const made: string[] = [];
   afterAll(async () => {
-    await Promise.all(made.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+    // A detached Windows installer can briefly retain its working directory after writing its final output.
+    await Promise.all(
+      made.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })),
+    );
   });
   return async (prefix) => {
     const dir = await mkdtemp(join(tmpdir(), prefix));
