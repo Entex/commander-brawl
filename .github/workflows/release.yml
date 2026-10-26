@@ -1,6 +1,7 @@
 # Publishes a release when a version tag is pushed (v0.2.0 for version 0.2.0 in package.json): the app for every
-# platform, the install scripts and SHA256SUMS. Installed apps find it when they start, and offer to update.
-# Every check has to pass first, the same ones as for any push (check.yml).
+# platform, the install scripts and SHA256SUMS (signed when a release key is configured).
+# Installed apps find it when they start; in-app installation requires a trusted signature.
+# Every check has to pass first, using the reusable check.yml workflow.
 name: Release
 
 on:
@@ -47,6 +48,16 @@ jobs:
 
       - name: Package every platform
         run: npm run package
+
+      - name: Sign the version and release checksums
+        env:
+          CB_RELEASE_SIGNING_KEY: ${{ secrets.CB_RELEASE_SIGNING_KEY }}
+        run: |
+          if [ -n "$CB_RELEASE_SIGNING_KEY" ]; then
+            node scripts/sign-release.mjs
+          else
+            echo "No release signing key configured; this release will require manual installation."
+          fi
 
       - name: Publish the release
         env:

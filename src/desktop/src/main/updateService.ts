@@ -3,6 +3,7 @@ import {
   checksumFor,
   downloadChecked,
   downloadText,
+  hasReleaseSigningKey,
   installDir,
   installerError,
   installerLogs,
@@ -10,6 +11,7 @@ import {
   isNewerVersion,
   latestRelease,
   startInstaller,
+  verifyReleaseChecksums,
   type Release,
   type UpdateOptions,
 } from '@commander-brawl/infrastructure/node';
@@ -92,6 +94,8 @@ export class UpdateService {
     try {
       this.setStatus({ state: 'downloading', version, url, progress: 0 });
       const sums = await downloadText(this.file(release, 'SHA256SUMS'), this.options);
+      const signature = await downloadText(this.file(release, 'SHA256SUMS.sig'), this.options);
+      verifyReleaseChecksums(sums, signature, version);
       const sumOf = (name: string) => {
         const sum = checksumFor(sums, name);
         if (!sum) throw new Error(`The release has no checksum for ${name}.`);
@@ -120,7 +124,13 @@ export class UpdateService {
     } catch (error) {
       console.warn('[updates] update failed', error);
       await rm(this.attemptFile, { force: true }).catch(() => undefined);
-      this.setStatus({ state: 'failed', version, url, message: (error as Error).message, canInstall: true });
+      this.setStatus({
+        state: 'failed',
+        version,
+        url,
+        message: (error as Error).message,
+        canInstall: this.canInstall(),
+      });
       return;
     }
     this.setStatus({ state: 'restarting', version, url });
@@ -132,6 +142,8 @@ export class UpdateService {
    * sandbox, the app only starts after a command run as root, which a new version would need again.
    */
   private canInstall(): boolean {
+    if (!hasReleaseSigningKey()) return false;
+    if (!this.release?.files.has('SHA256SUMS.sig')) return false;
     if (!installDir(this.options.executable, this.options.platform)) return false;
     if (!archiveName(this.options.platform, this.options.arch)) return false;
     return this.options.platform !== 'linux' || !sandboxRestricted();

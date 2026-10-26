@@ -17,6 +17,7 @@ import {
 import { isCameraHeight, type CameraHeight } from '@commander-brawl/infrastructure/protocol';
 import {
   cropInCamera,
+  isCropWithinPicture,
   shrunkSize,
   squareToQuad,
   straightenedSize,
@@ -228,6 +229,9 @@ export function useCamera(): CameraState {
 
   const snapshot = useCallback(
     async (crop: CropRect) => {
+      // Check before mapping into the raw camera, including requests from modified table clients.
+      if (!isCropWithinPicture(crop)) throw new Error('The requested crop is outside the shared camera view.');
+      if (corners && !straightener) throw new Error('The selected playmat view is not ready.');
       const receiver = receiverRef.current;
       // The phone can take a full-resolution photo; a webcam gives its current frame.
       const capture = async (part: CropRect, exact = false) => {

@@ -106,9 +106,9 @@ try {
   $exe = Join-Path $new 'commander-brawl.exe'
   if (-not (Test-Path $exe)) { throw "The archive doesn't contain the app." }
 
-  # Files that came from the internet carry a mark that makes Windows warn about an unknown publisher.
-  # This is our own app, so remove the mark.
-  Get-ChildItem -Path $new -Recurse -File | Unblock-File
+  # Keep the original installer behavior: remove download blocking metadata from this extracted app only.
+  # This prepares it for local use; it does not verify a publisher or change Windows security policies.
+  Get-ChildItem -LiteralPath $new -Recurse -File | Unblock-File
   $version = (Get-Content (Join-Path $new 'app-version')).Trim()
 
   Stop-RunningApp

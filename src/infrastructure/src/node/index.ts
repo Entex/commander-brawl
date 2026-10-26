@@ -40,6 +40,7 @@ export {
   startInstaller,
 } from './updates';
 export type { InstallerOptions, Release, UpdateOptions } from './updates';
+export { hasReleaseSigningKey, verifyReleaseChecksums } from './releaseTrust';
 export { TableClient } from './tableClient';
 export type { GameUpdate, TableClientOptions } from './tableClient';
 export { TableServer } from './tableServer';

@@ -43,6 +43,17 @@ sha256() {
   fi
 }
 
+prepare_macos_app() {
+  # Keep the original installer behavior: prepare this downloaded bundle for local use without a paid
+  # certificate. Clearing its extended attributes removes quarantine; it does not verify a publisher.
+  xattr -cr "$1" || fail "Could not prepare the downloaded app metadata."
+  # Preserve a valid existing signature, or repair the cross-packaged bundle with a free ad-hoc signature.
+  if codesign --verify --deep --strict "$1" >/dev/null 2>&1; then return; fi
+  say "Preparing the app with a free local signature..."
+  codesign --force --deep --sign - "$1" >/dev/null 2>&1 || fail "Could not prepare the app (codesign failed)."
+  codesign --verify --deep --strict "$1" >/dev/null 2>&1 || fail "The prepared app signature is invalid."
+}
+
 case "$(uname -s)" in
   Linux) platform=linux ;;
   Darwin) platform=darwin ;;
@@ -122,11 +133,8 @@ version=$(cat "$new/app-version" 2>/dev/null || echo unknown)
 if [ "$platform" = darwin ]; then
   bundle="$new/Commander Brawl.app"
   [ -d "$bundle" ] || fail "The archive doesn't contain the app."
-  cp "$new/app-version" "$bundle/Contents/Resources/app-version"
-  # Downloaded files are marked as "from the internet", which makes macOS refuse unsigned apps.
-  # This is our own app, so remove the mark and sign it for this computer only (no Apple account needed).
-  xattr -cr "$bundle"
-  codesign --force --deep --sign - "$bundle" >/dev/null 2>&1 || fail "Could not prepare the app (codesign failed)."
+  [ -f "$bundle/Contents/Resources/app-version" ] || fail "The app bundle has no version file."
+  prepare_macos_app "$bundle"
   stop_running_app
   mkdir -p "$(dirname "$app")"
   rm -rf "$previous"

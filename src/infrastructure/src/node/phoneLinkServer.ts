@@ -102,8 +102,12 @@ export class PhoneLinkServer {
   }
 
   private isAuthorized(request: IncomingMessage): boolean {
-    const url = new URL(request.url ?? '/', 'https://phone.invalid');
-    return url.pathname === PHONE_LINK_PATH && safeEquals(url.searchParams.get('token') ?? '', this.token);
+    try {
+      const url = new URL(request.url ?? '/', 'https://phone.invalid');
+      return url.pathname === PHONE_LINK_PATH && safeEquals(url.searchParams.get('token') ?? '', this.token);
+    } catch {
+      return false;
+    }
   }
 
   private accept(ws: WebSocket, events: PhoneLinkEvents): void {

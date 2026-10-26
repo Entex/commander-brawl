@@ -29,6 +29,8 @@ export class SnapshotError extends Error {
 export interface SnapshotsOptions {
   readonly timers: Timers;
   readonly createId: () => string;
+  /** Current permission to share this camera. Checked before capture and again before sending a picture. */
+  readonly canShareCamera: () => boolean;
   /** How long to wait for the other player's camera. */
   readonly timeoutMs?: number;
 }
@@ -61,6 +63,7 @@ export class Snapshots {
 
   dispose(): void {
     this.unsubscribe?.();
+    this.unsubscribe = null;
     for (const [id, waiting] of this.waiting) {
       waiting.cancelTimeout();
       waiting.reject(new SnapshotError('Left the table.'));
@@ -97,13 +100,24 @@ export class Snapshots {
   }
 
   private async answer(to: string, id: string, crop: CropRect): Promise<void> {
-    if (!this.source) {
+    if (!this.source || !this.options.canShareCamera()) {
       this.send(to, { kind: 'error', id, message: "They don't have a camera on." });
       return;
     }
+    if (!isCropWithinPicture(crop)) {
+      this.send(to, { kind: 'error', id, message: 'The requested crop is outside the shared camera view.' });
+      return;
+    }
     try {
-      this.send(to, { kind: 'result', id, image: await this.source.capture(crop) });
+      const image = await this.source.capture(crop);
+      if (!this.unsubscribe) return;
+      if (!this.options.canShareCamera()) {
+        this.send(to, { kind: 'error', id, message: "They don't have a camera on." });
+        return;
+      }
+      this.send(to, { kind: 'result', id, image });
     } catch (error) {
+      if (!this.unsubscribe) return;
       this.send(to, {
         kind: 'error',
         id,
@@ -115,6 +129,19 @@ export class Snapshots {
   private send(to: string, message: SnapshotMessage): void {
     this.signaling.send(to, { snapshot: message });
   }
+}
+
+/** A nonempty crop wholly inside the view the camera owner shares. */
+export function isCropWithinPicture(crop: CropRect): boolean {
+  return (
+    [crop.x, crop.y, crop.width, crop.height].every(Number.isFinite) &&
+    crop.x >= 0 &&
+    crop.y >= 0 &&
+    crop.width > 0 &&
+    crop.height > 0 &&
+    crop.x + crop.width <= 1 &&
+    crop.y + crop.height <= 1
+  );
 }
 
 export function clampCrop(crop: CropRect): CropRect {

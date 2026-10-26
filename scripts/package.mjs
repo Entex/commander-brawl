@@ -82,6 +82,13 @@ for (const target of targets) {
     await rename(packaged, content);
   }
   await writeFile(join(content, 'app-version'), `${version}\n`);
+  if (platform === 'darwin') {
+    // The installer must not change resources inside a publisher-signed app bundle.
+    await copyFile(
+      join(content, 'app-version'),
+      join(content, 'Commander Brawl.app', 'Contents', 'Resources', 'app-version'),
+    );
+  }
   // For the Linux app menu entry that install.sh writes.
   if (platform === 'linux') await copyFile(resolve(root, 'assets/icon.png'), join(content, 'icon.png'));
 

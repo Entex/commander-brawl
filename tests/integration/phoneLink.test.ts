@@ -77,6 +77,37 @@ describe('phone link server', () => {
     expect(events).toEqual([]);
   });
 
+  it.each(['//[', 'http://[', '//%'])(
+    'rejects a malformed upgrade URL (%s) and still accepts a phone',
+    async (path) => {
+      const status = await new Promise<number>((resolve, reject) => {
+        get(
+          {
+            host: '127.0.0.1',
+            port: server.port,
+            path,
+            rejectUnauthorized: false,
+            headers: {
+              Connection: 'Upgrade',
+              Upgrade: 'websocket',
+              'Sec-WebSocket-Version': '13',
+              'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+            },
+          },
+          (response) => {
+            response.resume();
+            response.once('end', () => resolve(response.statusCode ?? 0));
+          },
+        ).on('error', reject);
+      });
+      expect(status).toBe(401);
+      expect(events).toEqual([]);
+      const ws = phone();
+      await new Promise((resolve) => ws.once('open', resolve));
+      expect(server.isConnected).toBe(true);
+    },
+  );
+
   it('relays the phone messages and answers pings', async () => {
     const ws = phone();
     await new Promise((resolve) => ws.once('open', resolve));

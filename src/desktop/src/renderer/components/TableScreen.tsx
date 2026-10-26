@@ -133,7 +133,7 @@ export function TableScreen({ config, host, camera, onOpenCamera, onLeave }: Tab
     addKnown,
     accept,
     remove: removeLookups,
-  } = useCardLookups(camera);
+  } = useCardLookups(camera, session);
   // Cards shown to everyone, and other players' finds, come into Cards seen too.
   useCardsFromTheTable(game, state.seats, selfSeat, addKnown);
   const suggestions = lookups.filter((lookup) => lookup.suggested).length;

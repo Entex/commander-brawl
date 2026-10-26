@@ -64,7 +64,7 @@ export function StartScreen({
           <Icon name="crossed-sabres" className="start-logo" />
           <div>
             <h1>Commander Brawl</h1>
-            <p className="hint">Commander with friends, over cameras. No accounts, no servers.</p>
+            <p className="hint">Commander with friends, over cameras. No accounts. Players host the table.</p>
           </div>
         </header>
 
