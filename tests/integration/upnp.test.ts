@@ -1,5 +1,6 @@
 import {
   addPortMapping,
+  UpnpError,
   connectionService,
   deletePortMapping,
   discoverGateway,
@@ -11,6 +12,7 @@ import { createSocket } from 'node:dgram';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
+import { getConnections } from '../../src/infrastructure/src/node/upnp';
 
 const closing: (() => void)[] = [];
 afterEach(() => {
@@ -18,7 +20,8 @@ afterEach(() => {
 });
 
 /** A home router's description, as MiniUPnPd (version 1 of the standard) gives it. */
-function description(service: string): string {
+function description(service: string | readonly string[]): string {
+  const services = typeof service === 'string' ? [service] : service;
   return `<?xml version="1.0"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
   <device>
@@ -31,10 +34,14 @@ function description(service: string): string {
       <deviceType>urn:schemas-upnp-org:device:WANDevice:1</deviceType>
       <deviceList><device>
         <deviceType>urn:schemas-upnp-org:device:WANConnectionDevice:1</deviceType>
-        <serviceList><service>
-          <serviceType>${service}</serviceType>
+        <serviceList>${services
+          .map(
+            (type) => `<service>
+          <serviceType>${type}</serviceType>
           <controlURL>/ctl/IPConn</controlURL>
-        </service></serviceList>
+        </service>`,
+          )
+          .join('')}</serviceList>
       </device></deviceList>
     </device></deviceList>
   </device>
@@ -42,12 +49,19 @@ function description(service: string): string {
 }
 
 /** A router that keeps port mappings, and only takes permanent ones if told to (as some do). */
-async function fakeRouter(options: { onlyPermanent?: boolean } = {}) {
+async function fakeRouter(
+  options: {
+    onlyPermanent?: boolean;
+    permanentCode?: number;
+    refuse?: number;
+    service?: string | readonly string[];
+  } = {},
+) {
   const mappings = new Map<number, { host: string; lease: number }>();
   const actions: string[] = [];
   const server = createServer((request, response) => {
     if (request.method === 'GET') {
-      response.end(description('urn:schemas-upnp-org:service:WANIPConnection:1'));
+      response.end(description(options.service ?? 'urn:schemas-upnp-org:service:WANIPConnection:1'));
       return;
     }
     let body = '';
@@ -68,7 +82,9 @@ async function fakeRouter(options: { onlyPermanent?: boolean } = {}) {
         );
       } else if (action === 'AddPortMapping') {
         const lease = Number(value('NewLeaseDuration'));
-        if (options.onlyPermanent && lease !== 0) return fault(725, 'OnlyPermanentLeasesSupported');
+        if (options.refuse) return fault(options.refuse, 'Invalid Args');
+        if (options.onlyPermanent && lease !== 0)
+          return fault(options.permanentCode ?? 725, 'OnlyPermanentLeasesSupported');
         mappings.set(Number(value('NewExternalPort')), { host: value('NewInternalClient'), lease });
         response.end('<s:Envelope><s:Body/></s:Envelope>');
       } else if (action === 'DeletePortMapping') {
@@ -114,12 +130,13 @@ describe('finding the router (UPnP)', () => {
     await new Promise<void>((resolve) => responder.bind(0, '127.0.0.1', resolve));
     closing.push(() => responder.close());
 
-    const { location } = await discoverGateway({
+    const { location, localAddress } = await discoverGateway({
       target: { address: '127.0.0.1', port: responder.address().port },
       from: ['127.0.0.1'],
       router: () => null,
     });
     expect(location?.href).toBe(router.location.href);
+    expect(localAddress).toBe('127.0.0.1');
     // Not UPnP's own port: on Windows a system service holds it, and would get the answer.
     expect(searchedFromPort).not.toBe(1900);
   });
@@ -161,6 +178,18 @@ describe('finding the router (UPnP)', () => {
     }
     expect(connectionService(description('urn:example:something-else'), location)).toBeNull();
   });
+
+  it('finishes cleanly and reports the socket error when an adapter cannot be bound', async () => {
+    const result = await discoverGateway({ from: ['192.0.2.1'], router: () => null, timeoutMs: 200 });
+    expect(result).toMatchObject({ location: null, localAddress: null, sendError: 'EADDRNOTAVAIL' });
+  });
+
+  it('keeps all forwarding services so a rejected service can fall back to another', async () => {
+    const v1 = 'urn:schemas-upnp-org:service:WANIPConnection:1';
+    const v2 = 'urn:schemas-upnp-org:service:WANIPConnection:2';
+    const router = await fakeRouter({ service: [v1, v2] });
+    expect((await getConnections(router.location)).map((service) => service.serviceType)).toEqual([v2, v1]);
+  });
 });
 
 describe('forwarding a port on the router (UPnP)', () => {
@@ -180,5 +209,38 @@ describe('forwarding a port on the router (UPnP)', () => {
     expect(await addPortMapping(connection, 47801, '192.168.1.59', 'Commander Brawl', 3600)).toBe(0);
     expect(router.mappings.get(47801)?.lease).toBe(0);
     expect(router.actions).toEqual(['AddPortMapping', 'AddPortMapping']);
+  });
+
+  it('tries a permanent lease once when a v1 service rejects the timed lease with generic Invalid Args', async () => {
+    const router = await fakeRouter({ onlyPermanent: true, permanentCode: 402 });
+    const connection = await getConnection(router.location);
+    expect(await addPortMapping(connection, 47801, '192.168.1.235', 'Commander Brawl', 3600)).toBe(0);
+    expect(router.mappings.get(47801)).toEqual({ host: '192.168.1.235', lease: 0 });
+    expect(router.actions).toEqual(['AddPortMapping', 'AddPortMapping']);
+  });
+
+  it('reports the failed action and router error code if both lease attempts fail', async () => {
+    const router = await fakeRouter({ refuse: 402 });
+    const connection = await getConnection(router.location);
+    await expect(addPortMapping(connection, 47801, '192.168.1.235', 'Commander Brawl', 3600)).rejects.toMatchObject({
+      name: 'UpnpError',
+      code: 402,
+      message: 'AddPortMapping: Invalid Args (UPnP 402)',
+    });
+    expect(router.actions).toEqual(['AddPortMapping', 'AddPortMapping']);
+  });
+
+  it('does not retry authorization errors or request permanent leases from a v2 service', async () => {
+    for (const options of [
+      { refuse: 606 },
+      { refuse: 402, service: 'urn:schemas-upnp-org:service:WANIPConnection:2' },
+    ]) {
+      const router = await fakeRouter(options);
+      const connection = await getConnection(router.location);
+      await expect(addPortMapping(connection, 47801, '192.168.1.235', 'Commander Brawl', 3600)).rejects.toBeInstanceOf(
+        UpnpError,
+      );
+      expect(router.actions).toEqual(['AddPortMapping']);
+    }
   });
 });

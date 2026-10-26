@@ -19,7 +19,7 @@ export function lanAddresses(): string[] {
 
 /**
  * Where the home router probably is, for one of this computer's addresses: the first address of that network
- * (192.168.1.1 for 192.168.1.138), where nearly every home router sits. Node can't ask the system for the real one.
+ * (192.168.1.1 for 192.168.1.138). Only a fallback when the system's configured gateway can't be read.
  */
 export function likelyRouter(localAddress: string): string | null {
   for (const entries of Object.values(networkInterfaces())) {

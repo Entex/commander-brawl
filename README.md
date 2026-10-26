@@ -28,6 +28,14 @@ When a new version is out, the app offers it on the start screen and updates its
 
 A dropped connection, a phone that locks, or a host app that crashes doesn't end the game: the app reconnects and holds your seat, and the host clicks _Resume table_.
 
+If friends can't join a hosted table:
+
+- **Windows:** allow Commander Brawl through Windows Security → Firewall & network protection → Allow an app through firewall. On trusted home Wi-Fi or Ethernet, use the Private network profile and allow the app on Private networks. A router port forward still needs the computer's firewall to allow incoming connections.
+- **“No router answered”:** check that UPnP is enabled on the router, use the main home network rather than guest Wi-Fi, and try disconnecting a VPN. NAT-PMP also needs to be enabled if the router supports it.
+- **“Invalid Args”:** the router was found, but rejected a UPnP action. The error includes the action and code; firmware or service compatibility can matter even with the same router model.
+- If automatic forwarding still fails, forward the TCP port shown by the app (normally 47801) to the hosting computer's LAN address shown in the banner. Ask someone outside that home network to try the invite. A failed check from inside the home doesn't prove the port is closed: some routers don't support connecting back through their own public address.
+- If the router's WAN address is private or in `100.64.0.0/10`, another router or the ISP may be doing NAT as well. Forwarding only the home router may not be enough; another player can host instead.
+
 ## What's in it
 
 - **Turns:** a random or chosen turn order, phases, and a turn timer or chess clock. On your turn, Space passes it and Ctrl+Space goes to the next phase. **Wait!** (W) shows "I have a response!" on every screen until it's resolved. Set trigger reminders on a phase, or ask the active player to stop at one of theirs. _Enlarge the active player_ gives their seat most of the screen. Press ? for every keyboard shortcut.

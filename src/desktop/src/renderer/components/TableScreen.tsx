@@ -689,7 +689,8 @@ function ReachabilityHelp({ host }: { readonly host: HostInfo }) {
       <p className="banner">
         {reachability.reason} If TCP port {reachability.port} is forwarded to this computer
         {reachability.localAddress ? ` (${reachability.localAddress})` : ''}, friends can join with the invite: it has
-        your internet address ({reachability.address}). Your router doesn't let this computer check that itself.
+        your internet address ({reachability.address}). The app couldn't verify an incoming connection. Check that
+        Commander Brawl is allowed through this computer's firewall too.
       </p>
     );
   }

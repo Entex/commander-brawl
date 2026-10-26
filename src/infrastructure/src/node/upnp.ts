@@ -58,6 +58,8 @@ export interface DiscoverOptions {
 export interface Discovery {
   /** Where the router's description is, if a router answered. */
   readonly location: URL | null;
+  /** This computer's address on the network where the router answered. Use it as the mapping's destination. */
+  readonly localAddress: string | null;
   /**
    * Why the search couldn't be sent to everyone on the network, if it couldn't (like EHOSTUNREACH): the system
    * may have blocked it, as macOS does for apps not allowed on the local network.
@@ -86,19 +88,25 @@ export function discoverGateway(options: DiscoverOptions = {}): Promise<Discover
   const from = options.from ?? lanAddresses();
   return new Promise((resolve) => {
     if (from.length === 0) {
-      resolve({ location: null, sendError: null });
+      resolve({ location: null, localAddress: null, sendError: null });
       return;
     }
     const sockets = from.map(() => createSocket({ type: 'udp4', reuseAddr: true }));
     let sendError: string | null = null;
     let settled = false;
-    const done = (location: URL | null) => {
+    const done = (location: URL | null, localAddress: string | null = null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       clearTimeout(again);
-      for (const socket of sockets) socket.close();
-      resolve({ location, sendError: location ? null : sendError });
+      for (const socket of sockets) {
+        try {
+          socket.close();
+        } catch {
+          // A disappeared adapter may have failed to bind, leaving no running socket to close.
+        }
+      }
+      resolve({ location, localAddress, sendError: location ? null : sendError });
     };
     const timer = setTimeout(() => done(null), timeoutMs);
     const searches: (() => void)[] = [];
@@ -108,9 +116,11 @@ export function discoverGateway(options: DiscoverOptions = {}): Promise<Discover
       const direct = router(address);
       socket.on('message', (message) => {
         const location = parseSearchAnswer(message.toString());
-        if (location) done(location);
+        if (location) done(location, address);
       });
-      socket.on('error', () => undefined);
+      socket.on('error', (error: NodeJS.ErrnoException) => {
+        sendError ??= error.code ?? null;
+      });
       const search = () => {
         if (settled) return;
         for (const searchTarget of SEARCH_TARGETS) {
@@ -170,16 +180,20 @@ function header(message: string, name: string): string | null {
 
 /** The router's port forwarding service, from its description (the XML its search answer points to). */
 export function connectionService(description: string, location: URL): UpnpConnection | null {
+  return connectionServices(description, location)[0] ?? null;
+}
+
+function connectionServices(description: string, location: URL): UpnpConnection[] {
   const base = tagText(description, 'URLBase') ?? location.href;
   const services = [...description.matchAll(/<service>([\s\S]*?)<\/service>/gi)].map(([, body]) => ({
     serviceType: tagText(body!, 'serviceType') ?? '',
     controlUrl: tagText(body!, 'controlURL') ?? '',
   }));
-  for (const wanted of CONNECTION_SERVICES) {
-    const service = services.find((s) => s.serviceType === wanted && s.controlUrl);
-    if (service) return { serviceType: service.serviceType, controlUrl: new URL(service.controlUrl, base) };
-  }
-  return null;
+  return CONNECTION_SERVICES.flatMap((wanted) =>
+    services
+      .filter((service) => service.serviceType === wanted && service.controlUrl)
+      .map((service) => ({ serviceType: service.serviceType, controlUrl: new URL(service.controlUrl, base) })),
+  );
 }
 
 function tagText(xml: string, tag: string): string | null {
@@ -202,11 +216,16 @@ function encodeXml(text: string): string {
 
 /** Fetches a router's description and finds its port forwarding service. */
 export async function getConnection(location: URL, timeoutMs = 5_000): Promise<UpnpConnection> {
+  return (await getConnections(location, timeoutMs))[0]!;
+}
+
+/** All advertised forwarding services: a router may advertise v2 but only accept mappings through v1. */
+export async function getConnections(location: URL, timeoutMs = 5_000): Promise<UpnpConnection[]> {
   const response = await fetch(location, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) throw new UpnpError(`The router's description couldn't be read (${response.status}).`);
-  const service = connectionService(await response.text(), location);
-  if (!service) throw new UpnpError("The router doesn't offer port forwarding over UPnP.");
-  return service;
+  const services = connectionServices(await response.text(), location);
+  if (services.length === 0) throw new UpnpError("The router doesn't offer port forwarding over UPnP.");
+  return services;
 }
 
 /** Sends a request (a SOAP action) to the router, and returns the values in its answer. */
@@ -232,9 +251,13 @@ export async function callAction(
   });
   const text = await response.text();
   if (!response.ok) {
-    const code = Number(tagText(text, 'errorCode'));
+    const errorCode = tagText(text, 'errorCode');
+    const code = errorCode === null ? NaN : Number(errorCode);
     const description = tagText(text, 'errorDescription') ?? `HTTP ${response.status}`;
-    throw new UpnpError(description, Number.isFinite(code) ? code : null);
+    throw new UpnpError(
+      `${action}: ${description}${Number.isFinite(code) ? ` (UPnP ${code})` : ''}`,
+      Number.isFinite(code) ? code : null,
+    );
   }
   const values: Record<string, string> = {};
   for (const [, name, value] of text.matchAll(/<(New\w+)>([\s\S]*?)<\/\1>/g)) values[name!] = decodeXml(value!);
@@ -273,7 +296,11 @@ export async function addPortMapping(
     await callAction(connection, 'AddPortMapping', args(leaseSeconds));
     return leaseSeconds;
   } catch (error) {
-    if (!(error instanceof UpnpError) || error.code !== ONLY_PERMANENT_LEASES || leaseSeconds === 0) throw error;
+    // A v1 service may reject timed leases with generic Invalid Args; try a permanent lease once.
+    const tryPermanent =
+      error instanceof UpnpError &&
+      (error.code === ONLY_PERMANENT_LEASES || (error.code === 402 && connection.serviceType.endsWith(':1')));
+    if (!tryPermanent || leaseSeconds === 0) throw error;
     await callAction(connection, 'AddPortMapping', args(0));
     return 0;
   }
